@@ -1,6 +1,6 @@
 import React from 'react';
-import TestComp1 from './TestComp1';
-import TestComp2 from './TestComp2';
+import TestComp1 from '../components/TestComp1';
+import TestComp2 from '../components/TestComp2';
 
 const HomePage = () => {
   return (
