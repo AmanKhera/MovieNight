@@ -16,7 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from user_login import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('hosted-login', views.hosted_ui_login, name='hosted_ui_login'),
+    path('Login', views.login_callback, name='login_callback'),
 ]

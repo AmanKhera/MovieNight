@@ -135,6 +135,7 @@ CORS_ALLOW_CREDENTIALS = True
 AWS_COGNITO_USER_POOL_ID = "us-east-1_0wS3ue88a"
 AWS_COGNITO_CLIENT_ID = "6sncmdem84i1dlrh1ope133442"
 AWS_COGNITO_REGION = "us-east-1"
+AWS_COGNITO_DOMAIN = "movienight.auth.us-east-1.amazoncognito.com"
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
