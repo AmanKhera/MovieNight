@@ -139,3 +139,4 @@ def login_callback(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)    
+
