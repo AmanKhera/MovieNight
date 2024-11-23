@@ -8,6 +8,8 @@ from django.shortcuts import redirect
 from django.conf import settings
 import requests
 
+#Sign up Method
+#If we create out own login page we can pass the sign-up params and cognito will sign up the user
 @csrf_exempt
 def sign_up(request):
     if request.method == "POST":
@@ -43,7 +45,8 @@ def sign_up(request):
     return JsonResponse({"error": "Invalid HTTP method"}, status=405) 
 
 
-
+#Login Method
+#Used if we create our own login page, we pass the login info to cognito
 @csrf_exempt
 def login(request):
     if request.method == "POST":
@@ -79,9 +82,10 @@ def login(request):
 
 
 
-
-#When user clicks on login page it sends them to aws cognito and then to 
-#http://localhost:8000/Login
+#hosted_iu_login
+#   When user clicks on login page it sends them to aws cognito and then to 
+#   http://localhost:8000/hosted-login
+#   at which point if the user logs in we go to the login_callback Method
 def hosted_ui_login(request):
     cognito_url = (
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
@@ -93,7 +97,12 @@ def hosted_ui_login(request):
     return redirect(cognito_url)
 
 
-
+#login_callback
+#   Provides 2 tokens:
+#       ID Token: Can be used to retrieve personal information such as username or email
+#       Access Token: More secure than an id token and is updated on the spot, same features as id token
+#       but more secure and what we will be using
+#   Tokens can be retrieved via request.session["token_name"]
 def login_callback(request):
     code = request.GET.get('code')
 
@@ -120,10 +129,11 @@ def login_callback(request):
             return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
 
         tokens = response.json()
-        # Handle tokens (e.g., store in session or cookies)
         request.session["id_token"] = tokens.get("id_token")
         request.session["access_token"] = tokens.get("access_token")
         request.session["refresh_token"] = tokens.get("refresh_token")
+
+        print(request.session["access_token"])
 
         return JsonResponse({"message": "Login successful", "tokens": tokens}, status=200)
 

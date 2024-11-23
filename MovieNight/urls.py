@@ -16,10 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from user_login import views
+from user_login import views as user_login_views
+from user import views as user_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('hosted-login', views.hosted_ui_login, name='hosted_ui_login'),
-    path('Login', views.login_callback, name='login_callback'),
+    #Links to cognito login page
+    path('hosted-login', user_login_views.hosted_ui_login, name='hosted_ui_login'),
+    #used to grab authentication tokens
+    path('Login', user_login_views.login_callback, name='login_callback'),
 ]
