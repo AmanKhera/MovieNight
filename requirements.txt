@@ -1,0 +1,2 @@
+Django==5.0.4
+pymysql==1.1.1
