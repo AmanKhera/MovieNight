@@ -9,6 +9,7 @@ const HomePage = () => {
       <TestComp1/>
       <TestComp2/>
       <MovieCarousel title="Input Goes Here and changes Title"/>  {/* To use the MovieCarousel copy the code on the left and change the title to whichever string you want to display at the top of the Carousel*/}
+      <MovieCarousel title="Input Goes Here and changes Title"/>
     </div>
   );
 };

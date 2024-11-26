@@ -7,18 +7,37 @@ const Carousel = ({ title = "In a Mood" }) => {
     imgSrc: `https://via.placeholder.com/200x300?text=Placeholder+${index + 1}`,
   }));
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const itemsToScroll = 1; // Scroll one item per click
+  const [currentIndex, setCurrentIndex] = useState(itemsPerPage);
+  const [enableTransition, setEnableTransition] = useState(true);
+
+  const totalItems = shows.length;
+
 
   // Adjust the number of visible items based on window size
   useEffect(() => {
     const updateItemsPerPage = () => {
       const width = window.innerWidth;
-      if (width >= 1200) setItemsPerPage(5);
-      else if (width >= 992) setItemsPerPage(4);
-      else if (width >= 768) setItemsPerPage(3);
-      else setItemsPerPage(2);
+
+      let newItemsPerPage;
+      if (width >= 1400) newItemsPerPage = 10;
+      else if (width >= 1200) newItemsPerPage = 8;
+      else if (width >= 992) newItemsPerPage = 6;
+      else if (width >= 768) newItemsPerPage = 4;
+      else newItemsPerPage = 2;
+
+      setItemsPerPage((prevItemsPerPage) => {
+        if (prevItemsPerPage !== newItemsPerPage) {
+          setCurrentIndex((prevIndex) =>
+            prevIndex + (newItemsPerPage - prevItemsPerPage)
+          );
+          return newItemsPerPage;
+        }
+        return prevItemsPerPage;
+      });
+
     };
 
     updateItemsPerPage();
@@ -29,43 +48,50 @@ const Carousel = ({ title = "In a Mood" }) => {
     };
   }, []);
 
-  // Clone the first and last few items to allow smooth infinite scrolling
-  const totalItems = shows.length;
+
+  // Clone items to create the illusion of infinite scrolling
   const extendedItems = [
-    ...shows.slice(-itemsPerPage), // Clone the last few items
+    ...shows.slice(-itemsPerPage),
     ...shows,
-    ...shows.slice(0, itemsPerPage), // Clone the first few items
+    ...shows.slice(0, itemsPerPage),
+
   ];
 
   // Handle next slide
   const nextSlide = () => {
-    if (!isTransitioning) {
-      setIsTransitioning(true);
-      setCurrentIndex((prevIndex) => prevIndex + 1);
-    }
+
+    setEnableTransition(true);
+    setCurrentIndex((prevIndex) => prevIndex + itemsToScroll);
+
   };
 
   // Handle previous slide
   const prevSlide = () => {
-    if (!isTransitioning) {
-      setIsTransitioning(true);
-      setCurrentIndex((prevIndex) => prevIndex - 1);
-    }
+
+    setEnableTransition(true);
+    setCurrentIndex((prevIndex) => prevIndex - itemsToScroll);
+
   };
 
   // Reset position after transition for infinite scrolling
   const handleTransitionEnd = () => {
-    setIsTransitioning(false);
-    if (currentIndex === totalItems) {
-      setCurrentIndex(0); // Reset to the first item
-    } else if (currentIndex === -1) {
-      setCurrentIndex(totalItems - 1); // Reset to the last item
+
+    if (currentIndex >= totalItems + itemsPerPage) {
+      // Reached the end, reset to the start
+      setEnableTransition(false);
+      setCurrentIndex(currentIndex - totalItems);
+    } else if (currentIndex <= itemsPerPage - totalItems) {
+      // Reached the beginning, reset to the end
+      setEnableTransition(false);
+      setCurrentIndex(currentIndex + totalItems);
+
     }
   };
 
   const getTransformStyle = () => {
-    const translateValue =
-      ((currentIndex + itemsPerPage) * 100) / itemsPerPage;
+
+    const itemWidthPercentage = 100 / itemsPerPage;
+    const translateValue = currentIndex * itemWidthPercentage;
     return `translateX(-${translateValue}%)`;
   };
 
@@ -80,7 +106,9 @@ const Carousel = ({ title = "In a Mood" }) => {
           className="carousel-container"
           style={{
             transform: getTransformStyle(),
-            transition: isTransitioning ? "transform 0.5s ease-in-out" : "none",
+
+            transition: enableTransition ? "transform 0.5s ease-in-out" : "none",
+
           }}
           onTransitionEnd={handleTransitionEnd}
         >
@@ -89,10 +117,16 @@ const Carousel = ({ title = "In a Mood" }) => {
               className="carousel-item"
               key={index}
               style={{
-                width: `calc(${100 / itemsPerPage}% - 10px)`,
+
+                width: `${100 / itemsPerPage}%`,
               }}
             >
-              <img src={show.imgSrc} alt={show.title} className="carousel-image" />
+              <img
+                src={show.imgSrc}
+                alt={show.title}
+                className="carousel-image"
+              />
+
               <div className="carousel-info">
                 <h3>{show.title}</h3>
               </div>
