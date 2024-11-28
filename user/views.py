@@ -15,6 +15,7 @@ def get_user_username(request):
     try:
         # Decode the token without verifying the signature
         decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+        print("Decoded Access Token:", decoded_token)
         
         # Extract the username from the decoded token
         username = decoded_token.get("username")

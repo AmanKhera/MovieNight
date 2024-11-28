@@ -7,6 +7,11 @@ from .utils import get_cognito_client
 from django.shortcuts import redirect
 from django.conf import settings
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
+from user.models import User
+from user.views import get_user_username
+import jwt
+
 
 #Sign up Method
 #If we create out own login page we can pass the sign-up params and cognito will sign up the user
@@ -91,7 +96,7 @@ def hosted_ui_login(request):
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
         f"client_id={settings.AWS_COGNITO_CLIENT_ID}&"
         f"response_type=code&"
-        f"scope=email+openid+phone&"
+        f"scope=email+openid+phone+aws.cognito.signin.user.admin&"  # Include required scopes
         f"redirect_uri=http://localhost:8000/Login"
     )
     return redirect(cognito_url)
@@ -104,6 +109,8 @@ def hosted_ui_login(request):
 #       but more secure and what we will be using
 #   Tokens can be retrieved via request.session["token_name"]
 def login_callback(request):
+
+
     code = request.GET.get('code')
 
     if not code:
@@ -129,14 +136,72 @@ def login_callback(request):
             return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
 
         tokens = response.json()
+
+        
+
+
         request.session["id_token"] = tokens.get("id_token")
         request.session["access_token"] = tokens.get("access_token")
         request.session["refresh_token"] = tokens.get("refresh_token")
 
-        print(request.session["access_token"])
 
         return JsonResponse({"message": "Login successful", "tokens": tokens}, status=200)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)    
+    
 
+def update_or_create_user_from_cognito(request):
+    """
+    Fetch user information from AWS Cognito using tokens stored in cookies and update/create a User in the database.
+
+    Args:
+        request: Django HTTP request object with cookies containing tokens.
+
+    Returns:
+        JsonResponse: Success or error message.
+    """
+    try:
+        # Retrieve access token from session
+        access_token = request.session.get("access_token")
+        if not access_token:
+            return JsonResponse({'error': 'Access token is missing from session.'}, status=401)
+
+        # Decode the access token to log available information
+        decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+        #logging.debug(f"Decoded Access Token: {decoded_token}")
+
+        # Retrieve user attributes from Cognito using GetUser API
+        client = get_cognito_client()
+        response = client.get_user(AccessToken=access_token)
+
+        # Parse Cognito response to extract user attributes
+        user_attributes = {attr['Name']: attr['Value'] for attr in response['UserAttributes']}
+        email = user_attributes.get('email')
+        name = user_attributes.get('name', email.split('@')[0]) if email else None
+
+        if not email:
+            return JsonResponse({'error': 'Email is required to update or create a user.'}, status=400)
+
+        # Update or create the user in the User model
+        user, created = User.objects.update_or_create(
+            email=email,
+            defaults={
+                'name': decoded_token.get('username'),  # Fallback to username if name is missing
+                'date_joined': None,  # You can set this to a default or parse if available
+            }
+        )
+
+       # logging.debug(f"User {'created' if created else 'updated'}: {user}")
+
+        return JsonResponse({
+            'message': 'User updated successfully' if not created else 'User created successfully',
+            'user_id': user.id
+        })
+
+    except client.exceptions.NotAuthorizedException:
+        return JsonResponse({'error': 'Invalid access token'}, status=401)
+    except client.exceptions.UserNotFoundException:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
