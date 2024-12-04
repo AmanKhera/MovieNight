@@ -37,12 +37,14 @@ urlpatterns = [
     #returns dictionary as {"Title": "Inception", "poster": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_SX300.jpg"}
     path('movie_poster/', movie_views.Movie_Poster, name='movie_poster'),
 
-    path('user_name/', user_views.get_user_username, name='movie_poster'),
+    path('user_name/', user_views.get_user_username, name='username'),
 
     #grabs current popular movies and returns a dictionary as JSON
     #can use page in url to get more results but by default page is not needed
     #url example: http://127.0.0.1:8000/popular_movie/?page=2
     path('popular_movie/', movie_views.popular, name='popular_movies'),
+
+    path('watchlist/',user_views.create_watchlist,name="test_watchlist"),
 
     path('search/', movie_views.Search, name='popular_movies'),
 ]

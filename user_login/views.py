@@ -9,7 +9,7 @@ from django.conf import settings
 import requests
 from botocore.exceptions import BotoCoreError, ClientError
 from user.models import User
-from user.views import get_user_username
+from user.views import get_user_username, create_watchlist
 import jwt
 
 
@@ -109,17 +109,16 @@ def hosted_ui_login(request):
 #       but more secure and what we will be using
 #   Tokens can be retrieved via request.session["token_name"]
 def login_callback(request):
-
-
     code = request.GET.get('code')
 
     if not code:
         return JsonResponse({"error": "Authorization code not provided"}, status=400)
-    
+
     token_url = f"https://{settings.AWS_COGNITO_DOMAIN}/oauth2/token"
     redirect_uri = "http://localhost:8000/Login"
 
     try:
+        #Exchange the authorization code for tokens
         response = requests.post(
             token_url,
             data={
@@ -136,72 +135,76 @@ def login_callback(request):
             return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
 
         tokens = response.json()
-
-        
-
-
         request.session["id_token"] = tokens.get("id_token")
         request.session["access_token"] = tokens.get("access_token")
         request.session["refresh_token"] = tokens.get("refresh_token")
 
+        #Updates table if the user is new
+        result = update_or_create_user_from_cognito(request.session.get("access_token"))
 
-        return JsonResponse({"message": "Login successful", "tokens": tokens}, status=200)
+        if "error" in result:
+            return JsonResponse({"error": result["error"]}, status=500)
+
+        #Handle existing users without creating new ones
+        if "message" in result and result["message"] == "User already exists, no update or creation needed.":
+            is_new_user = False
+        else:
+            user = result["user"]
+            is_new_user = result["is_new"]
+
+            #If the user is new, create a default Watchlist
+            if is_new_user:
+                create_watchlist(request)
+
+
+       
+        return JsonResponse({
+            "message": "Sign up successful" if is_new_user else "Login successful",
+            "is_new": is_new_user,
+            "tokens": tokens
+        }, status=200)
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)    
+        return JsonResponse({"error": str(e)}, status=500) 
     
 
-def update_or_create_user_from_cognito(request):
-    """
-    Fetch user information from AWS Cognito using tokens stored in cookies and update/create a User in the database.
-
-    Args:
-        request: Django HTTP request object with cookies containing tokens.
-
-    Returns:
-        JsonResponse: Success or error message.
-    """
+def update_or_create_user_from_cognito(access_token):
+    
     try:
-        # Retrieve access token from session
-        access_token = request.session.get("access_token")
-        if not access_token:
-            return JsonResponse({'error': 'Access token is missing from session.'}, status=401)
 
-        # Decode the access token to log available information
+        username = get_user_username(access_token).get('username')
+
+        if User.objects.filter(name=username).exists():
+             return {"user": username, "is_new": False}
+        
+
+        # Decode the token without verifying the signature
         decoded_token = jwt.decode(access_token, options={"verify_signature": False})
-        #logging.debug(f"Decoded Access Token: {decoded_token}")
 
-        # Retrieve user attributes from Cognito using GetUser API
+        # Use AWS Cognito client to fetch user attributes
         client = get_cognito_client()
         response = client.get_user(AccessToken=access_token)
 
         # Parse Cognito response to extract user attributes
         user_attributes = {attr['Name']: attr['Value'] for attr in response['UserAttributes']}
         email = user_attributes.get('email')
-        name = user_attributes.get('name', email.split('@')[0]) if email else None
 
         if not email:
-            return JsonResponse({'error': 'Email is required to update or create a user.'}, status=400)
+            return {"error": "Email is required to update or create a user."}
 
-        # Update or create the user in the User model
         user, created = User.objects.update_or_create(
             email=email,
             defaults={
-                'name': decoded_token.get('username'),  # Fallback to username if name is missing
-                'date_joined': None,  # You can set this to a default or parse if available
+                'name': decoded_token.get('username'),
             }
         )
 
-       # logging.debug(f"User {'created' if created else 'updated'}: {user}")
+        #Returns user and whether they are new
+        return {"user": user, "is_new": created}
 
-        return JsonResponse({
-            'message': 'User updated successfully' if not created else 'User created successfully',
-            'user_id': user.id
-        })
-
-    except client.exceptions.NotAuthorizedException:
-        return JsonResponse({'error': 'Invalid access token'}, status=401)
-    except client.exceptions.UserNotFoundException:
-        return JsonResponse({'error': 'User not found'}, status=404)
+    except jwt.ExpiredSignatureError:
+        return {"error": "The access token has expired."}
+    except jwt.DecodeError:
+        return {"error": "The access token is invalid."}
     except Exception as e:
-        return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+        return {"error": f"An unexpected error occurred: {str(e)}"}

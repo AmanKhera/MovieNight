@@ -12,6 +12,11 @@ class User(models.Model):
     date_joined = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.id}: {self.name}"   # Returns the name of the user when the object is printed
+        return f"{self.id}: {self.name}"  #Returns the name of the user when the object is printed
     class Meta:
         db_table = 'users'
+
+#create method which creates default playlist when user first signs-up for account
+        
+#create method which creates custom playlist
+#param = watchlist name
