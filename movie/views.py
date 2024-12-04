@@ -47,18 +47,16 @@ def popular(request):
     #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
 
-    url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}"
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-    TMDB_BEARER = os.getenv("TVDB_BEARER")
+    url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}&api_key={TMDB_API_KEY}"
+
 
 
     try:
-        headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {TMDB_BEARER}"
-        }
 
-        response = requests.get(url, headers=headers)
+
+        response = requests.get(url)
         data = response.json()
         return JsonResponse(data, safe=False)
  
