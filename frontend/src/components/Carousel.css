@@ -1,5 +1,4 @@
 .carousel {
-
   padding: 10px 20px;
   background-color: #000;
   color: #fff;
@@ -81,87 +80,4 @@
   color: #555;
   cursor: not-allowed;
 }
-=======
-    padding: 20px;
-    background-color: #000;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
-  }
-  
-  .carousel h2 {
-    margin-bottom: 15px;
-    font-size: 24px;
-    color: #fff;
-    text-align: center;
-  }
-  
-  .carousel-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-  
-  .carousel-container {
-    display: flex;
-    gap: 10px; /* Adds space between items */
-    width: calc(100% + 10px); /* Ensure smooth movement for all items */
-  }
-  
-  .carousel-item {
-    flex: 0 0 auto;
-    text-align: center;
-    display: flex;
-    flex-direction: column; /* Align text below image */
-    align-items: center;
-  }
-  
-  .carousel-image {
-    width: 90%; /* Smaller image size */
-    border-radius: 5px;
-    transition: transform 0.3s ease;
-  }
-  
-  .carousel-image:hover {
-    transform: scale(1.05); /* Slight zoom on hover */
-  }
-  
-  .carousel-info {
-    margin-top: 5px;
-    font-size: 14px;
-    color: #ccc;
-  }
-  
-  .arrow {
-    background: none;
-    color: #fff;
-    border: none;
-    font-size: 2rem;
-    cursor: pointer;
-    padding: 10px;
-    transition: transform 0.2s;
-    z-index: 10;
-  }
-  
-  .arrow:disabled {
-    color: #555;
-    cursor: not-allowed;
-  }
-  
-  
-  .left-arrow {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  
-  .right-arrow {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  
 

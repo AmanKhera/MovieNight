@@ -38,5 +38,5 @@ urlpatterns = [
     #url example: http://127.0.0.1:8000/popular_movie/?page=2
     path('popular_movie/', movie_views.popular, name='popular_movies'),
 
-    path('search/', movie_views.Search, name='popular_movies'),
+    path('search/', movie_views.Search, name='search'),
 ]
