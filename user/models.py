@@ -1,10 +1,22 @@
 from django.db import models
 
-# Create your models here.
+#User table
+#Users are added to the table when they sign up for webapp
+#   retrieving user via name
+#   user = User.objects.get(name=user_name)
+#   user_id = user.id
 class User(models.Model):
-    user_id = models.AutoField(primary_key=True)
-    username = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(unique=True)
+    id = models.AutoField(primary_key=True)  
+    name = models.CharField(max_length=100)  
+    email = models.EmailField(unique=True)   
+    date_joined = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.username
+        return f"{self.id}: {self.name}"  #Returns the name of the user when the object is printed
+    class Meta:
+        db_table = 'users'
+
+#create method which creates default playlist when user first signs-up for account
+        
+#create method which creates custom playlist
+#param = watchlist name

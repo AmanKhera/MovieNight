@@ -7,6 +7,11 @@ from .utils import get_cognito_client
 from django.shortcuts import redirect
 from django.conf import settings
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
+from user.models import User
+from user.views import get_user_username, create_watchlist
+import jwt
+
 
 #Sign up Method
 #If we create out own login page we can pass the sign-up params and cognito will sign up the user
@@ -91,7 +96,7 @@ def hosted_ui_login(request):
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
         f"client_id={settings.AWS_COGNITO_CLIENT_ID}&"
         f"response_type=code&"
-        f"scope=email+openid+phone&"
+        f"scope=email+openid+phone+aws.cognito.signin.user.admin&"  # Include required scopes
         f"redirect_uri=http://localhost:8000/Login"
     )
     return redirect(cognito_url)
@@ -108,11 +113,12 @@ def login_callback(request):
 
     if not code:
         return JsonResponse({"error": "Authorization code not provided"}, status=400)
-    
+
     token_url = f"https://{settings.AWS_COGNITO_DOMAIN}/oauth2/token"
     redirect_uri = "http://localhost:8000/Login"
 
     try:
+        #Exchange the authorization code for tokens
         response = requests.post(
             token_url,
             data={
@@ -133,10 +139,72 @@ def login_callback(request):
         request.session["access_token"] = tokens.get("access_token")
         request.session["refresh_token"] = tokens.get("refresh_token")
 
-        print(request.session["access_token"])
+        #Updates table if the user is new
+        result = update_or_create_user_from_cognito(request.session.get("access_token"))
 
-        return JsonResponse({"message": "Login successful", "tokens": tokens}, status=200)
+        if "error" in result:
+            return JsonResponse({"error": result["error"]}, status=500)
+
+        #Handle existing users without creating new ones
+        if "message" in result and result["message"] == "User already exists, no update or creation needed.":
+            is_new_user = False
+        else:
+            user = result["user"]
+            is_new_user = result["is_new"]
+
+            #If the user is new, create a default Watchlist
+            if is_new_user:
+                create_watchlist(request)
+
+
+       
+        return JsonResponse({
+            "message": "Sign up successful" if is_new_user else "Login successful",
+            "is_new": is_new_user,
+            "tokens": tokens
+        }, status=200)
 
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)    
+        return JsonResponse({"error": str(e)}, status=500) 
+    
 
+def update_or_create_user_from_cognito(access_token):
+    
+    try:
+
+        username = get_user_username(access_token).get('username')
+
+        if User.objects.filter(name=username).exists():
+             return {"user": username, "is_new": False}
+        
+
+        # Decode the token without verifying the signature
+        decoded_token = jwt.decode(access_token, options={"verify_signature": False})
+
+        # Use AWS Cognito client to fetch user attributes
+        client = get_cognito_client()
+        response = client.get_user(AccessToken=access_token)
+
+        # Parse Cognito response to extract user attributes
+        user_attributes = {attr['Name']: attr['Value'] for attr in response['UserAttributes']}
+        email = user_attributes.get('email')
+
+        if not email:
+            return {"error": "Email is required to update or create a user."}
+
+        user, created = User.objects.update_or_create(
+            email=email,
+            defaults={
+                'name': decoded_token.get('username'),
+            }
+        )
+
+        #Returns user and whether they are new
+        return {"user": user, "is_new": created}
+
+    except jwt.ExpiredSignatureError:
+        return {"error": "The access token has expired."}
+    except jwt.DecodeError:
+        return {"error": "The access token is invalid."}
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {str(e)}"}

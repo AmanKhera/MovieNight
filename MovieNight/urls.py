@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+
+from movie import views as movie_views
 from user_login import views as user_login_views
 from user import views as user_views
 from movie import views as movie_views
@@ -29,14 +31,19 @@ urlpatterns = [
     #used to grab authentication tokens
     path('Login', user_login_views.login_callback, name='login_callback'),
 
+    path('update_table', user_login_views.update_or_create_user_from_cognito, name='login_callback'),
+
     #grabs movie poster, url example: http://127.0.0.1:8000/movie_poster/?title=Inception
     #returns dictionary as {"Title": "Inception", "poster": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_SX300.jpg"}
     path('movie_poster/', movie_views.Movie_Poster, name='movie_poster'),
+
+    path('user_name/', user_views.get_user_username, name='username'),
 
     #grabs current popular movies and returns a dictionary as JSON
     #can use page in url to get more results but by default page is not needed
     #url example: http://127.0.0.1:8000/popular_movie/?page=2
     path('popular_movie/', movie_views.popular, name='popular_movies'),
 
+
     path('search/', movie_views.Search, name='search'),
-]
+
