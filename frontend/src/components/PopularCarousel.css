@@ -1,0 +1,73 @@
+.popular-carousel {
+  width: 100vw; /* Full width of the viewport */
+  margin: 0 auto; /* Center carousel on the page */
+  overflow: hidden;
+  position: relative;
+  background-color: #240046; /* Optional background color */
+}
+
+.popular-carousel h2 {
+  font-size: 1.8rem;
+  color: white;
+  text-align: left;
+  margin-left:1%;
+  margin-bottom: 10px;
+}
+
+.carousel-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%; /* Full width */
+  overflow: hidden;
+}
+
+.carousel-container {
+  display: flex;
+  transition: transform 0.5s ease-in-out;
+  width: 100%; /* Stretch to full width */
+}
+
+.carousel-item {
+  flex: 0 0 10%; /* Each item takes 10% of the container width */
+  text-align: center;
+  padding: 0 5px; /* Add small padding between items */
+}
+
+.carousel-image {
+  width: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.carousel-image:hover {
+  transform: scale(1.05); /* Slight zoom effect on hover */
+}
+
+.carousel-info h3 {
+  font-size: 1rem;
+  color: white;
+  margin: 5px 0 0;
+}
+
+.arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  padding: 10px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.left-arrow {
+  left: 10px;
+}
+
+.right-arrow {
+  right: 10px;
+}

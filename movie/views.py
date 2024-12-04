@@ -19,7 +19,6 @@ def Movie_Poster(request):
         return JsonResponse({"error": "Title is required"}, status=400)
     
     api_key = os.getenv("OMDB_API_KEY")
-
     omdb_url = f"http://www.omdbapi.com/?apikey={api_key}&"
 
     omdb_params = {
@@ -61,7 +60,7 @@ def popular(request):
         return JsonResponse(data, safe=False)
  
     except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": str(e)}, status=500)   
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 
