@@ -66,6 +66,9 @@ class WatchlistItem(models.Model):
     movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='watchlist_items')
     added_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        db_table = 'watchlist_items'    
+
     def __str__(self):
         return f"Movie {self.movie_id} in {self.watchlist.name}"   
 

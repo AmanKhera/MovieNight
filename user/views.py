@@ -3,6 +3,11 @@ from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
 from user.models import User
+from movie.models import Watchlist, WatchlistItem
+from user.models import User
+from django.shortcuts import get_object_or_404
+from movie.models import Watchlist, WatchlistItem
+import json
 import jwt
 
 
@@ -30,51 +35,40 @@ def get_user_username(access_token):
         return JsonResponse({"error": "Failed to decode token"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-    
 
 
+def add_movie(request):
 
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
 
+    try:
+        movie_id = request.GET.get('movie_id') #grabs movie id from query
+        watchlist_name = request.GET.get('watchlist_name', 'Watchlist')  # Default watchlist is Watchlist'
 
-def create_watchlist(request):
-
-    if request.method in ['POST', 'GET']:
         username = get_user_username(request.session.get("access_token")).get('username')
-        id = (User.objects.get(name=username)).id
+        id = (User.objects.get(name=username)).id #needed to grab users watchlists
 
-        name = request.GET.get('name', 'Watchlist') 
-
-        watchlist_type = Watchlist.MAIN
-        if name != "Watchlist":
-            watchlist_type = Watchlist.CUSTOM
+        #Grabs the watchlist needed to create foriegn key
+        watchlist = Watchlist.objects.get(user_id=id, name=watchlist_name) 
 
 
-        #watchlist_type = request.POST.get('type', Watchlist.MAIN)
-
-        #Validate the watchlist_type
-        if watchlist_type not in [choice[0] for choice in Watchlist.WATCHLIST_TYPE_CHOICES]:
-            return JsonResponse({'success': False, 'message': 'Invalid watchlist type provided.'}, status=400)
-
-        #Check for an existing main watchlist
-        if watchlist_type == Watchlist.MAIN and Watchlist.objects.filter(user_id=id, type=Watchlist.MAIN).exists():
-            return JsonResponse({'success': False, 'message': 'A main watchlist already exists for this user.'}, status=400)
-
-        if Watchlist.objects.filter(user_id=id, name=name).exists():
-            return JsonResponse({'success': False, 'message': 'A watchlist with this name already exists for the user.'}, status=400)
+        if not movie_id:
+            return JsonResponse({'error': 'Movie ID is required'}, status=400)
 
 
-        try:
-            #Create the watchlist
-            watchlist = Watchlist.objects.create(user_id=id, name=name, type=watchlist_type)
-            return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
-                'user_id': id,
-                'name': watchlist.name,
-                'type': watchlist_type,
-            }})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)
+        # Check if the movie is already in the watchlist
+        if WatchlistItem.objects.filter(watchlist=watchlist, movie_id=movie_id).exists():
+            return JsonResponse({'message': 'Movie is already in the watchlist'}, status=200)
 
-    return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
+        # Add the movie to the watchlist
+        WatchlistItem.objects.create(watchlist=watchlist, movie_id=movie_id)
 
+        return JsonResponse({'message': 'Movie added to watchlist successfully'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON input'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
     
 

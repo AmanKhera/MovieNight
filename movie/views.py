@@ -5,6 +5,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from movie.models import Movie
+from user.models import User
 from django.db.models import Q
 
 load_dotenv()
@@ -65,24 +66,42 @@ def popular(request):
 
 
 def Search(request):
-    # Get the search query from the GET parameters
-    query = request.GET.get('q', '')  # Default to empty string if no query
+    #Get the search query and filter from GET parameters
+    query = request.GET.get('q', '').strip()
+    filter_type = request.GET.get('filter', '').strip().lower()  # Normalize filter
 
-    # If there's a query, filter the movies based on the query
-    if query:
-        movies = Movie.objects.filter(
-            Q(title__icontains=query) |
-            Q(director__icontains=query)
+    #Initialize response
+    response = {'query': query}
+
+    #If no query is provided, return an empty response
+    if not query:
+        return JsonResponse({'error': 'Query parameter is required'}, status=400)
+
+    if filter_type == "user":
+        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+        response['users'] = list(users)
+
+    elif filter_type == "director":
+        directors = Movie.objects.filter(Q(director__icontains=query)).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+        response['directors'] = list(directors)
+
+    elif filter_type == "movie":
+        movies = Movie.objects.filter(Q(title__icontains=query)).values(
+            'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
+        response['movies'] = list(movies)
+
     else:
-        # If no query, return all movies
-        movies = Movie.objects.all()
+        movies = Movie.objects.filter(
+            Q(title__icontains=query) | Q(director__icontains=query)
+        ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+        
+        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
 
-    # Serialize the movies queryset into JSON
-    movie_list = list(movies.values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'))
+        response['movies'] = list(movies)
+        response['users'] = list(users)
 
-    # Return the result as a JSON response
-    return JsonResponse({'movies': movie_list, 'query': query}, safe=False)
+    return JsonResponse(response, safe=False)
 
 
 
