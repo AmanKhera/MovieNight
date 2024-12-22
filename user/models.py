@@ -16,7 +16,27 @@ class User(models.Model):
     class Meta:
         db_table = 'users'
 
-#create method which creates default playlist when user first signs-up for account
-        
-#create method which creates custom playlist
-#param = watchlist name
+
+
+#Relationship table
+#Store user relationships which can be follower or friend
+class Relationship(models.Model):
+    follower = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='following'  # Users this user is following
+    )
+    following = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='followers'  # Users following this user
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'relationships'  # Link to 'relationships' table in MySQL
+        unique_together = ('follower', 'following')  # Prevent duplicate relationships
+
+    def __str__(self):
+        return f"{self.follower.name} follows {self.following.name}"
+

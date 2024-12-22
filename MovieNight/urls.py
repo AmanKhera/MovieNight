@@ -47,5 +47,19 @@ urlpatterns = [
     #http://localhost:8000/search/?q=Inception
     path('search/', movie_views.Search, name='search'),
 
+
+    path('watchlist/', user_views.create_watchlist, name='watchlist'),
+
+    #http://127.0.0.1:8000/create_relationship/?follower_id=1&following_id=2
+    path('create_relationship/', user_views.create_relationship, name='relationship'),
+
+    #http://127.0.0.1:8000/get_followers/?id=1
+    path('get_followers/', user_views.get_followers, name='followers'),
+
+    path('get_following/', user_views.get_following, name='following'),
+
+    #http://127.0.0.1:8000/get_mutual_friends/?id=1
+    path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
+
 ]
 

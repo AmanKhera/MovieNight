@@ -57,8 +57,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',    
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -123,14 +123,23 @@ AUTH_PASSWORD_VALIDATORS = [
 
 #Setting to specify which domains are allowed to make requests - Aman
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000'
+    'http://localhost:3000',
+    "http://127.0.0.1:8000",
 ]
 
-#change when production is complete
-CORS_ALLOW_CREDENTIALS = True  # Allows cookies and authentication headers in requests
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
 
-#allows cookies and other credentials to be included in requests
-CORS_ALLOW_CREDENTIALS = True
+
+
+#change when production is complete
+CORS_ALLOW_CREDENTIALS = True 
 
 
 AWS_COGNITO_USER_POOL_ID = "us-east-1_0wS3ue88a"
