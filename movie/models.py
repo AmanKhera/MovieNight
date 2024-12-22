@@ -66,4 +66,20 @@ class WatchlistItem(models.Model):
 
     def __str__(self):
         return f"Movie {self.movie_id} in {self.watchlist.name}"   
+    
+
+class UserMovieJournal(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='movie_journals')
+    movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='user_journals')
+    date_watched = models.DateField()
+    rating = models.IntegerField()
+    review = models.TextField(max_length=2000, blank=True, null=True)
+
+    class Meta:
+        db_table = 'user_movie_journal'
+
+    def __str__(self):
+        return f'{self.user} - {self.movie} ({self.date_watched})'
+
 
