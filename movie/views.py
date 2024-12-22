@@ -5,6 +5,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from movie.models import Movie
+from user.models import User
 from django.db.models import Q
 
 load_dotenv()
@@ -19,7 +20,6 @@ def Movie_Poster(request):
         return JsonResponse({"error": "Title is required"}, status=400)
     
     api_key = os.getenv("OMDB_API_KEY")
-
     omdb_url = f"http://www.omdbapi.com/?apikey={api_key}&"
 
     omdb_params = {
@@ -47,45 +47,61 @@ def popular(request):
     #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
 
-    url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}"
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-    TMDB_BEARER = os.getenv("TVDB_BEARER")
+    url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}&api_key={TMDB_API_KEY}"
+
 
 
     try:
-        headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {TMDB_BEARER}"
-        }
 
-        response = requests.get(url, headers=headers)
+
+        response = requests.get(url)
         data = response.json()
         return JsonResponse(data, safe=False)
  
     except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": str(e)}, status=500)   
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 
 def Search(request):
-    # Get the search query from the GET parameters
-    query = request.GET.get('q', '')  # Default to empty string if no query
+    #Get the search query and filter from GET parameters
+    query = request.GET.get('q', '').strip()
+    filter_type = request.GET.get('filter', '').strip().lower()  # Normalize filter
 
-    # If there's a query, filter the movies based on the query
-    if query:
-        movies = Movie.objects.filter(
-            Q(title__icontains=query) |
-            Q(director__icontains=query)
+    #Initialize response
+    response = {'query': query}
+
+    #If no query is provided, return an empty response
+    if not query:
+        return JsonResponse({'error': 'Query parameter is required'}, status=400)
+
+    if filter_type == "user":
+        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+        response['users'] = list(users)
+
+    elif filter_type == "director":
+        directors = Movie.objects.filter(Q(director__icontains=query)).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+        response['directors'] = list(directors)
+
+    elif filter_type == "movie":
+        movies = Movie.objects.filter(Q(title__icontains=query)).values(
+            'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
+        response['movies'] = list(movies)
+
     else:
-        # If no query, return all movies
-        movies = Movie.objects.all()
+        movies = Movie.objects.filter(
+            Q(title__icontains=query) | Q(director__icontains=query)
+        ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+        
+        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
 
-    # Serialize the movies queryset into JSON
-    movie_list = list(movies.values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'))
+        response['movies'] = list(movies)
+        response['users'] = list(users)
 
-    # Return the result as a JSON response
-    return JsonResponse({'movies': movie_list, 'query': query}, safe=False)
+    return JsonResponse(response, safe=False)
 
 
 

@@ -12,9 +12,10 @@ class User(models.Model):
     date_joined = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.id}: {self.name}"   # Returns the name of the user when the object is printed
+        return f"{self.id}: {self.name}"  #Returns the name of the user when the object is printed
     class Meta:
         db_table = 'users'
+
 
 
 #Relationship table
@@ -38,3 +39,4 @@ class Relationship(models.Model):
 
     def __str__(self):
         return f"{self.follower.name} follows {self.following.name}"
+

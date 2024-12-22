@@ -12,29 +12,29 @@ import jwt
 
 #Get User Username method
 #Grabs users username using the access token given from cognito
-def get_user_username(request):
+#Returns: Python Dictionary containing username
+def get_user_username(access_token):
 
-    access_token = request.session.get("access_token")
     if not access_token:
         return JsonResponse({"error": "Access token not found in session"}, status=401)
 
     try:
-        # Decode the token without verifying the signature
+        #Decode the token without verifying the signature
         decoded_token = jwt.decode(access_token, options={"verify_signature": False})
-        print("Decoded Access Token:", decoded_token)
         
-        # Extract the username from the decoded token
+        #Extract the username from the decoded token
         username = decoded_token.get("username")
         if not username:
             return JsonResponse({"error": "Username not found in token"}, status=400)
 
-        # Return the username in a JSON response
-        return JsonResponse({"username": username}, status=200)
+        #Return the username in python dictionary
+        return {"username": username}
 
     except jwt.DecodeError:
         return JsonResponse({"error": "Failed to decode token"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
 
 
 

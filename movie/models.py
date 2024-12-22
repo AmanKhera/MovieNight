@@ -38,6 +38,7 @@ class Watchlist(models.Model):
 
     #default name is watchlist so does not need to be edited unless custom
     name = models.CharField(max_length=255, default='Watchlist')
+    
     #type must be main or custom
     type = models.CharField(max_length=10, choices=WATCHLIST_TYPE_CHOICES, default=MAIN)
 
@@ -45,7 +46,8 @@ class Watchlist(models.Model):
 
     class Meta:
         #only allows 1 main playlist 
-        unique_together = ('user', 'type')
+        unique_together = ('user', 'type', 'name')
+        db_table = 'watchlists'
 
     def __str__(self):
         return f"{self.name} ({self.get_type_display()})"
@@ -63,6 +65,9 @@ class WatchlistItem(models.Model):
     #links to movie
     movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='watchlist_items')
     added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'watchlist_items'    
 
     def __str__(self):
         return f"Movie {self.movie_id} in {self.watchlist.name}"   

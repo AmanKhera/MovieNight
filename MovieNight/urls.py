@@ -37,7 +37,7 @@ urlpatterns = [
     #returns dictionary as {"Title": "Inception", "poster": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_SX300.jpg"}
     path('movie_poster/', movie_views.Movie_Poster, name='movie_poster'),
 
-    path('user_name/', user_views.get_user_username, name='movie_poster'),
+    path('user_name/', user_views.get_user_username, name='username'),
 
     #grabs current popular movies and returns a dictionary as JSON
     #can use page in url to get more results but by default page is not needed
@@ -46,6 +46,7 @@ urlpatterns = [
 
     #http://localhost:8000/search/?q=Inception
     path('search/', movie_views.Search, name='search'),
+
 
     path('watchlist/', user_views.create_watchlist, name='watchlist'),
 
@@ -61,3 +62,4 @@ urlpatterns = [
     path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
 
 ]
+
