@@ -58,6 +58,7 @@ urlpatterns = [
 
     path('get_following/', user_views.get_following, name='following'),
 
+    #http://127.0.0.1:8000/get_mutual_friends/?id=1
     path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
 
     path('add_movie/', user_views.add_movie, name='add_movie'),
