@@ -1,52 +1,21 @@
 import React from 'react';
 import './Toolbar.css';
-import logo from '../images/logo.png'
-import searchImage from '../images/search-btn.png'
-import discoverImage from '../images/discover-btn.png'
-import ratingImage from '../images/rating-btn.png'
-import messageImage from '../images/message-btn.png'
-import friendsImage from '../images/friends-btn.png'
-import profileImage from '../images/profile-btn.png'
-
-
-// Placeholder image URLs from Unsplash or similar free image sites
+import logo from '../images/logo.png';
+import searchImage from '../images/search-btn.png';
+import discoverImage from '../images/discover-btn.png';
+import ratingImage from '../images/rating-btn.png';
+import messageImage from '../images/message-btn.png';
+import friendsImage from '../images/friends-btn.png';
+import profileImage from '../images/profile-btn.png';
 
 function Toolbar() {
-  // Event handlers for each button
-  const homeButtonAction = () => {
-    alert('Home button clicked!');
-    // window.location.href = 'homepage.html';
-  };
-
-  const searchButtonAction = () => {
-    alert('Search button clicked!');
-    // window.location.href = 'search.html';
-  };
-
-  const discoverButtonAction = () => {
-    alert('Discover button clicked!');
-    // window.location.href = 'discover.html';
-  };
-
-  const ratingButtonAction = () => {
-    alert('Rating button clicked!');
-    // window.location.href = 'rating.html';
-  };
-
-  const messageButtonAction = () => {
-    alert('Message button clicked!');
-    // window.location.href = 'message.html';
-  };
-
-  const friendsButtonAction = () => {
-    alert('Friends button clicked!');
-    // window.location.href = 'friends.html';
-  };
-
-  const profileButtonAction = () => {
-    alert('Profile button clicked!');
-    // window.location.href = 'profile.html';
-  };
+  const homeButtonAction = () => alert('Home button clicked!');
+  const searchButtonAction = () => alert('Search button clicked!');
+  const discoverButtonAction = () => alert('Discover button clicked!');
+  const ratingButtonAction = () => alert('Rating button clicked!');
+  const messageButtonAction = () => alert('Message button clicked!');
+  const friendsButtonAction = () => alert('Friends button clicked!');
+  const profileButtonAction = () => alert('Profile button clicked!');
 
   return (
     <nav>
