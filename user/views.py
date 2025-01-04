@@ -3,7 +3,7 @@ from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
 from user.models import User, Relationship
-from movie.models import Watchlist, WatchlistItem
+from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 import json
@@ -241,4 +241,61 @@ def get_mutual_friends(request):
     response = {str(user['id']): user['name'] for user in mutual_info}
 
     return JsonResponse(response, status=200)
+
+
+#Add to watched method
+#Param: user_id, movie_id
+#Optional Params: Rating and review
+#Desc: Adds movie to users journal 
+#Example
+#Url: http://127.0.0.1:8000/add_to_watched/?user_id=1&movie_id=24&rating=4&review=amazing%20movie%20would%20watch%20again%20and%20again
+def add_to_watched(request):
+    if request.method == 'GET':
+        user_id = request.GET.get('user_id')
+        movie_id = request.GET.get('movie_id')
+        rating = request.GET.get('rating')
+        review = request.GET.get('review')
+
+        # Validate required parameters
+        if not user_id or not movie_id:
+            return JsonResponse({'error': 'user_id and movie_id are required.'}, status=400)
+
+    if rating:
+            try:
+                rating = int(rating)
+                if rating < 1 or rating > 5:
+                    return JsonResponse({'error': 'Rating must be between 1 and 5.'}, status=400)
+            except ValueError:
+                return JsonResponse({'error': 'Rating must be an integer.'}, status=400)
+
+    if review and len(review) > 2000:
+                return JsonResponse({'error': 'Review must not exceed 2000 characters.'}, status=400)
+    
+
+    # Retrieve user and movie instances
+    user = User.objects.get(id=user_id)
+    movie = Movie.objects.get(id=movie_id)
+
+
+        # Add entry to the UserMovieJournal table
+    journal_entry, created = UserMovieJournal.objects.get_or_create(
+        user=user,
+        movie=movie,
+        defaults={
+                "rating": rating if rating is not None else 0,  # Default rating
+                "review": review if review else '',  # Default review
+        }
+    )
+
+    if created:
+        return JsonResponse({'message': 'Movie added to watched list successfully.'}, status=201)
+    elif not created:
+                # Update rating and review if the entry already exists
+                if rating is not None:
+                    journal_entry.rating = rating
+                if review is not None:
+                    journal_entry.review = review
+                journal_entry.save()
+
+    return JsonResponse({'error': 'Invalid HTTP method. Use POST.'}, status=405)
 

@@ -66,15 +66,18 @@ def popular(request):
 
 
 def Search(request):
+
     #Get the search query and filter from GET parameters
     query = request.GET.get('q', '').strip()
-    filter_type = request.GET.get('filter', '').strip().lower()  # Normalize filter
+    movie_id = request.GET.get('id','')
+    movie_id = int(movie_id)
+    filter_type = request.GET.get('filter', '').strip().lower()
 
     #Initialize response
     response = {'query': query}
 
-    #If no query is provided, return an empty response
-    if not query:
+    #If no query is provided, returns an empty response
+    if not query and not movie_id:
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
 
     if filter_type == "user":
@@ -90,6 +93,15 @@ def Search(request):
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
         response['movies'] = list(movies)
+
+    #search via movie id
+    elif not query:
+        movies = Movie.objects.filter(
+            id=movie_id
+        ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+
+        response['movies'] = list(movies)
+
 
     else:
         movies = Movie.objects.filter(

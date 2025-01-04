@@ -4,6 +4,7 @@ from user.models import User
 # Create your models here.
 
 class Movie(models.Model):
+    id = models.AutoField(primary_key=True)  # Explicitly define the id column
     title = models.CharField(max_length=255)
     year = models.IntegerField()
     runtime = models.IntegerField()
@@ -75,9 +76,9 @@ class WatchlistItem(models.Model):
 
 class UserMovieJournal(models.Model):
     id = models.AutoField(primary_key=True)
-    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='movie_journals')
-    movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='user_journals')
-    date_watched = models.DateField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='movie_journals')
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='user_journals')
+    date_watched = models.DateField(auto_now_add=True)
     rating = models.IntegerField()
     review = models.TextField(max_length=2000, blank=True, null=True)
 

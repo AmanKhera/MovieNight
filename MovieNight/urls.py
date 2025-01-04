@@ -16,11 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-
 from movie import views as movie_views
 from user_login import views as user_login_views
 from user import views as user_views
 from movie import views as movie_views
+from group import views as group_views
+
+
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -60,6 +63,13 @@ urlpatterns = [
 
     #http://127.0.0.1:8000/get_mutual_friends/?id=1
     path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
+
+    #http://127.0.0.1:8000/create_group/?leader_id=1&group_name=amans&genre=horror
+    path('create_group/', group_views.create_group, name='create_group'),    
+
+    path('add_members/', group_views.add_member_to_group, name='add_members'),  
+
+    path('add_to_watched/', user_views.add_to_watched, name='add_members'),
 
 ]
 
