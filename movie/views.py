@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from movie.models import Movie
 from user.models import User
 from django.db.models import Q
+from user.models import User
 
 load_dotenv()
 
@@ -70,7 +71,6 @@ def Search(request):
     #Get the search query and filter from GET parameters
     query = request.GET.get('q', '').strip()
     movie_id = request.GET.get('id','')
-    #movie_id = int(movie_id)
     filter_type = request.GET.get('filter', '').strip().lower()
 
     #Initialize response
@@ -81,6 +81,7 @@ def Search(request):
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
 
     if filter_type == "user":
+
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
         response['users'] = list(users)
 
@@ -90,6 +91,7 @@ def Search(request):
 
     elif filter_type == "movie":
         movies = Movie.objects.filter(Q(title__icontains=query)).values(
+
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
         response['movies'] = list(movies)
@@ -105,10 +107,12 @@ def Search(request):
 
     else:
         movies = Movie.objects.filter(
+
             Q(title__icontains=query) | Q(director__icontains=query)
         ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
         
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+
 
         response['movies'] = list(movies)
         response['users'] = list(users)

@@ -54,6 +54,7 @@ urlpatterns = [
     path('watchlist/', user_views.create_watchlist, name='watchlist'),
 
     #http://127.0.0.1:8000/create_relationship/?follower_id=1&following_id=2
+
     path('create_relationship/', user_views.create_relationship, name='relationship'),
 
     #http://127.0.0.1:8000/get_followers/?id=1
