@@ -190,7 +190,7 @@ const styles = {
   container: {
     padding: "20px",
     color: "#fff",
-    backgroundColor: "transparent",
+    backgroundColor: "#240046",
   },
   message: {
     padding: "10px",
