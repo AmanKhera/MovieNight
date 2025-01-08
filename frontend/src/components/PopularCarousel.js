@@ -144,9 +144,9 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
     }
   };
 
-  // Handle clicking on the movie poster to go to the details page
+  // Handle clicking on the movie poster to go to the details page (by ID)
   const handleMovieClick = (movieId) => {
-    navigate(`/movie/${movieId}`); // e.g. /movie/123
+    navigate(`/movie/${movieId}`);
   };
 
   if (movies.length === 0) {
@@ -199,7 +199,7 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
                 style={{ flex: `0 0 ${100 / itemsPerPage}%` }}
               >
                 <div className="image-container">
-                  {/* When the poster is clicked, go to the movie details page */}
+                  {/* Click the poster to go to /movie/:id */}
                   <img
                     onClick={() => handleMovieClick(movieId)}
                     src={
@@ -209,7 +209,7 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
                     }
                     alt={movie.title || movie.original_title}
                     className="carousel-image"
-                    style={{ cursor: "pointer" }} // indicate that it's clickable
+                    style={{ cursor: "pointer" }}
                   />
                   <button
                     className="add-button"

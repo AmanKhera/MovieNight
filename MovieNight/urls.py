@@ -51,16 +51,16 @@ urlpatterns = [
     path('watchlist/', user_views.create_watchlist, name='watchlist'),
 
     #http://127.0.0.1:8000/create_relationship/?follower_id=1&following_id=2
-    path('create_relationship/', user_views.create_relationship, name='relationship'),
+    #path('create_relationship/', user_views.create_relationship, name='relationship'),
 
     #http://127.0.0.1:8000/get_followers/?id=1
-    path('get_followers/', user_views.get_followers, name='followers'),
+    #path('get_followers/', user_views.get_followers, name='followers'),
 
-    path('get_following/', user_views.get_following, name='following'),
+    #path('get_following/', user_views.get_following, name='following'),
 
     #http://127.0.0.1:8000/get_mutual_friends/?id=1
-    path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
+    #path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
 
-    path('add_movie/', user_views.add_movie, name='add_movie'),
+    #path('add_movie/', user_views.add_movie, name='add_movie'),
 ]
 
