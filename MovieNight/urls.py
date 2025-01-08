@@ -62,7 +62,9 @@ urlpatterns = [
     path('get_following/', user_views.get_following, name='following'),
 
     #http://127.0.0.1:8000/get_mutual_friends/?id=1
-    path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),    
+    path('get_mutual_friends/', user_views.get_mutual_friends, name='friends'),  
+
+    path('add_movie/', user_views.add_movie, name='friends'),    
 
     #http://127.0.0.1:8000/create_group/?leader_id=1&group_name=amans&genre=horror
     path('create_group/', group_views.create_group, name='create_group'),    
@@ -70,6 +72,12 @@ urlpatterns = [
     path('add_members/', group_views.add_member_to_group, name='add_members'),  
 
     path('add_to_watched/', user_views.add_to_watched, name='add_members'),
+
+    path('grab_watchlist/', user_views.grab_watchlists, name='add_members'),
+
+    path('watchlist_items/', user_views.grab_watchlist_items, name='add_members'),
+
+    path('grab_user_groups/', group_views.get_user_groups)
 
 ]
 

@@ -243,6 +243,47 @@ def get_mutual_friends(request):
     return JsonResponse(response, status=200)
 
 
+def grab_watchlists(request):
+
+    try:
+        username = get_user_username(request.session.get("access_token")).get('username')
+        id = (User.objects.get(name=username)).id #needed to grab users watchlists
+        watchlist = Watchlist.objects.filter(user_id=id) 
+
+        watchlist_data = list(watchlist.values())  #Converts QuerySet to a list of dictionaries
+        
+        # Return the JSON response
+        return JsonResponse({"status": "success", "watchlist": watchlist_data}, safe=False)
+    except User.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "User not found"}, status=404)
+    except Watchlist.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Watchlist not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+def grab_watchlist_items(request):
+
+    try:
+
+        username = get_user_username(request.session.get("access_token")).get('username')
+        id = (User.objects.get(name=username)).id
+
+        watchlist_name = request.GET.get('watchlist_name')
+
+        watchlist = Watchlist.objects.get(user_id=id, name = watchlist_name)
+
+        watchlist_items = watchlist.items.all()
+
+        items = list(watchlist_items.values())
+
+        return JsonResponse({"status": "success", "watchlist": items}, safe=False)
+    except User.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "User not found"}, status=404)
+    except Watchlist.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Watchlist not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
 #Add to watched method
 #Param: user_id, movie_id
 #Optional Params: Rating and review
@@ -298,4 +339,6 @@ def add_to_watched(request):
                 journal_entry.save()
 
     return JsonResponse({'error': 'Invalid HTTP method. Use POST.'}, status=405)
+
+
 

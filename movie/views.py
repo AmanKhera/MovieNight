@@ -70,7 +70,7 @@ def Search(request):
     #Get the search query and filter from GET parameters
     query = request.GET.get('q', '').strip()
     movie_id = request.GET.get('id','')
-    movie_id = int(movie_id)
+    #movie_id = int(movie_id)
     filter_type = request.GET.get('filter', '').strip().lower()
 
     #Initialize response
