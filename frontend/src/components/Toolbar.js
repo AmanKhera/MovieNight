@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom'; // <-- Import from react-router-dom
 import './Toolbar.css';
 import logo from '../images/logo.png';
 import searchImage from '../images/search-btn.png';
@@ -9,7 +10,15 @@ import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
 function Toolbar() {
-  const homeButtonAction = () => alert('Home button clicked!');
+  // Get the 'navigate' function from react-router-dom
+  const navigate = useNavigate();
+
+  // Use navigate("/") to redirect to the home page
+  const homeButtonAction = () => {
+    navigate("/");
+  };
+
+  // Keep the alerts for the other actions as-is
   const searchButtonAction = () => alert('Search button clicked!');
   const discoverButtonAction = () => alert('Discover button clicked!');
   const ratingButtonAction = () => alert('Rating button clicked!');
