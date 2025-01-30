@@ -2,7 +2,7 @@ from django.shortcuts import render
 from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
-from user.models import User, Relationship
+from user.models import User, Relationship, MemberRecommendation
 from movie.models import Watchlist, WatchlistItem
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
@@ -41,40 +41,54 @@ def get_user_username(access_token):
 def create_watchlist(request):
 
     if request.method in ['POST', 'GET']:
-        username = get_user_username(request.session.get("access_token")).get('username')
-        id = (User.objects.get(name=username)).id
+        user_id = None
 
-        name = request.GET.get('name', 'Watchlist') 
-
-        watchlist_type = Watchlist.MAIN
-        if name != "Watchlist":
-            watchlist_type = Watchlist.CUSTOM
-
-
-        #watchlist_type = request.POST.get('type', Watchlist.MAIN)
-
-        #Validate the watchlist_type
-        if watchlist_type not in [choice[0] for choice in Watchlist.WATCHLIST_TYPE_CHOICES]:
-            return JsonResponse({'success': False, 'message': 'Invalid watchlist type provided.'}, status=400)
-
-        #Check for an existing main watchlist
-        if watchlist_type == Watchlist.MAIN and Watchlist.objects.filter(user_id=id, type=Watchlist.MAIN).exists():
-            return JsonResponse({'success': False, 'message': 'A main watchlist already exists for this user.'}, status=400)
-
-        if Watchlist.objects.filter(user_id=id, name=name).exists():
-            return JsonResponse({'success': False, 'message': 'A watchlist with this name already exists for the user.'}, status=400)
+        if 'id' in request.GET:
+            user_id = request.GET.get('id')
+            try:
+                watchlist = Watchlist.objects.create(user_id=user_id)
+                return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
+                    'user_id': user_id
+                }})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)
 
 
-        try:
-            #Create the watchlist
-            watchlist = Watchlist.objects.create(user_id=id, name=name, type=watchlist_type)
-            return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
-                'user_id': id,
-                'name': watchlist.name,
-                'type': watchlist_type,
-            }})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)
+        else:
+            username = get_user_username(request.session.get("access_token")).get('username')
+            id = (User.objects.get(name=username)).id
+
+            name = request.GET.get('name', 'Watchlist') 
+
+            watchlist_type = Watchlist.MAIN
+            if name != "Watchlist":
+                watchlist_type = Watchlist.CUSTOM
+
+
+            #watchlist_type = request.POST.get('type', Watchlist.MAIN)
+
+            #Validate the watchlist_type
+            if watchlist_type not in [choice[0] for choice in Watchlist.WATCHLIST_TYPE_CHOICES]:
+                return JsonResponse({'success': False, 'message': 'Invalid watchlist type provided.'}, status=400)
+
+            #Check for an existing main watchlist
+            if watchlist_type == Watchlist.MAIN and Watchlist.objects.filter(user_id=id, type=Watchlist.MAIN).exists():
+                return JsonResponse({'success': False, 'message': 'A main watchlist already exists for this user.'}, status=400)
+
+            if Watchlist.objects.filter(user_id=id, name=name).exists():
+                return JsonResponse({'success': False, 'message': 'A watchlist with this name already exists for the user.'}, status=400)
+
+
+            try:
+                #Create the watchlist
+                watchlist = Watchlist.objects.create(user_id=id, name=name, type=watchlist_type)
+                return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
+                    'user_id': id,
+                    'name': watchlist.name,
+                    'type': watchlist_type,
+                }})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)
 
     return JsonResponse({'success': False, 'message': 'Invalid request method.'}, status=405)
 
@@ -213,10 +227,6 @@ def get_following(request):
     return JsonResponse(response, status=200)
 
 
-
-
-
-
 #Mutual Friends Method
 #Param: id of user whos mutual friends you are searching for
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
@@ -242,3 +252,31 @@ def get_mutual_friends(request):
 
     return JsonResponse(response, status=200)
 
+def recommend_movie(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            member_suggested_id = data.get("member_suggested")
+            user_receiving_id = data.get("user_receiving")
+            movie_id = data.get("movie_id")
+
+            if not all([member_suggested_id, user_receiving_id, movie_id]):
+                return JsonResponse({"error": "Missing required fields."}, status=400)
+
+            member_suggested = User.objects.get(id=member_suggested_id)
+            user_receiving = User.objects.get(id=user_receiving_id)
+
+            recommendation = MemberRecommendation.objects.create(
+                member_suggested=member_suggested,
+                user_receiving=user_receiving,
+                movie_id=movie_id
+            )
+            
+            return JsonResponse({"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, status=201)
+        
+        except User.DoesNotExist:
+            return JsonResponse({"error": "Invalid user ID provided."}, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+    
+    return JsonResponse({"error": "Invalid request method."}, status=405)
