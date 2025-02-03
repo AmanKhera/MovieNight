@@ -52,10 +52,7 @@ def popular(request):
 
     url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}&api_key={TMDB_API_KEY}"
 
-
-
     try:
-
 
         response = requests.get(url)
         data = response.json()
@@ -104,7 +101,6 @@ def Search(request):
 
         response['movies'] = list(movies)
 
-
     else:
         movies = Movie.objects.filter(
 
@@ -119,6 +115,33 @@ def Search(request):
 
     return JsonResponse(response, safe=False)
 
+
+
+def api_movie_search(request):
+
+    search = request.GET.get('q')
+
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+
+    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&"
+
+    title_params = {
+        't':search,
+    }
+
+    try:
+
+        response = requests.get(omdb_url, params = title_params)
+        data = response.json()
+
+        runtime_str = data['Runtime']
+        runtime = int(runtime_str.split()[0])
+
+        Movie.objects.update_or_create(title=data["Title"], year=data['Year'], runtime=runtime, rating=data['Rated'],plot=data['Plot'],director=data['Director'])
+        return JsonResponse(data, safe=False)
+ 
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 

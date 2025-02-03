@@ -4,7 +4,7 @@ from user.models import User
 # Create your models here.
 
 class Movie(models.Model):
-    id = models.AutoField(primary_key=True)  # Explicitly define the id column
+    id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
     year = models.IntegerField()
     runtime = models.IntegerField()
