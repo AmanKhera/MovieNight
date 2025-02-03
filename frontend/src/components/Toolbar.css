@@ -2,29 +2,37 @@
 
 body {
   margin: 0;
+  padding: 0;
   background-color: #10002B;
+  min-height: 100vh; /* Ensure full height of the page */
+  display: flex;
+  flex-direction: column; 
 }
 
 nav {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; /* Space items apart horizontally */ 
   align-items: center;
   background-color: #10002B;
-  padding: 10px;
-  height: 10%;
+  padding: 10px 0; /* Add padding to create space */
+  height: 5%; /* Adjust the height of the toolbar */
+  position: relative; /* Enable precise positioning for child elements */
 }
 
 #logo {
   width: 100%;
   max-width: 250px;
   min-width: 150px;
-  margin-left: 50px;
+  margin-left: 15px;
+  margin-top: -25px;
+  padding: 0px 0; /* Add space above and below the logo */
 }
 
 .responsive-image {
   width: 100%;
   height: auto;
   display: block;
+  margin: 10px 0; /* Add additional space above and below the image */
 }
 
 #logo button {
@@ -42,11 +50,14 @@ nav {
 
 .buttons {
   display: flex;
-  gap: 10px;
+  gap: 10px; /* Space between buttons */
+  position: absolute; /* Position the button container */
+  bottom: 30px; /* Add more space below the buttons */
+  right: 10px; /* Align buttons to the right */
 }
 
 .buttons .button {
-  margin-bottom: 150px;
+  margin: 0;
 }
 
 .buttons button {
@@ -59,12 +70,14 @@ nav {
 
 .buttons button img {
   height: 50px;
+  width: 50px;
 }
 
 .buttons button:hover {
   background-color: #240046;
 }
 
+/* Hover Text Styling */
 .button {
   position: relative;
   display: inline-block;
@@ -121,48 +134,18 @@ nav {
   opacity: 1;
 }
 
-/* Existing styles */
-
-/* Search Bar Styles */
-.search-bar {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #f5f5f5;
-}
-
-.search-bar form {
-  display: flex;
-  align-items: center;
-}
-
-.search-bar input[type="text"] {
-  flex: 1;
-  padding: 8px;
-  font-size: 16px;
-}
-
-.search-bar button {
-  padding: 8px 16px;
-  margin-left: 8px;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.search-results {
-  list-style: none;
+/* Fix for White Space Below */
+html {
+  margin: 0;
   padding: 0;
-  margin-top: 20px;
+  height: 100%;
 }
 
-.search-results li {
+footer {
+  margin: 0;
   padding: 10px;
-  border-bottom: 1px solid #ccc;
-}
-
-.search-results li h3 {
-  margin: 0 0 5px 0;
-}
-
-.error {
-  color: red;
+  background-color: #10002B;
+  color: #fff;
+  text-align: center;
+  width: 100%;
 }

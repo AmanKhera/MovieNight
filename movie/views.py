@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from movie.models import Movie
 from user.models import User
 from django.db.models import Q
+from user.models import User
 
 load_dotenv()
 
@@ -51,10 +52,7 @@ def popular(request):
 
     url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}&api_key={TMDB_API_KEY}"
 
-
-
     try:
-
 
         response = requests.get(url)
         data = response.json()
@@ -66,18 +64,21 @@ def popular(request):
 
 
 def Search(request):
+
     #Get the search query and filter from GET parameters
     query = request.GET.get('q', '').strip()
-    filter_type = request.GET.get('filter', '').strip().lower()  # Normalize filter
+    movie_id = request.GET.get('id','')
+    filter_type = request.GET.get('filter', '').strip().lower()
 
     #Initialize response
     response = {'query': query}
 
-    #If no query is provided, return an empty response
-    if not query:
+    #If no query is provided, returns an empty response
+    if not query and not movie_id:
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
 
     if filter_type == "user":
+
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
         response['users'] = list(users)
 
@@ -87,22 +88,60 @@ def Search(request):
 
     elif filter_type == "movie":
         movies = Movie.objects.filter(Q(title__icontains=query)).values(
+
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
         response['movies'] = list(movies)
 
+    #search via movie id
+    elif not query:
+        movies = Movie.objects.filter(
+            id=movie_id
+        ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
+
+        response['movies'] = list(movies)
+
     else:
         movies = Movie.objects.filter(
+
             Q(title__icontains=query) | Q(director__icontains=query)
         ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
         
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+
 
         response['movies'] = list(movies)
         response['users'] = list(users)
 
     return JsonResponse(response, safe=False)
 
+
+
+def api_movie_search(request):
+
+    search = request.GET.get('q')
+
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+
+    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&"
+
+    title_params = {
+        't':search,
+    }
+
+    try:
+
+        response = requests.get(omdb_url, params = title_params)
+        data = response.json()
+
+        runtime_str = data['Runtime']
+        runtime = int(runtime_str.split()[0])
+
+        Movie.objects.update_or_create(title=data["Title"], year=data['Year'], runtime=runtime, rating=data['Rated'],plot=data['Plot'],director=data['Director'])
+        return JsonResponse(data, safe=False)
+ 
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 

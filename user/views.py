@@ -2,12 +2,16 @@ from django.shortcuts import render
 from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
-from user.models import User, Relationship, MemberRecommendation
-from movie.models import Watchlist, WatchlistItem
+from user.models import User, Relationship, MemberRecommendation, Message
+from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
+from group.models import Group
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 import json
 import jwt
+
+#remove in production
+from django.views.decorators.csrf import csrf_exempt
 
 
 #Get User Username method
@@ -102,35 +106,48 @@ def add_movie(request):
 
     if request.method != 'GET':
         return JsonResponse({'error': 'Invalid request method'}, status=405)
+    
+    movie_id = request.GET.get('movie_id') #grabs movie id from query
+    watchlist_name = request.GET.get('watchlist_name', 'Watchlist')  # Default watchlist is Watchlist'
+    
+    if 'id' in request.GET:
+        user_id = request.GET.get('id')
+        watchlist = Watchlist.objects.get(user_id=user_id, name=watchlist_name) 
+        try:
+            watchlist = WatchlistItem.objects.create(watchlist=watchlist, movie_id=movie_id)
+            return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
+                'user_id': user_id
+            }})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'An error occurred: {str(e)}'}, status=500)    
 
-    try:
-        movie_id = request.GET.get('movie_id') #grabs movie id from query
-        watchlist_name = request.GET.get('watchlist_name', 'Watchlist')  # Default watchlist is Watchlist'
+    else:
+        try:
 
-        username = get_user_username(request.session.get("access_token")).get('username')
-        id = (User.objects.get(name=username)).id #needed to grab users watchlists
+            username = get_user_username(request.session.get("access_token")).get('username')
+            id = (User.objects.get(name=username)).id #needed to grab users watchlists
 
-        #Grabs the watchlist needed to create foriegn key
-        watchlist = Watchlist.objects.get(user_id=id, name=watchlist_name) 
-
-
-        if not movie_id:
-            return JsonResponse({'error': 'Movie ID is required'}, status=400)
+            #Grabs the watchlist needed to create foriegn key
+            watchlist = Watchlist.objects.get(user_id=id, name=watchlist_name) 
 
 
-        # Check if the movie is already in the watchlist
-        if WatchlistItem.objects.filter(watchlist=watchlist, movie_id=movie_id).exists():
-            return JsonResponse({'message': 'Movie is already in the watchlist'}, status=200)
+            if not movie_id:
+                return JsonResponse({'error': 'Movie ID is required'}, status=400)
 
-        # Add the movie to the watchlist
-        WatchlistItem.objects.create(watchlist=watchlist, movie_id=movie_id)
 
-        return JsonResponse({'message': 'Movie added to watchlist successfully'})
+            # Check if the movie is already in the watchlist
+            if WatchlistItem.objects.filter(watchlist=watchlist, movie_id=movie_id).exists():
+                return JsonResponse({'message': 'Movie is already in the watchlist'}, status=200)
 
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON input'}, status=400)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+            # Add the movie to the watchlist
+            WatchlistItem.objects.create(watchlist=watchlist, movie_id=movie_id)
+
+            return JsonResponse({'message': 'Movie added to watchlist successfully'})
+
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON input'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
     
 
 #Create_relationship method
@@ -252,6 +269,111 @@ def get_mutual_friends(request):
 
     return JsonResponse(response, status=200)
 
+
+
+def grab_watchlists(request):
+    try:
+        if 'id' in request.GET:
+            id = request.GET.get('id')
+        else:
+            username = get_user_username(request.session.get("access_token")).get('username')
+            id = (User.objects.get(name=username)).id #needed to grab users watchlists
+        watchlist = Watchlist.objects.filter(user_id=id) 
+
+        watchlist_data = list(watchlist.values())  #Converts QuerySet to a list of dictionaries
+        
+        # Return the JSON response
+        return JsonResponse({"status": "success", "watchlist": watchlist_data}, safe=False)
+    except User.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "User not found"}, status=404)
+    except Watchlist.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Watchlist not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+def grab_watchlist_items(request):
+    try:
+        if 'id' in request.GET:
+            id = request.GET.get('id')
+        else:
+            username = get_user_username(request.session.get("access_token")).get('username')
+            id = (User.objects.get(name=username)).id
+
+        watchlist_name = request.GET.get('watchlist_name', 'Watchlist')
+
+        watchlist = Watchlist.objects.get(user_id=id, name = watchlist_name)
+
+        watchlist_items = watchlist.items.all()
+
+        items = list(watchlist_items.values())
+
+        return JsonResponse({"status": "success", "watchlist": items}, safe=False)
+    except User.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "User not found"}, status=404)
+    except Watchlist.DoesNotExist:
+        return JsonResponse({"status": "error", "message": "Watchlist not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+#Add to watched method
+#Param: user_id, movie_id
+#Optional Params: Rating and review
+#Desc: Adds movie to users journal 
+#Example
+#Url: http://127.0.0.1:8000/add_to_watched/?user_id=1&movie_id=24&rating=4&review=amazing%20movie%20would%20watch%20again%20and%20again
+def add_to_watched(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        movie_id = data.get('movie_id')
+        rating = data.get('rating')
+        review = data.get('review')
+
+        # Validate required parameters
+        if not user_id or not movie_id:
+            return JsonResponse({'error': 'user_id and movie_id are required.'}, status=400)
+
+    if rating:
+            try:
+                rating = int(rating)
+                if rating < 1 or rating > 5:
+                    return JsonResponse({'error': 'Rating must be between 1 and 5.'}, status=400)
+            except ValueError:
+                return JsonResponse({'error': 'Rating must be an integer.'}, status=400)
+
+    if review and len(review) > 2000:
+                return JsonResponse({'error': 'Review must not exceed 2000 characters.'}, status=400)
+    
+
+    # Retrieve user and movie instances
+    user = User.objects.get(id=user_id)
+    movie = Movie.objects.get(id=movie_id)
+
+
+        # Add entry to the UserMovieJournal table
+    journal_entry, created = UserMovieJournal.objects.get_or_create(
+        user=user,
+        movie=movie,
+        defaults={
+                "rating": rating if rating is not None else 0,  # Default rating
+                "review": review if review else '',  # Default review
+        }
+    )
+
+    if created:
+        return JsonResponse({'message': 'Movie added to watched list successfully.'}, status=201)
+    elif not created:
+                # Update rating and review if the entry already exists
+                if rating is not None:
+                    journal_entry.rating = rating
+                if review is not None:
+                    journal_entry.review = review
+                journal_entry.save()
+
+    return JsonResponse({'error': 'Invalid HTTP method. Use POST.'}, status=405)
+
+
+@csrf_exempt
 def recommend_movie(request):
     if request.method == "POST":
         try:
@@ -259,6 +381,7 @@ def recommend_movie(request):
             member_suggested_id = data.get("member_suggested")
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
+
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
@@ -297,3 +420,81 @@ def recommend_movie(request):
             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
     return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
+
+@csrf_exempt
+def update_recommendation(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            recommendation_id = data.get("recommendation_id")
+            like = data.get('like')
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        if MemberRecommendation.objects.filter(id = recommendation_id).exists:
+            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+        else:
+            return JsonResponse({"error": "Recommendation does not exist"})
+        
+        #increments voting by 1
+        if like:
+            recommendation.voting = recommendation.voting + 1
+            #updates voting column
+            recommendation.save()
+        else:
+            recommendation.voting = recommendation.voting - 1
+            recommendation.save()
+
+        user_rec = recommendation.user_receiving
+        if Group.objects.filter(group_id = user_rec).exists():
+
+            group = Group.objects.get(group_id = user_rec)
+            voting_limit = group.voting_limit
+            #convert to decimal and divide by # of group members
+            if recommendation.voting >= voting_limit:
+                return JsonResponse({"Recommendation": True})
+            else:
+                return JsonResponse({"Recommendation": False})
+        elif User.objects.filter(group_id = user_rec):
+            pass
+        else:
+            return JsonResponse({"error": "Recieving user does not exist "})
+        
+
+@csrf_exempt
+def send_messages(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "This method reqires post request"})
+    
+    data = json.loads(request.body)
+
+    user_sending = data.get("user_sending")
+    user_rec = data.get("user_recieving")
+    message = data.get("message")
+
+    print(User.objects.filter(id = user_sending).exists())
+    print(User.objects.filter(id = user_rec).exists())
+
+    if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
+
+        user_sending = User.objects.get(id = user_sending)
+        user_rec = User.objects.get(id = user_rec)
+        Message.objects.create(user_sending = user_sending, user_receiving = user_rec, message_content = message)
+
+        return JsonResponse({'Success': "Message Sent!"})
+
+    else:
+        return JsonResponse({"error": "User does not exist"})
+
+
+        
+            
+
+
+
+
+
+
+
