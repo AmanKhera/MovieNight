@@ -244,10 +244,6 @@ def get_following(request):
     return JsonResponse(response, status=200)
 
 
-
-
-
-
 #Mutual Friends Method
 #Param: id of user whos mutual friends you are searching for
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
@@ -272,6 +268,7 @@ def get_mutual_friends(request):
     response = {str(user['id']): user['name'] for user in mutual_info}
 
     return JsonResponse(response, status=200)
+
 
 
 def grab_watchlists(request):
@@ -385,25 +382,43 @@ def recommend_movie(request):
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
 
+
+            # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
                 return JsonResponse({"error": "Missing required fields."}, status=400)
 
-            member_suggested = User.objects.get(id=member_suggested_id)
-            user_receiving = User.objects.get(id=user_receiving_id)
+            # Validate if users exist before proceeding
+            try:
+                member_suggested = User.objects.get(id=member_suggested_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "Member suggesting does not exist."}, status=400)
 
+            try:
+                user_receiving = User.objects.get(id=user_receiving_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "User receiving does not exist."}, status=400)
+
+            # Ensure movie_id is an integer
+            try:
+                movie_id = int(movie_id)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+
+            # Create the recommendation record
             recommendation = MemberRecommendation.objects.create(
                 member_suggested=member_suggested,
                 user_receiving=user_receiving,
-                movie_id=movie_id,
+                movie_id=movie_id
             )
             
-            return JsonResponse({"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, status=201)
-        
-        except User.DoesNotExist:
-            return JsonResponse({"error": "Invalid user ID provided."}, status=400)
+            return JsonResponse(
+                {"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, 
+                status=201
+            )
+
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format."}, status=400)
-    
+
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
