@@ -7,6 +7,7 @@ from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.core.exceptions import ObjectDoesNotExist
 import json
 import jwt
 
@@ -28,6 +29,7 @@ def get_user_username(access_token):
         
         #Extract the username from the decoded token
         username = decoded_token.get("username")
+        print(decoded_token)
         if not username:
             return JsonResponse({"error": "Username not found in token"}, status=400)
 
@@ -498,3 +500,28 @@ def send_messages(request):
 
 
 
+#User Info Method
+#Has no paramaters 
+#returns username, email, id, and date joined
+def user_info(request):
+
+    id_token = request.session.get("id_token")
+    decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+
+    if not id_token:
+        return JsonResponse({"error": "No ID token found in session"}, status=401)
+
+
+    try:
+
+        user = User.objects.get(email = decoded_token.get("email"))
+
+        return JsonResponse({
+            "username": user.name,
+            "email": user.email,
+            "id": user.id,
+            "date_joined": user.date_joined,
+
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)    

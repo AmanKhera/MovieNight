@@ -78,12 +78,18 @@ urlpatterns = [
 
     path('watchlist_items/', user_views.grab_watchlist_items, name='add_members'),
 
+<<<<<<< Updated upstream
     path('api_search/', movie_views.api_movie_search, name='add_members'),
 
     path('grab_user_groups/', group_views.get_user_groups),
     path('recommend_movie/', user_views.recommend_movie),
     path('update_recommendation/', user_views.update_recommendation),
     path('send_message/', user_views.send_messages),
+=======
+    path('grab_user_groups/', group_views.get_user_groups),
+    
+    path('user_info/', user_views.user_info)
+>>>>>>> Stashed changes
 
 ]
 
