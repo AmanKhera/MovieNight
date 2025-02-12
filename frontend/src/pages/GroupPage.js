@@ -1,7 +1,7 @@
 // src/pages/GroupPage.js
 import React, { useState } from "react";
 import Toolbar from "../components/Toolbar";
-import { GroupsSidebar, ChatSection, MoviePoll } from "../components/thecomponents";
+import { GroupsSidebar, ChatSection, MoviePoll, UserProfile } from "../components/thecomponents";
 import "./GroupPage.css"; // CSS for overriding toolbar, etc.
 
 const GroupPage = () => {
@@ -73,7 +73,6 @@ const GroupPage = () => {
           setNewMessage={setNewMessage}
           onSendMessage={handleSendMessage}
         />
-
         <MoviePoll pollItems={pollItems} onVote={handleVote} />
       </div>
     </div>
