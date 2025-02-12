@@ -121,5 +121,54 @@ def Search(request):
 
 
 
+<<<<<<< Updated upstream
+=======
+from django.http import JsonResponse
+import requests
+import os
+
+def api_movie_search(request):
+    search = request.GET.get('q')  # Get movie title from query parameters
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&"
+
+    title_params = {
+        't': search,
+    }
+
+    try:
+        response = requests.get(omdb_url, params=title_params)
+        data = response.json()
+
+        if data.get('Response') == 'False':
+            return JsonResponse({'error': data.get('Error', 'Movie not found.')}, status=404)
+
+        # Check if runtime exists and is in the expected format
+        runtime_str = data.get('Runtime', '0 min')  # Default to '0 min' if not found
+        try:
+            runtime = int(runtime_str.split()[0])  # Extract the number from '120 min'
+        except (ValueError, IndexError):
+            runtime = 0  # Default to 0 if the runtime is not in the expected format
+
+        # Save the movie data to the database (or update if it exists)
+        Movie.objects.update_or_create(
+            title=data.get("Title", "Unknown Title"),
+            defaults={
+                'year': data.get('Year', 'Unknown Year'),
+                'runtime': runtime,
+                'rating': data.get('Rated', 'N/A'),
+                'plot': data.get('Plot', 'No plot available.'),
+                'director': data.get('Director', 'Unknown Director'),
+            }
+        )
+
+        return JsonResponse(data, safe=False)
+
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+>>>>>>> Stashed changes
+
 
 

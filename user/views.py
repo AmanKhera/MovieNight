@@ -342,3 +342,159 @@ def add_to_watched(request):
 
 
 
+<<<<<<< Updated upstream
+=======
+
+            # Check if required fields are provided
+            if not all([member_suggested_id, user_receiving_id, movie_id]):
+                return JsonResponse({"error": "Missing required fields."}, status=400)
+
+            # Validate if users exist before proceeding
+            try:
+                member_suggested = User.objects.get(id=member_suggested_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "Member suggesting does not exist."}, status=400)
+
+            try:
+                user_receiving = User.objects.get(id=user_receiving_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "User receiving does not exist."}, status=400)
+
+            # Ensure movie_id is an integer
+            try:
+                movie_id = int(movie_id)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+
+            # Create the recommendation record
+            recommendation = MemberRecommendation.objects.create(
+                member_suggested=member_suggested,
+                user_receiving=user_receiving,
+                movie_id=movie_id
+            )
+            
+            return JsonResponse(
+                {"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, 
+                status=201
+            )
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+    return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
+
+@csrf_exempt
+def update_recommendation(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            recommendation_id = data.get("recommendation_id")
+            like = data.get('like')
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        if MemberRecommendation.objects.filter(id = recommendation_id).exists:
+            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+        else:
+            return JsonResponse({"error": "Recommendation does not exist"})
+        
+        #increments voting by 1
+        if like:
+            recommendation.voting = recommendation.voting + 1
+            #updates voting column
+            recommendation.save()
+        else:
+            recommendation.voting = recommendation.voting - 1
+            recommendation.save()
+
+        user_rec = recommendation.user_receiving
+        if Group.objects.filter(group_id = user_rec).exists():
+
+            group = Group.objects.get(group_id = user_rec)
+            voting_limit = group.voting_limit
+            #convert to decimal and divide by # of group members
+            if recommendation.voting >= voting_limit:
+                return JsonResponse({"Recommendation": True})
+            else:
+                return JsonResponse({"Recommendation": False})
+        elif User.objects.filter(group_id = user_rec):
+            pass
+        else:
+            return JsonResponse({"error": "Recieving user does not exist "})
+        
+
+@csrf_exempt
+def send_messages(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "This method reqires post request"})
+    
+    data = json.loads(request.body)
+
+    user_sending = data.get("user_sending")
+    user_rec = data.get("user_recieving")
+    message = data.get("message")
+
+    print(User.objects.filter(id = user_sending).exists())
+    print(User.objects.filter(id = user_rec).exists())
+
+    if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
+
+        user_sending = User.objects.get(id = user_sending)
+        user_rec = User.objects.get(id = user_rec)
+        Message.objects.create(user_sending = user_sending, user_receiving = user_rec, message_content = message)
+
+        return JsonResponse({'Success': "Message Sent!"})
+
+    else:
+        return JsonResponse({"error": "User does not exist"})
+
+
+        
+            
+
+
+
+
+
+
+
+#User Info Method
+#Has no paramaters 
+#returns username, email, id, and date joined
+def user_info(request):
+    id_token = request.session.get("id_token")
+    
+    if not id_token:
+        return JsonResponse({"error": "No ID token found in session"}, status=401)
+    
+    # Ensure the token is bytes
+    if isinstance(id_token, str):
+        id_token = id_token.encode("utf-8")
+
+    try:
+        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+        user = User.objects.get(email=decoded_token.get("email"))
+        
+        return JsonResponse({
+            "username": user.name,
+            "email": user.email,
+            "id": user.id,
+            "date_joined": user.date_joined,
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        # Catch-all for other decode or unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
+    
+
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.http import JsonResponse
+
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    return JsonResponse({'status': 'ok'})
+ 
+>>>>>>> Stashed changes

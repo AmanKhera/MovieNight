@@ -102,6 +102,14 @@ DATABASES = {
     }
 }
 
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_SECURE = False  # or True if on HTTPS
+SESSION_COOKIE_SAMESITE = None
+SESSION_COOKIE_SECURE = False
+
+
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
