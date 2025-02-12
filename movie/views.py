@@ -52,10 +52,7 @@ def popular(request):
 
     url = f"https://api.themoviedb.org/3/movie/popular?language=en-US&page={page}&api_key={TMDB_API_KEY}"
 
-
-
     try:
-
 
         response = requests.get(url)
         data = response.json()
@@ -104,7 +101,6 @@ def Search(request):
 
         response['movies'] = list(movies)
 
-
     else:
         movies = Movie.objects.filter(
 
@@ -118,6 +114,7 @@ def Search(request):
         response['users'] = list(users)
 
     return JsonResponse(response, safe=False)
+
 
 
 
@@ -162,9 +159,9 @@ def api_movie_search(request):
 
         return JsonResponse(data, safe=False)
 
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
-
 
 
 
