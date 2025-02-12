@@ -121,8 +121,6 @@ def Search(request):
 
 
 
-<<<<<<< Updated upstream
-=======
 from django.http import JsonResponse
 import requests
 import os
@@ -168,7 +166,6 @@ def api_movie_search(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
->>>>>>> Stashed changes
 
 
 

@@ -7,19 +7,6 @@ import json
 from user.views import get_user_username, create_watchlist
 from django.views.decorators.csrf import csrf_exempt
 
-<<<<<<< Updated upstream
-
-def create_group(request):
-
-    if request.method != 'GET':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-    try:   
-        group_name = request.GET.get("group_name")
-        leader_id = request.GET.get("leader_id")
-        genre = request.GET.get("genre", None)
-=======
 #Create Group
 #Params: group_name, leader_id, genre
 #return: Status 200 if success
@@ -52,22 +39,11 @@ def create_group(request):
         group_name = data.get("group_name")
         leader_id = data.get("leader_id")
         genre = data.get("genre", None)
->>>>>>> Stashed changes
 
         # Validate required fields
         if not group_name or not leader_id:
             return JsonResponse({'error': 'Missing required fields'}, status=400)
 
-<<<<<<< Updated upstream
-        if Group.objects.filter(leader_id = user, group_name = group_name).exists():
-           return JsonResponse({'message': 'Group name cannot be the same as existing group'}, status=200)            
-        
-        #unique email is needed since the user table must be unique
-        New_Group = User.objects.create(name = group_name, email=f"{group_name.replace(' ','_').lower()}_{user.id}@group.local")
-        Group_ = Group.objects.create(group_id = New_Group, leader_id = user.id, group_name = group_name, genre = genre)        
-        GroupMember.objects.create(group = Group_,member = user, role = 'admin')
-        return JsonResponse({'message': 'Group was Successfully created'})
-=======
         # Fetch the user
         try:
             user = User.objects.get(id=leader_id)
@@ -97,7 +73,6 @@ def create_group(request):
         )
 
         return JsonResponse({'message': 'Group created successfully'}, status=201)
->>>>>>> Stashed changes
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
@@ -105,14 +80,11 @@ def create_group(request):
         return JsonResponse({'error': str(e)}, status=500)
     
 
-<<<<<<< Updated upstream
-=======
 #Add Member To Group
 #params: group_id (group the member will be added to), member_id (member to be added)
 #returns: Status 200 if success
 
 @csrf_exempt
->>>>>>> Stashed changes
 def add_member_to_group(request):
 
     if request.method != 'GET':
@@ -138,8 +110,6 @@ def add_member_to_group(request):
         return JsonResponse({'error': str(e)}, status=500)
     
 
-<<<<<<< Updated upstream
-=======
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
@@ -170,7 +140,6 @@ def remove_member_from_group(request):
 #return: The list of groups the user is a part of
 
 @csrf_exempt
->>>>>>> Stashed changes
 def get_user_groups(request):
     
     try:
@@ -198,21 +167,14 @@ def get_user_groups(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
-<<<<<<< Updated upstream
-def add_to_group_watchlist(request):
-    pass
-=======
-
 #Group Recommendation
 #Params: group_id
-#Returns: Movies recommended to group are returned as a list    
-
-@csrf_exempt
+#Returns: Movies recommended to group are returned as a list
 def group_recommendation(request):
 
     group_id = request.GET.get('group_id')
     try:
-        recommendations = MemberRecommendation.objects.get(user_receiving = group_id)
+        recommendations = MemberRecommendation.objects.filter(user_receiving = group_id)
         #turn in to list to return as JsonResponse
         recommendations_list = list(recommendations.values())
         return JsonResponse({"Recommendations": recommendations_list})
@@ -220,7 +182,6 @@ def group_recommendation(request):
         return JsonResponse({"error": str(e)}, status = 500)
 
     
->>>>>>> Stashed changes
 
 
 

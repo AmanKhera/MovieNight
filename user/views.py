@@ -7,6 +7,7 @@ from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 import json
+from django.views.decorators.csrf import csrf_exempt
 import jwt
 
 
@@ -342,8 +343,16 @@ def add_to_watched(request):
 
 
 
-<<<<<<< Updated upstream
-=======
+
+@csrf_exempt
+def recommend_movie(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            member_suggested_id = data.get("member_suggested")
+            user_receiving_id = data.get("user_receiving")
+            movie_id = data.get("movie_id")
+
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
@@ -372,7 +381,7 @@ def add_to_watched(request):
                 user_receiving=user_receiving,
                 movie_id=movie_id
             )
-            
+
             return JsonResponse(
                 {"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, 
                 status=201
@@ -497,4 +506,3 @@ from django.http import JsonResponse
 def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
  
->>>>>>> Stashed changes
