@@ -492,36 +492,35 @@ def send_messages(request):
         return JsonResponse({"error": "User does not exist"})
 
 
-        
-            
-
-
-
-
-
-
-
+                    
 #User Info Method
 #Has no paramaters 
 #returns username, email, id, and date joined
 def user_info(request):
-
     id_token = request.session.get("id_token")
-    decoded_token = jwt.decode(id_token, options={"verify_signature": False})
-
+    
     if not id_token:
         return JsonResponse({"error": "No ID token found in session"}, status=401)
-
+    
+    # Ensure the token is bytes
+    if isinstance(id_token, str):
+        id_token = id_token.encode("utf-8")
 
     try:
-
-        user = User.objects.get(email = decoded_token.get("email"))
-
+        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+        user = User.objects.get(email=decoded_token.get("email"))
+        
         return JsonResponse({
             "username": user.name,
             "email": user.email,
             "id": user.id,
             "date_joined": user.date_joined,
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        # Catch-all for other decode or unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 
@@ -639,45 +638,7 @@ def send_messages(request):
 
     else:
         return JsonResponse({"error": "User does not exist"})
-
-
-        
-            
-
-
-
-
-
-
-
-#User Info Method
-#Has no paramaters 
-#returns username, email, id, and date joined
-def user_info(request):
-    id_token = request.session.get("id_token")
-    
-    if not id_token:
-        return JsonResponse({"error": "No ID token found in session"}, status=401)
-    
-    # Ensure the token is bytes
-    if isinstance(id_token, str):
-        id_token = id_token.encode("utf-8")
-
-    try:
-        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
-        user = User.objects.get(email=decoded_token.get("email"))
-        
-        return JsonResponse({
-            "username": user.name,
-            "email": user.email,
-            "id": user.id,
-            "date_joined": user.date_joined,
-        })
-    except ObjectDoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
-    except Exception as e:
-        # Catch-all for other decode or unexpected errors
-        return JsonResponse({"error": str(e)}, status=500)
+   
     
 
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -688,6 +649,5 @@ def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
  
 
-    except ObjectDoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)    
+
 

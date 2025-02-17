@@ -22,19 +22,6 @@ from .models import User, Group, GroupMember
 
 
 import logging
-
-def create_group(request):
-
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-    try:   
-        data = json.loads(request.body)
-        group_name = data.get("group_name")
-        leader_id = data.get("leader_id")
-        genre = data.get("genre", None)
-
-
 logger = logging.getLogger(__name__)
 
 

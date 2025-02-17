@@ -134,7 +134,7 @@ def api_movie_search(request):
     try:
         response = requests.get(omdb_url, params=title_params)
         data = response.json()
-
+        print(data.get('Rated'))
         if data.get('Response') == 'False':
             return JsonResponse({'error': data.get('Error', 'Movie not found.')}, status=404)
 
