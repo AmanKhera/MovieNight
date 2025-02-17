@@ -89,6 +89,5 @@ urlpatterns = [
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
      path('group_recommendation/', group_views.group_recommendation, name='group_recommendation'),
 
-
 ]
 

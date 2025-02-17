@@ -62,8 +62,8 @@ const MovieDetailsPage = () => {
         if (data.poster) {
           setPosterURL(data.poster);
         }
-      } catch (err) {
-        console.error("Failed to fetch poster:", err);
+      } catch (error) {
+        console.error("Failed to fetch poster:", error);
       }
     };
 
@@ -104,12 +104,7 @@ const MovieDetailsPage = () => {
   return (
     <div style={styles.container}>
       {message && (
-        <div
-          style={{
-            ...styles.message,
-            backgroundColor: message.type === "success" ? "#4caf50" : "#f44336",
-          }}
-        >
+        <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
           {message.text}
         </div>
       )}
