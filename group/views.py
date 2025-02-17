@@ -9,6 +9,7 @@ from user.models import User
 from group.models import Group, GroupMember
 from movie.models import Watchlist, WatchlistItem
 from user.views import get_user_username, create_watchlist
+from user.models import MemberRecommendation
 # If MemberRecommendation is used, import it:
 # from user.models import MemberRecommendation  (or wherever it is defined)
 
