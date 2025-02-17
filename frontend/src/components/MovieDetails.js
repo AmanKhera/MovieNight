@@ -1,68 +1,56 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 
-const MovieDetails = () => {
-  const { id } = useParams();  // Get movie ID from URL
+const MovieDetailsPage = () => {
+  // Here, "id" is assumed to be the movie title.
+  const { id } = useParams();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const release_date = queryParams.get("release_date"); // e.g., "2010-07-16"
 
   const [movie, setMovie] = useState(null);
   const [posterURL, setPosterURL] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [loadingAdd, setLoadingAdd] = useState(false); 
+  const [loadingAdd, setLoadingAdd] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // 1) Fetch movie details by ID, fallback to OMDB API search if not found
+  // Fetch movie details using the API search endpoint.
   useEffect(() => {
-    const fetchMovieById = async () => {
+    const fetchMovie = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/search?id=${id}`);
+        let searchUrl = `http://localhost:8000/api_search/?title=${encodeURIComponent(id)}`;
+        if (release_date) {
+          searchUrl += `&release_date=${encodeURIComponent(release_date)}`;
+        }
+        const response = await fetch(searchUrl);
         const data = await response.json();
 
-        if (response.ok && data.movies && data.movies.length > 0) {
-          setMovie(data.movies[0]);
+        if (response.ok && data.Title) {
+          setMovie({
+            title: data.Title,
+            year: data.Year,
+            runtime: data.Runtime,
+            rating: data.Rated,
+            plot: data.Plot,
+            director: data.Director,
+            id: id, // preserve the movie title as the ID
+          });
         } else {
-          console.warn("No movie found by ID. Attempting OMDB search...");
-          await fetchFromOMDB(id);  // Fallback to OMDB search
+          throw new Error(data.error || "Movie not found via OMDB search.");
         }
       } catch (err) {
-        console.error('Error fetching from local DB:', err);
-        await fetchFromOMDB(id);  // If local fetch fails, try OMDB directly
+        console.error("Error in OMDB search:", err);
+        setError("No movie found via OMDB search.");
       } finally {
         setLoading(false);
       }
     };
 
-    const fetchFromOMDB = async (movieId) => {
-      try {
-        // Attempt OMDB search directly using the movie title or ID
-        const omdbResponse = await fetch(`http://localhost:8000/api_search/?q=${movieId}`);
-        const omdbData = await omdbResponse.json();
+    fetchMovie();
+  }, [id, release_date]);
 
-        if (omdbResponse.ok && omdbData.Title) {
-          // Update the movie details using the OMDB response
-          setMovie({
-            title: omdbData.Title,
-            year: omdbData.Year,
-            runtime: omdbData.Runtime,
-            rating: omdbData.Rated,
-            plot: omdbData.Plot,
-            director: omdbData.Director,
-            id: movieId,  // Maintain the original movie ID
-          });
-        } else {
-          throw new Error(omdbData.error || "OMDB search did not find any results.");
-        }
-      } catch (err) {
-        console.error('Error in OMDB search:', err);
-        setError("No movie found by ID or via OMDB search.");
-      }
-    };
-
-    fetchMovieById();
-  }, [id]);
-
-  // 2) Fetch the poster
+  // Fetch the poster image.
   useEffect(() => {
     if (!movie || !movie.title) return;
 
@@ -74,24 +62,22 @@ const MovieDetails = () => {
         if (data.poster) {
           setPosterURL(data.poster);
         }
-      } catch (error) {
-        console.error("Failed to fetch poster:", error);
+      } catch (err) {
+        console.error("Failed to fetch poster:", err);
       }
     };
 
     fetchPoster();
   }, [movie]);
 
-  // 3) Add movie to watchlist
+  // Add movie to watchlist
   const addToWatchlist = async (movieId) => {
     if (!movieId) {
       setMessage({ text: "Invalid movie ID.", type: "error" });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-
     setLoadingAdd(true);
-
     try {
       const response = await fetch(`http://localhost:8000/add_movie/?movie_id=${movieId}`, {
         method: "GET",
@@ -118,7 +104,12 @@ const MovieDetails = () => {
   return (
     <div style={styles.container}>
       {message && (
-        <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
+        <div
+          style={{
+            ...styles.message,
+            backgroundColor: message.type === "success" ? "#4caf50" : "#f44336",
+          }}
+        >
           {message.text}
         </div>
       )}
@@ -126,7 +117,7 @@ const MovieDetails = () => {
       <div style={styles.detailsWrapper}>
         <div style={styles.posterContainer}>
           <img
-            src={posterURL ? posterURL : "https://via.placeholder.com/300x450?text=No+Image"}
+            src={posterURL || "https://via.placeholder.com/300x450?text=No+Image"}
             alt={movie.title}
             style={styles.poster}
           />
@@ -152,16 +143,35 @@ const MovieDetails = () => {
   );
 };
 
-export default MovieDetails;
+export default MovieDetailsPage;
 
 // Inline styles
 const styles = {
   container: { padding: "20px", color: "#fff", backgroundColor: "#240046" },
-  message: { padding: "10px", marginBottom: "20px", color: "#fff", borderRadius: "4px", textAlign: "center" },
+  message: {
+    padding: "10px",
+    marginBottom: "20px",
+    color: "#fff",
+    borderRadius: "4px",
+    textAlign: "center",
+  },
   title: { textAlign: "center", margin: "0 0 20px 350px" },
   detailsWrapper: { display: "flex", alignItems: "flex-start", gap: "20px", marginTop: "20px" },
   posterContainer: { position: "relative", width: "300px", height: "444px", margin: "0 0 20px 50px", flexShrink: 0 },
   poster: { width: "100%", height: "100%", borderRadius: "6px", objectFit: "cover" },
-  addButton: { position: "absolute", top: "10px", right: "10px", backgroundColor: "#fff", border: "none", color: "#000", cursor: "pointer", fontSize: "24px", width: "40px", height: "40px", borderRadius: "50%", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" },
+  addButton: {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    backgroundColor: "#fff",
+    border: "none",
+    color: "#000",
+    cursor: "pointer",
+    fontSize: "24px",
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  },
   info: { flex: 1 },
 };
