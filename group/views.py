@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from user.models import User
+from user.models import User, MemberRecommendation
 from group.models import Group, GroupMember
 from movie.models import Watchlist, WatchlistItem
 import json
@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 #Create Group
 #Params: group_name, leader_id, genre
 #return: Status 200 if success
+
 
 import json
 from django.http import JsonResponse
@@ -22,7 +23,20 @@ from .models import User, Group, GroupMember
 
 import logging
 
+def create_group(request):
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    try:   
+        data = json.loads(request.body)
+        group_name = data.get("group_name")
+        leader_id = data.get("leader_id")
+        genre = data.get("genre", None)
+
+
 logger = logging.getLogger(__name__)
+
 
 @csrf_exempt
 def create_group(request):
@@ -74,6 +88,7 @@ def create_group(request):
 
         return JsonResponse({'message': 'Group created successfully'}, status=201)
 
+
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
@@ -84,15 +99,18 @@ def create_group(request):
 #params: group_id (group the member will be added to), member_id (member to be added)
 #returns: Status 200 if success
 
+
 @csrf_exempt
+
 def add_member_to_group(request):
 
-    if request.method != 'GET':
+    if request.method != 'POST':
         return JsonResponse({'error': 'Invalid request method'}, status=405)
     
     try:
-        group_id = request.GET.get("group_id")
-        member_id = request.GET.get("member_id")
+        data = json.loads(request.body)
+        group_id = data.get("group_id")
+        member_id = data.get("member_id")
 
         group = Group.objects.get(group_id=group_id)
         member = User.objects.get(id = member_id)
@@ -102,18 +120,17 @@ def add_member_to_group(request):
 
         GroupMember.objects.create(group=group, member=member)
 
-        return JsonResponse({'message': 'Member added to group!'})
+        return JsonResponse({'message': 'Member added to group!'}, status = 200)
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
 
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
-#
+
 
 @csrf_exempt
 def remove_member_from_group(request):
@@ -140,6 +157,7 @@ def remove_member_from_group(request):
 #return: The list of groups the user is a part of
 
 @csrf_exempt
+
 def get_user_groups(request):
     
     try:
@@ -167,6 +185,7 @@ def get_user_groups(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
+
 #Group Recommendation
 #Params: group_id
 #Returns: Movies recommended to group are returned as a list

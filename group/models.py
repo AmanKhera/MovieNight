@@ -27,6 +27,8 @@ class Group(models.Model):
 
     genre = models.CharField(max_length=100, blank=True, null=True)
 
+    voting_limit = models.IntegerField(null=True, blank=True, default=None)  # New field
+
     date_created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
