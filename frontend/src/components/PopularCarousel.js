@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // <-- Import from react-router-dom
+import { useNavigate } from "react-router-dom";
 import "./PopularCarousel.css";
 
 const PopularCarousel = ({ title = "Popular Movies" }) => {
@@ -11,8 +11,7 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
   const [message, setMessage] = useState(null); // For user feedback
   const [loading, setLoading] = useState({}); // Track loading state per movie
 
-  const navigate = useNavigate(); // <-- We'll use this to redirect the user
-
+  const navigate = useNavigate();
   const totalItems = movies.length;
 
   // Fetch popular movies from the backend
@@ -24,8 +23,8 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
           throw new Error(`Failed to fetch popular movies: ${response.status}`);
         }
         const data = await response.json();
+        console.log(data);
         setMovies(data.results || []);
-
         // Set the initial index for infinite scrolling
         setCurrentIndex(data.results.length);
       } catch (error) {
@@ -37,20 +36,17 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
 
     const updateItemsPerPage = () => {
       const width = window.innerWidth;
-
       let newItemsPerPage;
       if (width >= 1400) newItemsPerPage = 10;
       else if (width >= 1200) newItemsPerPage = 8;
       else if (width >= 992) newItemsPerPage = 6;
       else if (width >= 768) newItemsPerPage = 4;
       else newItemsPerPage = 2;
-
       setItemsPerPage(newItemsPerPage);
     };
 
     updateItemsPerPage();
     window.addEventListener("resize", updateItemsPerPage);
-
     return () => {
       window.removeEventListener("resize", updateItemsPerPage);
     };
@@ -77,12 +73,12 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
 
   // Reset position after transition for infinite scrolling
   const handleTransitionEnd = () => {
-    if (currentIndex >= totalItems + itemsPerPage) {
+    if (currentIndex >= movies.length + itemsPerPage) {
       setEnableTransition(false);
-      setCurrentIndex(currentIndex - totalItems);
+      setCurrentIndex(currentIndex - movies.length);
     } else if (currentIndex < itemsPerPage) {
       setEnableTransition(false);
-      setCurrentIndex(currentIndex + totalItems);
+      setCurrentIndex(currentIndex + movies.length);
     }
   };
 
@@ -92,61 +88,80 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
     return `translateX(-${translateValue}%)`;
   };
 
-  // Function to add a movie to the watchlist
-  const addToWatchlist = async (movieId) => {
-    if (!movieId) {
-      setMessage({ text: "Invalid movie ID.", type: "error" });
-      setTimeout(() => {
-        setMessage(null);
-      }, 3000);
+  // Modified addToWatchlist function:
+  // Uses the search endpoint to get the movie's ID by title and release year,
+  // then calls the add_movie endpoint with that ID.
+  const addToWatchlist = async (movie) => {
+    const titleParam = movie.title || movie.original_title;
+    if (!titleParam) {
+      setMessage({ text: "Invalid movie title.", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
-    console.log(`Attempting to add movie with ID: ${movieId} to watchlist`);
+    // Extract the release year if available
+    const releaseDate = movie.release_date || "";
+    const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
 
-    // Set loading state for this movie
-    setLoading((prev) => ({ ...prev, [movieId]: true }));
-
+    setLoading((prev) => ({ ...prev, [movie.id]: true }));
     try {
-      // Construct the query parameters
-      const params = new URLSearchParams({ movie_id: movieId });
+      // Build a simple query string for the search endpoint
+      const params = ["q=" + titleParam];
+      if (releaseYear) {
+        params.push("year=" + releaseYear);
+      }
+      const searchUrl = "http://localhost:8000/search/?" + params.join("&");
 
-      // Optional: Include watchlist_name if you want to specify a different watchlist
-      // params.append('watchlist_name', 'MyCustomWatchlist');
+      const searchResponse = await fetch(searchUrl, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!searchResponse.ok) {
+        throw new Error("Failed to search");
+      }
+      const searchData = await searchResponse.json();
+      if (searchData.error) {
+        throw new Error(searchData.error);
+      }
+      if (!searchData.movies || searchData.movies.length === 0) {
+        throw new Error("Movie not found in search.");
+      }
+      console.log("Search result:", searchData.movies[0].id);
+      const foundMovieId = searchData.movies[0].id;
 
-      const response = await fetch(
-        `http://localhost:8000/add_movie/?${params.toString()}`,
+      // Now call the add_movie endpoint using the found movie ID
+      const addResponse = await fetch(
+        "http://localhost:8000/add_movie/?movie_id=" + foundMovieId,
         {
           method: "GET",
-          credentials: "include", // Include cookies for session authentication
+          credentials: "include",
         }
       );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({
-          text: data.message || "Movie added to watchlist.",
-          type: "success",
-        });
-      } else {
-        setMessage({ text: data.error || "An error occurred.", type: "error" });
+      if (!addResponse.ok) {
+        const addData = await addResponse.json();
+        throw new Error(addData.error || "An error occurred.");
       }
-    } catch (error) {
-      console.error("Error adding movie to watchlist:", error);
-      setMessage({ text: "Failed to add movie to watchlist.", type: "error" });
+      const addData = await addResponse.json();
+      setMessage({ text: addData.message || "Movie added to watchlist!", type: "success" });
+    } catch (err) {
+      console.error("Failed to add movie to watchlist:", err);
+      setMessage({ text: err.message, type: "error" });
     } finally {
-      // Clear the loading state and message after 3 seconds
-      setLoading((prev) => ({ ...prev, [movieId]: false }));
-      setTimeout(() => {
-        setMessage(null);
-      }, 3000);
+      setLoading((prev) => ({ ...prev, [movie.id]: false }));
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
-  // Handle clicking on the movie poster to go to the details page (by ID)
-  const handleMovieClick = (movieId) => {
-    navigate(`/movie/${movieId}`);
+  // Handle clicking on the movie poster to go to the details page.
+  // We pass the movie title (and release date, if available) in the URL.
+  const handleMovieClick = (movie) => {
+    const titleParam = encodeURIComponent(movie.title || movie.original_title);
+    const releaseDate = movie.release_date; // TMDb usually provides release_date
+    if (releaseDate) {
+      navigate(`/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`);
+    } else {
+      navigate(`/movie/${titleParam}`);
+    }
   };
 
   if (movies.length === 0) {
@@ -178,30 +193,17 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
           onTransitionEnd={handleTransitionEnd}
         >
           {extendedItems.map((movie, index) => {
-            // Debugging log to inspect movie object
-            console.log(
-              `Rendering movie: ${movie.title || movie.original_title}, ID: ${movie.id}`
-            );
-
-            // Check if movie.id exists
             const movieId = movie.id;
-            if (!movieId) {
-              console.warn(
-                `Movie at index ${index} is missing 'id' property.`,
-                movie
-              );
-            }
-
             return (
               <div
                 className="carousel-item"
-                key={`${movieId}-${index}`} // better key for uniqueness
+                key={`${movieId}-${index}`}
                 style={{ flex: `0 0 ${100 / itemsPerPage}%` }}
               >
                 <div className="image-container">
-                  {/* Click the poster to go to /movie/:id */}
+                  {/* Clicking the poster navigates to the details page */}
                   <img
-                    onClick={() => handleMovieClick(movieId)}
+                    onClick={() => handleMovieClick(movie)}
                     src={
                       movie.poster_path
                         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
@@ -211,12 +213,13 @@ const PopularCarousel = ({ title = "Popular Movies" }) => {
                     className="carousel-image"
                     style={{ cursor: "pointer" }}
                   />
+                  {/* Pass the whole movie object to addToWatchlist */}
                   <button
                     className="add-button"
-                    onClick={() => addToWatchlist(movieId)}
+                    onClick={() => addToWatchlist(movie)}
                     title="Add to Watchlist"
                     aria-label={`Add ${movie.title || movie.original_title} to Watchlist`}
-                    disabled={loading[movieId]} // Disable button while loading
+                    disabled={loading[movieId]}
                   >
                     {loading[movieId] ? "..." : "+"}
                   </button>

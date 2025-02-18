@@ -142,21 +142,31 @@ def Search(request):
 
 
 
-
 from django.http import JsonResponse
 import requests
 import os
 def api_movie_search(request):
-    search = request.GET.get('q')  # Get movie title from query parameters
-    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
-    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&"
+    # Get movie title and release date from query parameters
+    movie_title = request.GET.get('title')
+    release_date = request.GET.get('release_date')  # Expecting "YYYY-MM-DD" or "YYYY"
+    
+    # Extract the year from the release date if provided
+    release_year = None
+    if release_date:
+        release_year = release_date.split('-')[0]  # Gets the "YYYY" part
 
-    title_params = {
-        't': search,
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}"
+
+    # Build the query parameters for the OMDb API
+    query_params = {
+        't': movie_title,
     }
+    if release_year:
+        query_params['y'] = release_year
 
     try:
-        response = requests.get(omdb_url, params=title_params)
+        response = requests.get(omdb_url, params=query_params)
         data = response.json()
         print(data.get('Rated'))
         if data.get('Response') == 'False':
@@ -165,15 +175,15 @@ def api_movie_search(request):
         # Check if runtime exists and is in the expected format
         runtime_str = data.get('Runtime', '0 min')  # Default to '0 min' if not found
         try:
-            runtime = int(runtime_str.split()[0])  # Extract the number from '120 min'
+            runtime = int(runtime_str.split()[0])  # Extract the number from something like '120 min'
         except (ValueError, IndexError):
             runtime = 0  # Default to 0 if the runtime is not in the expected format
 
-        # Save the movie data to the database (or update if it exists)
-        Movie.objects.update_or_create(
+        # Use both title and year as lookup fields to ensure uniqueness
+        movie, created = Movie.objects.update_or_create(
             title=data.get("Title", "Unknown Title"),
+            year=data.get('Year', 'Unknown Year'),
             defaults={
-                'year': data.get('Year', 'Unknown Year'),
                 'runtime': runtime,
                 'rating': data.get('Rated', 'N/A'),
                 'plot': data.get('Plot', 'No plot available.'),
@@ -183,7 +193,60 @@ def api_movie_search(request):
 
         return JsonResponse(data, safe=False)
 
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
+
+
+genre_dictionary = {
+    "action":28,
+    "adventure":12,
+    "animation":16,
+    "comedy":35,
+    "crime":80,
+    "documentary":99,
+    "drama":18,
+    "family":10751,
+    "fantasy":14,
+    "history":36,
+    "horror":27,
+    "mystery":9648,
+    "romance":10749,
+    "science fiction":878,
+    "war":10752,
+    "thriller":37
+}
+
+#Discover Movies Method
+#Params: 
+#page = Used to show more movies of the same genre
+#genre = Given as a string in lowercase and finds movies matching that genre
+#Return: Dictionary with all movie data
+def discover_movies(request):
+
+    #Defaults to first page if no page is put in
+    page = request.GET.get('page', 1)
+    genre = request.GET.get('genre')
+
+
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+    url = "https://api.themoviedb.org/3/discover/movie"
+
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": "en-US",
+        "sort_by": "popularity.desc",
+        "with_genres": genre_dictionary[genre],
+        "page": page
+    }
+
+    try:
+
+        response = requests.get(url, params=params)
+        data = response.json()
+        return JsonResponse(data, safe=False)
+ 
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
 
