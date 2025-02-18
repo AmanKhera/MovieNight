@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 import json
 import logging
 
+
 from user.models import User
 from group.models import Group, GroupMember
 from movie.models import Watchlist, WatchlistItem
@@ -12,6 +13,7 @@ from user.views import get_user_username, create_watchlist
 from user.models import MemberRecommendation
 # If MemberRecommendation is used, import it:
 # from user.models import MemberRecommendation  (or wherever it is defined)
+
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,11 @@ def create_group(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+    
 
+#Add Member To Group
+#params: group_id (group the member will be added to), member_id (member to be added)
+#returns: Status 200 if success
 @csrf_exempt
 def add_member_to_group(request):
     if request.method != 'GET':
@@ -90,6 +96,9 @@ def add_member_to_group(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
+#Remove Member From Group
+#Params: remove_id (person being removed), group_id
 @csrf_exempt
 def remove_member_from_group(request):
     try:
@@ -113,6 +122,9 @@ def remove_member_from_group(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
+#Get User Groups
+#return: The list of groups the user is a part of
 @csrf_exempt
 def get_user_groups(request):
     try:
