@@ -194,9 +194,7 @@ def update_or_create_user_from_cognito(access_token):
 
         user, created = User.objects.update_or_create(
             email=email,
-            defaults={
-                'name': decoded_token.get('username'),
-            }
+            name = username
         )
 
         #Returns user and whether they are new

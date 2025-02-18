@@ -30,7 +30,7 @@ def get_user_username(access_token):
         
         #Extract the username from the decoded token
         username = decoded_token.get("username")
-        print(decoded_token)
+
         if not username:
             return JsonResponse({"error": "Username not found in token"}, status=400)
 
@@ -477,8 +477,6 @@ def send_messages(request):
     user_rec = data.get("user_recieving")
     message = data.get("message")
 
-    print(User.objects.filter(id = user_sending).exists())
-    print(User.objects.filter(id = user_rec).exists())
 
     if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
 
@@ -502,7 +500,7 @@ def user_info(request):
     if not id_token:
         return JsonResponse({"error": "No ID token found in session"}, status=401)
     
-    # Ensure the token is bytes
+    #Ensure the token is bytes
     if isinstance(id_token, str):
         id_token = id_token.encode("utf-8")
 
@@ -522,123 +520,6 @@ def user_info(request):
         # Catch-all for other decode or unexpected errors
         return JsonResponse({"error": str(e)}, status=500)
 
-
-
-@csrf_exempt
-def recommend_movie(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            member_suggested_id = data.get("member_suggested")
-            user_receiving_id = data.get("user_receiving")
-            movie_id = data.get("movie_id")
-
-
-            # Check if required fields are provided
-            if not all([member_suggested_id, user_receiving_id, movie_id]):
-                return JsonResponse({"error": "Missing required fields."}, status=400)
-
-            # Validate if users exist before proceeding
-            try:
-                member_suggested = User.objects.get(id=member_suggested_id)
-            except User.DoesNotExist:
-                return JsonResponse({"error": "Member suggesting does not exist."}, status=400)
-
-            try:
-                user_receiving = User.objects.get(id=user_receiving_id)
-            except User.DoesNotExist:
-                return JsonResponse({"error": "User receiving does not exist."}, status=400)
-
-            # Ensure movie_id is an integer
-            try:
-                movie_id = int(movie_id)
-            except (ValueError, TypeError):
-                return JsonResponse({"error": "Invalid movie ID."}, status=400)
-
-            # Create the recommendation record
-            recommendation = MemberRecommendation.objects.create(
-                member_suggested=member_suggested,
-                user_receiving=user_receiving,
-                movie_id=movie_id
-            )
-
-            return JsonResponse(
-                {"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, 
-                status=201
-            )
-
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
-
-    return JsonResponse({"error": "Invalid request method."}, status=405)
-
-
-
-@csrf_exempt
-def update_recommendation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            recommendation_id = data.get("recommendation_id")
-            like = data.get('like')
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
-
-        if MemberRecommendation.objects.filter(id = recommendation_id).exists:
-            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-        else:
-            return JsonResponse({"error": "Recommendation does not exist"})
-        
-        #increments voting by 1
-        if like:
-            recommendation.voting = recommendation.voting + 1
-            #updates voting column
-            recommendation.save()
-        else:
-            recommendation.voting = recommendation.voting - 1
-            recommendation.save()
-
-        user_rec = recommendation.user_receiving
-        if Group.objects.filter(group_id = user_rec).exists():
-
-            group = Group.objects.get(group_id = user_rec)
-            voting_limit = group.voting_limit
-            #convert to decimal and divide by # of group members
-            if recommendation.voting >= voting_limit:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
-        elif User.objects.filter(group_id = user_rec):
-            pass
-        else:
-            return JsonResponse({"error": "Recieving user does not exist "})
-        
-
-@csrf_exempt
-def send_messages(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "This method reqires post request"})
-    
-    data = json.loads(request.body)
-
-    user_sending = data.get("user_sending")
-    user_rec = data.get("user_recieving")
-    message = data.get("message")
-
-    print(User.objects.filter(id = user_sending).exists())
-    print(User.objects.filter(id = user_rec).exists())
-
-    if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
-
-        user_sending = User.objects.get(id = user_sending)
-        user_rec = User.objects.get(id = user_rec)
-        Message.objects.create(user_sending = user_sending, user_receiving = user_rec, message_content = message)
-
-        return JsonResponse({'Success': "Message Sent!"})
-
-    else:
-        return JsonResponse({"error": "User does not exist"})
-   
     
 
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -647,6 +528,43 @@ from django.http import JsonResponse
 @ensure_csrf_cookie
 def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
+
+
+#Retrieve_messages method
+#params:
+#user_id: Used to retrieve messages relating to that user
+#returns: Messages sent and recieved by that user
+def retrieve_messages(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "This method reqires get request"})
+    
+    user_id = request.GET.get("user_id")
+
+    if User.objects.filter(id = user_id).exists():
+        messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
+
+        #Serializes messages into a JSON format
+        messages_data = [
+            {
+                "id": msg.id,
+                "user_sending": msg.user_sending.id,
+                "user_receiving": msg.user_receiving.id,
+                "content": msg.message_content,
+                "date_sent": msg.date_sent,
+                "status":msg.status
+            }
+            for msg in messages
+        ]
+
+        return JsonResponse({'success': True, 'messages': messages_data})
+    else:
+        return JsonResponse({"error":"User does not have messages"})
+
+
+
+    
+
+
  
 
 

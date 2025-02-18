@@ -87,7 +87,8 @@ urlpatterns = [
     path('send_message/', user_views.send_messages),
     path('user_info/', user_views.user_info),
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
-     path('group_recommendation/', group_views.group_recommendation, name='group_recommendation'),
+    path('group_recommendation/', group_views.group_recommendation, name='group_recommendation'),
+    path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
 
 
 ]

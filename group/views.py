@@ -85,10 +85,7 @@ def create_group(request):
 #Add Member To Group
 #params: group_id (group the member will be added to), member_id (member to be added)
 #returns: Status 200 if success
-
-
 @csrf_exempt
-
 def add_member_to_group(request):
 
     if request.method != 'POST':
@@ -117,8 +114,6 @@ def add_member_to_group(request):
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
-
-
 @csrf_exempt
 def remove_member_from_group(request):
 
@@ -142,9 +137,7 @@ def remove_member_from_group(request):
 
 #Get User Groups
 #return: The list of groups the user is a part of
-
 @csrf_exempt
-
 def get_user_groups(request):
     
     try:
