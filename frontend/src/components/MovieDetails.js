@@ -71,31 +71,63 @@ const MovieDetailsPage = () => {
   }, [movie]);
 
   // Add movie to watchlist
-  const addToWatchlist = async (movieId) => {
-    if (!movieId) {
-      setMessage({ text: "Invalid movie ID.", type: "error" });
+  const addToWatchlist = async (movie) => {
+    // Validate that the movie object has a title
+    const titleParam = movie.title || movie.original_title;
+    console.log(">>>>>>>>>" + titleParam)
+    if (!titleParam) {
+      setMessage({ text: "Invalid movie title.", type: "error" });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
+  
+    // Extract the release year if available
+    const releaseDate = movie.release_date || "";
+    const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
+  
     setLoadingAdd(true);
     try {
-      const response = await fetch(`http://localhost:8000/add_movie/?movie_id=${movieId}`, {
+      // Call the search endpoint using the movie title and release year
+      const searchUrl = `http://localhost:8000/search/?q=${encodeURIComponent(
+        titleParam
+      )}${releaseYear ? `&year=${encodeURIComponent(releaseYear)}` : ""}`;
+      const searchResponse = await fetch(searchUrl, {
         method: "GET",
         credentials: "include",
       });
-      const data = await response.json();
-      if (response.ok) {
-        setMessage({ text: data.message || "Movie added to watchlist!", type: "success" });
+      const searchData = await searchResponse.json();
+      
+      console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" + searchData.movies[0].id)
+
+      if (searchResponse.ok && searchData.movies && searchData.movies.length > 0) {
+        // Use the first matching movie's ID from the search results
+        const foundMovieId = searchData.movies[0].id;
+        // Now, call the add_movie endpoint using the found movie ID
+        const addResponse = await fetch(
+          `http://localhost:8000/add_movie/?movie_id=${foundMovieId}`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
+        const addData = await addResponse.json();
+        if (addResponse.ok) {
+          setMessage({ text: addData.message || "Movie added to watchlist!", type: "success" });
+        } else {
+          setMessage({ text: addData.error || "An error occurred.", type: "error" });
+        }
       } else {
-        setMessage({ text: data.error || "An error occurred.", type: "error" });
+        setMessage({ text: "Movie not found in search.", type: "error" });
       }
     } catch (err) {
+      console.error("Failed to add movie to watchlist:", err);
       setMessage({ text: "Failed to add movie to watchlist.", type: "error" });
     } finally {
       setLoadingAdd(false);
       setTimeout(() => setMessage(null), 3000);
     }
   };
+  
 
   if (loading) return <div style={{ color: "#fff" }}>Loading movie details...</div>;
   if (error) return <div style={{ color: "#fff" }}>Error: {error}</div>;
@@ -118,12 +150,13 @@ const MovieDetailsPage = () => {
           />
           <button
             style={styles.addButton}
-            onClick={() => addToWatchlist(movie.id)}
+            onClick={() => addToWatchlist(movie)}
             disabled={loadingAdd}
             title="Add to Watchlist"
           >
             {loadingAdd ? "..." : "+"}
           </button>
+
         </div>
         <div style={styles.info}>
           <h2>Plot</h2>

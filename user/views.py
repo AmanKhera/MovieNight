@@ -273,7 +273,7 @@ def get_mutual_friends(request):
     return JsonResponse(response, status=200)
 
 
-
+@csrf_exempt
 def grab_watchlists(request):
     try:
         if 'id' in request.GET:
@@ -294,6 +294,7 @@ def grab_watchlists(request):
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+@csrf_exempt
 def grab_watchlist_items(request):
     try:
         if 'id' in request.GET:
@@ -531,7 +532,7 @@ def user_info(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
+#Recommending to the group or user
 @csrf_exempt
 def recommend_movie(request):
     if request.method == "POST":
@@ -581,7 +582,7 @@ def recommend_movie(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
-
+#
 @csrf_exempt
 def update_recommendation(request):
     if request.method == "POST":

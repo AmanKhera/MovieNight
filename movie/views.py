@@ -67,6 +67,7 @@ def Search(request):
 
     #Get the search query and filter from GET parameters
     query = request.GET.get('q', '').strip()
+    year = request.GET.get('year','').strip()
     movie_id = request.GET.get('id','')
     filter_type = request.GET.get('filter', '').strip().lower()
 
@@ -76,9 +77,16 @@ def Search(request):
     #If no query is provided, returns an empty response
     if not query and not movie_id:
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
+    
+    if year:
+        movies = Movie.objects.filter(Q(title__icontains=query) & Q(year=year)).values(
+
+            'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
+        )
+        response['movies'] = list(movies)
+        return JsonResponse(response)
 
     if filter_type == "user":
-
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
         response['users'] = list(users)
 
@@ -172,6 +180,59 @@ def api_movie_search(request):
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
 
+
+
+genre_dictionary = {
+    "action":28,
+    "adventure":12,
+    "animation":16,
+    "comedy":35,
+    "crime":80,
+    "documentary":99,
+    "drama":18,
+    "family":10751,
+    "fantasy":14,
+    "history":36,
+    "horror":27,
+    "mystery":9648,
+    "romance":10749,
+    "science fiction":878,
+    "war":10752,
+    "thriller":37
+}
+
+#Discover Movies Method
+#Params: 
+#page = Used to show more movies of the same genre
+#genre = Given as a string in lowercase and finds movies matching that genre
+#Return: Dictionary with all movie data
+def discover_movies(request):
+
+    #Defaults to first page if no page is put in
+    page = request.GET.get('page', 1)
+    genre = request.GET.get('genre')
+
+
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+    url = "https://api.themoviedb.org/3/discover/movie"
+
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": "en-US",
+        "sort_by": "popularity.desc",
+        "with_genres": genre_dictionary[genre],
+        "page": page
+    }
+
+    try:
+
+        response = requests.get(url, params=params)
+        data = response.json()
+        return JsonResponse(data, safe=False)
+ 
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 

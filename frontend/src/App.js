@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import MovieDetailsPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
+import UserWatchlistPage from './pages/UserWatchlistPage';
 
 function App() {
   // Fetch the CSRF token when the app loads
@@ -32,6 +33,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/movie/:id" element={<MovieDetailsPage />} />
           <Route path="/groups" element={<GroupPage />} />
+          <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
         </Routes>
       </BrowserRouter>
     </div>
