@@ -9,7 +9,9 @@ const HomePage = () => {
     <div>
       <Toolbar />
         <PopularCarousel title="Top Popular Movies" />
-        <DiscoverCarousel id="war" />
+        <DiscoverCarousel 
+          id="war" 
+        />
         <DiscoverCarousel id="comedy" />
         <DiscoverCarousel id="history" />
         <DiscoverCarousel id="thriller" />

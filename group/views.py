@@ -68,8 +68,6 @@ def create_group(request):
 
 @csrf_exempt
 def add_member_to_group(request):
-    if request.method != 'GET':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
     
     try:
         group_id = request.GET.get("group_id")
