@@ -30,7 +30,7 @@ def get_user_username(access_token):
         
         #Extract the username from the decoded token
         username = decoded_token.get("username")
-        print(decoded_token)
+
         if not username:
             return JsonResponse({"error": "Username not found in token"}, status=400)
 
@@ -273,7 +273,7 @@ def get_mutual_friends(request):
     return JsonResponse(response, status=200)
 
 
-
+@csrf_exempt
 def grab_watchlists(request):
     try:
         if 'id' in request.GET:
@@ -294,6 +294,7 @@ def grab_watchlists(request):
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+@csrf_exempt
 def grab_watchlist_items(request):
     try:
         if 'id' in request.GET:
@@ -477,6 +478,7 @@ def send_messages(request):
     user_rec = data.get("user_recieving")
     message = data.get("message")
 
+
     print(User.objects.filter(id = user_sending).exists())
     print(User.objects.filter(id = user_rec).exists())
 
@@ -492,7 +494,15 @@ def send_messages(request):
         return JsonResponse({"error": "User does not exist"})
 
 
-                    
+        
+            
+
+
+
+
+
+
+
 #User Info Method
 #Has no paramaters 
 #returns username, email, id, and date joined
@@ -523,7 +533,7 @@ def user_info(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
+#Recommending to the group or user
 @csrf_exempt
 def recommend_movie(request):
     if request.method == "POST":
@@ -573,7 +583,7 @@ def recommend_movie(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
-
+#
 @csrf_exempt
 def update_recommendation(request):
     if request.method == "POST":
@@ -638,7 +648,38 @@ def send_messages(request):
 
     else:
         return JsonResponse({"error": "User does not exist"})
-   
+
+
+                    
+#User Info Method
+#Has no paramaters 
+#returns username, email, id, and date joined
+def user_info(request):
+    id_token = request.session.get("id_token")
+    
+    if not id_token:
+        return JsonResponse({"error": "No ID token found in session"}, status=401)
+    
+    #Ensure the token is bytes
+    if isinstance(id_token, str):
+        id_token = id_token.encode("utf-8")
+
+    try:
+        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+        user = User.objects.get(email=decoded_token.get("email"))
+        
+        return JsonResponse({
+            "username": user.name,
+            "email": user.email,
+            "id": user.id,
+            "date_joined": user.date_joined,
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        # Catch-all for other decode or unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
+
     
 
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -647,6 +688,43 @@ from django.http import JsonResponse
 @ensure_csrf_cookie
 def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
+
+
+#Retrieve_messages method
+#params:
+#user_id: Used to retrieve messages relating to that user
+#returns: Messages sent and recieved by that user
+def retrieve_messages(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "This method reqires get request"})
+    
+    user_id = request.GET.get("user_id")
+
+    if User.objects.filter(id = user_id).exists():
+        messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
+
+        #Serializes messages into a JSON format
+        messages_data = [
+            {
+                "id": msg.id,
+                "user_sending": msg.user_sending.id,
+                "user_receiving": msg.user_receiving.id,
+                "content": msg.message_content,
+                "date_sent": msg.date_sent,
+                "status":msg.status
+            }
+            for msg in messages
+        ]
+
+        return JsonResponse({'success': True, 'messages': messages_data})
+    else:
+        return JsonResponse({"error":"User does not have messages"})
+
+
+
+    
+
+
  
 
 
