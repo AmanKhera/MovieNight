@@ -100,19 +100,3 @@ class Message(models.Model):
 
     def __str__(self):
         return f"Message from {self.user_sending} to {self.user_receiving} - {self.status}"
-
-
-class MemberRecommendation(models.Model):
-    member_suggested = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='suggested_recommendations'
-    )  #the member who suggested the movie
-    user_receiving = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='received_recommendations'
-    )  #The user receiving the recommendation
-    movie_id = models.IntegerField()  #Movie ID column
-    voting = models.IntegerField(null=True, blank=True)  #Voting column, can be null
-    date_suggested = models.DateTimeField(auto_now_add=True)  #Auto timestamp on creation
-    recommended = models.BooleanField(default=False)  #True if accepted, False otherwise
-
-    def str(self):
-        return f"Recommendation of movie {self.movie_id} from {self.member_suggested} to {self.user_receiving}"
