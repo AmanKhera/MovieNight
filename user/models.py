@@ -103,6 +103,7 @@ class Message(models.Model):
         return f"Message from {self.user_sending} to {self.user_receiving} - {self.status}"
 
 
+
 class MemberRecommendation(models.Model):
     member_suggested = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='suggested_recommendations', db_column='member_suggested'
@@ -120,3 +121,4 @@ class MemberRecommendation(models.Model):
 
     def str(self):
         return f"Recommendation of movie {self.movie_id} from {self.member_suggested} to {self.user_receiving}"
+

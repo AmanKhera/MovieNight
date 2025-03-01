@@ -494,7 +494,27 @@ def send_messages(request):
         return JsonResponse({"error": "User does not exist"})
 
 
-        
+def retrieve_messages(request, num_messages):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'User not authenticated'}, status=401)
+    
+    try:
+        num_messages = int(num_messages)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid number of messages'}, status=400)
+    
+    messages = Message.objects.filter(user_receiving=request.user).order_by('-date_sent')[:num_messages]
+    messages_data = []
+    for msg in messages:
+        messages_data.append({
+            'id': msg.id,
+            'user_sending': msg.user_sending.username,
+            'user_receiving': msg.user_receiving.username,
+            'message_content': msg.message_content,
+            'date_sent': msg.date_sent,
+            'status': msg.status,
+        })
+    return JsonResponse({'messages': messages_data})      
             
 
 
