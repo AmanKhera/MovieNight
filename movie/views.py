@@ -104,7 +104,7 @@ def Search(request):
         return JsonResponse(response)
 
     if filter_type == "user":
-        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+        users = User.objects.filter(Q(username__icontains=query)).values('id', 'name', 'email')
         response['users'] = list(users)
 
     elif filter_type == "director":

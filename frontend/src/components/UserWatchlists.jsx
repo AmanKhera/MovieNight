@@ -92,7 +92,7 @@ const UserWatchlists = () => {
       background-color: #f44336;
     }
 
-    /* Grid container: 6 columns, wrap automatically */
+    /* Grid container: 6 columns, wrapping to new rows as needed */
     .movies-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
@@ -111,7 +111,7 @@ const UserWatchlists = () => {
       height: 270px;
       border-radius: 8px;
       overflow: hidden;
-      background-color: #000; /* fallback black background */
+      background-color: #000; /* fallback background */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -135,6 +135,18 @@ const UserWatchlists = () => {
       min-height: 2.4em;
     }
   `;
+
+  // Helper function to determine the correct poster URL
+  const getPosterUrl = (movie) => {
+    // Check for poster in multiple possible properties
+    const posterUrl = movie.poster || movie.poster_path || movie.Poster;
+    if (posterUrl) {
+      // If it already starts with "http", assume it's a full URL
+      return posterUrl.startsWith("http") ? posterUrl : `https://image.tmdb.org/t/p/w500${posterUrl}`;
+    }
+    // Fallback placeholder image
+    return "https://via.placeholder.com/200x300?text=No+Image";
+  };
 
   if (loadingMovies) {
     return (
@@ -172,15 +184,10 @@ const UserWatchlists = () => {
             onClick={() => handleMovieClick(movie)}
           >
             <div className="poster">
-              {movie.poster_path ? (
-                <img
-                  src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-                  alt={movie.title || movie.original_title}
-                />
-              ) : (
-                // No poster available, so we show an empty div with a black background.
-                <div style={{ width: "100%", height: "100%" }} />
-              )}
+              <img
+                src={getPosterUrl(movie)}
+                alt={movie.title || movie.original_title}
+              />
             </div>
             <div className="movie-title">
               {movie.title || movie.original_title}

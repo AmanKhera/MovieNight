@@ -11,6 +11,8 @@ from django.core.exceptions import ObjectDoesNotExist
 import json
 from django.views.decorators.csrf import csrf_exempt
 import jwt
+from django.core import serializers
+
 
 #remove in production
 from django.views.decorators.csrf import csrf_exempt
@@ -325,6 +327,7 @@ def grab_watchlist_items(request):
 #Desc: Adds movie to users journal 
 #Example
 #Url: http://127.0.0.1:8000/add_to_watched/?user_id=1&movie_id=24&rating=4&review=amazing%20movie%20would%20watch%20again%20and%20again
+@csrf_exempt
 def add_to_watched(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -479,9 +482,6 @@ def send_messages(request):
     message = data.get("message")
 
 
-    print(User.objects.filter(id = user_sending).exists())
-    print(User.objects.filter(id = user_rec).exists())
-
     if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
 
         user_sending = User.objects.get(id = user_sending)
@@ -635,8 +635,6 @@ def send_messages(request):
     user_rec = data.get("user_recieving")
     message = data.get("message")
 
-    print(User.objects.filter(id = user_sending).exists())
-    print(User.objects.filter(id = user_rec).exists())
 
     if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
 
@@ -719,6 +717,54 @@ def retrieve_messages(request):
         return JsonResponse({'success': True, 'messages': messages_data})
     else:
         return JsonResponse({"error":"User does not have messages"})
+
+
+def retrieve_recently_watched(request):
+    user_data_response  = user_info(request)
+
+    user_data = json.loads(user_data_response.content)
+
+    
+    watched = UserMovieJournal.objects.filter(user=user_data.get("id")).order_by('-date_watched')
+
+    data = [
+        {
+            "movie": movie.movie.id,
+            "rating": movie.rating,
+            "date_watched": movie.date_watched.isoformat()
+            
+        }
+        for movie in watched
+    ]
+
+    return JsonResponse(data, safe=False)
+
+
+def update_username(request):
+    
+    from user_login.views import update_cognito_user_attribute_user
+
+    update_name = request.GET.get("username")
+    
+    user_data_response  = user_info(request)
+
+    user_data = json.loads(user_data_response.content)  
+
+
+    entry = User.objects.get(id=user_data.get("id"))
+
+    entry.name = update_name
+
+    entry.save()
+
+
+
+    return JsonResponse({'success': True})
+    
+
+
+
+
 
 
 

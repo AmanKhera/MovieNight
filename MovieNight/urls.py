@@ -92,6 +92,9 @@ urlpatterns = [
     path('discover_movie/', movie_views.discover_movies, name='discover_movie'),
 
     path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
+    path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
+    path('update_username/', user_views.update_username, name='group_recommendation'),   
+
 
 
 ]

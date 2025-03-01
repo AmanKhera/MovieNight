@@ -47,6 +47,9 @@ def create_group(request):
             name=group_name,
             email=f"{group_name.replace(' ', '_').lower()}_{user.id}@group.local"
         )
+
+        watchlist = Watchlist.objects.create(user_id=New_Group.id)
+
         Group_ = Group.objects.create(
             group_id=New_Group,
             leader_id=user.id,
@@ -74,8 +77,8 @@ def create_group(request):
 #returns: Status 200 if success
 @csrf_exempt
 def add_member_to_group(request):
-    if request.method != 'GET':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    #if request.method != 'GET':
+    #    return JsonResponse({'error': 'Invalid request method'}, status=405)
     
     try:
         group_id = request.GET.get("group_id")

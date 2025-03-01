@@ -9,6 +9,7 @@ class User(models.Model):
     id = models.AutoField(primary_key=True)  
     name = models.CharField(max_length=100)  
     email = models.EmailField(unique=True)   
+    username = models.CharField(max_length=150) 
     date_joined = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
