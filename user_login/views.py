@@ -13,6 +13,7 @@ from user.views import get_user_username, create_watchlist
 import jwt
 
 
+
 #Sign up Method
 #If we create out own login page we can pass the sign-up params and cognito will sign up the user
 @csrf_exempt
@@ -194,9 +195,7 @@ def update_or_create_user_from_cognito(access_token):
 
         user, created = User.objects.update_or_create(
             email=email,
-            defaults={
-                'name': decoded_token.get('username'),
-            }
+            name = username
         )
 
         #Returns user and whether they are new
@@ -208,3 +207,7 @@ def update_or_create_user_from_cognito(access_token):
         return {"error": "The access token is invalid."}
     except Exception as e:
         return {"error": f"An unexpected error occurred: {str(e)}"}
+    
+
+
+

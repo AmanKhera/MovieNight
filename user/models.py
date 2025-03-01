@@ -9,6 +9,7 @@ class User(models.Model):
     id = models.AutoField(primary_key=True)  
     name = models.CharField(max_length=100)  
     email = models.EmailField(unique=True)   
+    username = models.CharField(max_length=150) 
     date_joined = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -100,3 +101,24 @@ class Message(models.Model):
 
     def __str__(self):
         return f"Message from {self.user_sending} to {self.user_receiving} - {self.status}"
+
+
+
+class MemberRecommendation(models.Model):
+    member_suggested = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='suggested_recommendations', db_column='member_suggested'
+    )  #the member who suggested the movie
+    user_receiving = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='received_recommendations', db_column='user_receiving'
+    )  #The user receiving the recommendation
+    movie_id = models.IntegerField()  #Movie ID column
+    voting = models.IntegerField(default=0, blank=True) 
+    date_suggested = models.DateTimeField(auto_now_add=True)  #Auto timestamp on creation
+    recommended = models.BooleanField(default=False)  #True if accepted, False otherwise
+
+    class Meta:
+        db_table = 'MemberRecommendations' # links to correct table in mysql
+
+    def str(self):
+        return f"Recommendation of movie {self.movie_id} from {self.member_suggested} to {self.user_receiving}"
+

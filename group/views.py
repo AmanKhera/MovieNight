@@ -1,64 +1,97 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from user.models import User, MemberRecommendation
+from django.views.decorators.csrf import csrf_exempt
+from django.core.exceptions import ObjectDoesNotExist
+import json
+import logging
+
+
+from user.models import User
 from group.models import Group, GroupMember
 from movie.models import Watchlist, WatchlistItem
-import json
 from user.views import get_user_username, create_watchlist
+from user.models import MemberRecommendation
+# If MemberRecommendation is used, import it:
+# from user.models import MemberRecommendation  (or wherever it is defined)
 
-#Create Group
-#Params: group_name, leader_id, genre
-#return: Status 200 if success
+
+logger = logging.getLogger(__name__)
+
+@csrf_exempt
 def create_group(request):
-
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-    try:   
+    try:
         data = json.loads(request.body)
         group_name = data.get("group_name")
         leader_id = data.get("leader_id")
         genre = data.get("genre", None)
 
-        user = User.objects.get(id=leader_id)
+        # Validate required fields
+        if not group_name or not leader_id:
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
 
-        if Group.objects.filter(leader_id = user, group_name = group_name).exists():
-           return JsonResponse({'message': 'Group name cannot be the same as existing group'}, status=200)            
-        
-        #unique email is needed since the user table must be unique
-        New_Group = User.objects.create(name = group_name, email=f"{group_name.replace(' ','_').lower()}_{user.id}@group.local")
-        Group_ = Group.objects.create(group_id = New_Group, leader_id = user.id, group_name = group_name, genre = genre)        
-        GroupMember.objects.create(group = Group_,member = user, role = 'admin')
-        return JsonResponse({'message': 'Group was Successfully created'}, status=200)
+        # Fetch the user
+        try:
+            user = User.objects.get(id=leader_id)
+        except ObjectDoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+
+        # Check for duplicate group names
+        if Group.objects.filter(leader_id=user, group_name=group_name).exists():
+            return JsonResponse({'error': 'Group name already exists'}, status=400)
+
+        # Create the group
+        New_Group = User.objects.create(
+            name=group_name,
+            email=f"{group_name.replace(' ', '_').lower()}_{user.id}@group.local"
+        )
+
+        watchlist = Watchlist.objects.create(user_id=New_Group.id)
+
+        Group_ = Group.objects.create(
+            group_id=New_Group,
+            leader_id=user.id,
+            group_name=group_name,
+            genre=genre,
+            voting_limit=1
+        )
+        GroupMember.objects.create(
+            group=Group_,
+            member=user,
+            role='admin'
+        )
+
+        return JsonResponse({'message': 'Group created successfully'}, status=201)
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
     
 
 #Add Member To Group
 #params: group_id (group the member will be added to), member_id (member to be added)
 #returns: Status 200 if success
+@csrf_exempt
 def add_member_to_group(request):
-
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    #if request.method != 'GET':
+    #    return JsonResponse({'error': 'Invalid request method'}, status=405)
     
     try:
-        data = json.loads(request.body)
-        group_id = data.get("group_id")
-        member_id = data.get("member_id")
+        group_id = request.GET.get("group_id")
+        member_id = request.GET.get("member_id")
 
         group = Group.objects.get(group_id=group_id)
-        member = User.objects.get(id = member_id)
+        member = User.objects.get(id=member_id)
 
-        if GroupMember.objects.filter(group=group_id, member=member_id):
-           return JsonResponse({'message': 'Members is already a part of this group'}, status=200)
+        if GroupMember.objects.filter(group=group, member=member).exists():
+            return JsonResponse({'message': 'Member is already a part of this group'}, status=200)
 
         GroupMember.objects.create(group=group, member=member)
-
-        return JsonResponse({'message': 'Member added to group!'}, status = 200)
+        return JsonResponse({'message': 'Member added to group!'})
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
@@ -66,22 +99,26 @@ def add_member_to_group(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
-#
+@csrf_exempt
 def remove_member_from_group(request):
-
     try:
         data = json.loads(request.body)
         username = get_user_username(request.session.get("access_token")).get('username')
-        id = (User.objects.get(name=username)).id #needed to make sure leader is the 1 removing members
+        current_user_id = User.objects.get(name=username).id  # Ensure leader is the one removing members
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
-        group = Group.objects.filter(group_id = group_id)
 
-        if group.leader_id == id:
-            GroupMember.objects.filter(group_id = group_id, member_id = member_to_be_removed_id).delete()
-            return JsonResponse({"Success": "User has been removed from the group"}, status = 200)
+        # Use get to retrieve a single group instance
+        group = Group.objects.get(group_id=group_id)
+
+        if group.leader_id == current_user_id:
+            GroupMember.objects.filter(group=group, member_id=member_to_be_removed_id).delete()
+            return JsonResponse({"Success": "User has been removed from the group"}, status=200)
+        else:
+            return JsonResponse({"error": "Not authorized to remove member"}, status=403)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
@@ -91,16 +128,15 @@ def remove_member_from_group(request):
 
 #Get User Groups
 #return: The list of groups the user is a part of
+@csrf_exempt
 def get_user_groups(request):
-    
     try:
         username = get_user_username(request.session.get("access_token")).get('username')
-        user = (User.objects.get(name=username)) #needed to grab users groups
+        user = User.objects.get(name=username)
         
-        #grabs a list of all groups the user is a part of via reverse lookup
-        groups = list(user.group_memberships.all())
+        # Get all group memberships for the user
+        memberships = user.group_memberships.all()
 
-        #serializes list to allow for json response
         groups = [
             {
                 "group_id": membership.group_id,
@@ -108,32 +144,21 @@ def get_user_groups(request):
                 "role": membership.role,
                 "joined_at": membership.joined_at,
             }
-            for membership in groups
+            for membership in memberships
         ]
 
         return JsonResponse({"groups": groups}, status=200)
-
     except User.DoesNotExist:
         return JsonResponse({"error": "User not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
 
-#Group Recommendation
-#Params: group_id
-#Returns: Movies recommended to group are returned as a list    
 def group_recommendation(request):
-
     group_id = request.GET.get('group_id')
     try:
-        recommendations = MemberRecommendation.objects.filter(user_receiving = group_id)
-        #turn in to list to return as JsonResponse
+        recommendations = MemberRecommendation.objects.filter(user_receiving=group_id)
         recommendations_list = list(recommendations.values())
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status = 500)
-
-    
-
-
-
+        return JsonResponse({"error": str(e)}, status=500)

@@ -7,8 +7,12 @@ from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.core.exceptions import ObjectDoesNotExist
 import json
+from django.views.decorators.csrf import csrf_exempt
 import jwt
+from django.core import serializers
+
 
 #remove in production
 from django.views.decorators.csrf import csrf_exempt
@@ -28,6 +32,7 @@ def get_user_username(access_token):
         
         #Extract the username from the decoded token
         username = decoded_token.get("username")
+
         if not username:
             return JsonResponse({"error": "Username not found in token"}, status=400)
 
@@ -270,7 +275,7 @@ def get_mutual_friends(request):
     return JsonResponse(response, status=200)
 
 
-
+@csrf_exempt
 def grab_watchlists(request):
     try:
         if 'id' in request.GET:
@@ -291,6 +296,7 @@ def grab_watchlists(request):
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+@csrf_exempt
 def grab_watchlist_items(request):
     try:
         if 'id' in request.GET:
@@ -321,6 +327,7 @@ def grab_watchlist_items(request):
 #Desc: Adds movie to users journal 
 #Example
 #Url: http://127.0.0.1:8000/add_to_watched/?user_id=1&movie_id=24&rating=4&review=amazing%20movie%20would%20watch%20again%20and%20again
+@csrf_exempt
 def add_to_watched(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -474,8 +481,6 @@ def send_messages(request):
     user_rec = data.get("user_recieving")
     message = data.get("message")
 
-    print(User.objects.filter(id = user_sending).exists())
-    print(User.objects.filter(id = user_rec).exists())
 
     if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
 
@@ -515,6 +520,278 @@ def retrieve_messages(request, num_messages):
 
 
 
+
+
+
+#User Info Method
+#Has no paramaters 
+#returns username, email, id, and date joined
+def user_info(request):
+    id_token = request.session.get("id_token")
+    
+    if not id_token:
+        return JsonResponse({"error": "No ID token found in session"}, status=401)
+    
+    # Ensure the token is bytes
+    if isinstance(id_token, str):
+        id_token = id_token.encode("utf-8")
+
+    try:
+        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+        user = User.objects.get(email=decoded_token.get("email"))
+        
+        return JsonResponse({
+            "username": user.name,
+            "email": user.email,
+            "id": user.id,
+            "date_joined": user.date_joined,
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        # Catch-all for other decode or unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#Recommending to the group or user
+@csrf_exempt
+def recommend_movie(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            member_suggested_id = data.get("member_suggested")
+            user_receiving_id = data.get("user_receiving")
+            movie_id = data.get("movie_id")
+
+
+            # Check if required fields are provided
+            if not all([member_suggested_id, user_receiving_id, movie_id]):
+                return JsonResponse({"error": "Missing required fields."}, status=400)
+
+            # Validate if users exist before proceeding
+            try:
+                member_suggested = User.objects.get(id=member_suggested_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "Member suggesting does not exist."}, status=400)
+
+            try:
+                user_receiving = User.objects.get(id=user_receiving_id)
+            except User.DoesNotExist:
+                return JsonResponse({"error": "User receiving does not exist."}, status=400)
+
+            # Ensure movie_id is an integer
+            try:
+                movie_id = int(movie_id)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+
+            # Create the recommendation record
+            recommendation = MemberRecommendation.objects.create(
+                member_suggested=member_suggested,
+                user_receiving=user_receiving,
+                movie_id=movie_id
+            )
+
+            return JsonResponse(
+                {"message": "Movie recommended successfully.", "recommendation_id": recommendation.id}, 
+                status=201
+            )
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+    return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
+#
+@csrf_exempt
+def update_recommendation(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            recommendation_id = data.get("recommendation_id")
+            like = data.get('like')
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        if MemberRecommendation.objects.filter(id = recommendation_id).exists:
+            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+        else:
+            return JsonResponse({"error": "Recommendation does not exist"})
+        
+        #increments voting by 1
+        if like:
+            recommendation.voting = recommendation.voting + 1
+            #updates voting column
+            recommendation.save()
+        else:
+            recommendation.voting = recommendation.voting - 1
+            recommendation.save()
+
+        user_rec = recommendation.user_receiving
+        if Group.objects.filter(group_id = user_rec).exists():
+
+            group = Group.objects.get(group_id = user_rec)
+            voting_limit = group.voting_limit
+            #convert to decimal and divide by # of group members
+            if recommendation.voting >= voting_limit:
+                return JsonResponse({"Recommendation": True})
+            else:
+                return JsonResponse({"Recommendation": False})
+        elif User.objects.filter(group_id = user_rec):
+            pass
+        else:
+            return JsonResponse({"error": "Recieving user does not exist "})
+        
+
+@csrf_exempt
+def send_messages(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "This method reqires post request"})
+    
+    data = json.loads(request.body)
+
+    user_sending = data.get("user_sending")
+    user_rec = data.get("user_recieving")
+    message = data.get("message")
+
+
+    if User.objects.filter(id = user_sending).exists() and User.objects.filter(id = user_rec).exists():
+
+        user_sending = User.objects.get(id = user_sending)
+        user_rec = User.objects.get(id = user_rec)
+        Message.objects.create(user_sending = user_sending, user_receiving = user_rec, message_content = message)
+
+        return JsonResponse({'Success': "Message Sent!"})
+
+    else:
+        return JsonResponse({"error": "User does not exist"})
+
+
+                    
+#User Info Method
+#Has no paramaters 
+#returns username, email, id, and date joined
+def user_info(request):
+    id_token = request.session.get("id_token")
+    
+    if not id_token:
+        return JsonResponse({"error": "No ID token found in session"}, status=401)
+    
+    #Ensure the token is bytes
+    if isinstance(id_token, str):
+        id_token = id_token.encode("utf-8")
+
+    try:
+        decoded_token = jwt.decode(id_token, options={"verify_signature": False})
+        user = User.objects.get(email=decoded_token.get("email"))
+        
+        return JsonResponse({
+            "username": user.name,
+            "email": user.email,
+            "id": user.id,
+            "date_joined": user.date_joined,
+        })
+    except ObjectDoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        # Catch-all for other decode or unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
+
+    
+
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.http import JsonResponse
+
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    return JsonResponse({'status': 'ok'})
+
+
+#Retrieve_messages method
+#params:
+#user_id: Used to retrieve messages relating to that user
+#returns: Messages sent and recieved by that user
+def retrieve_messages(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "This method reqires get request"})
+    
+    user_id = request.GET.get("user_id")
+
+    if User.objects.filter(id = user_id).exists():
+        messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
+
+        #Serializes messages into a JSON format
+        messages_data = [
+            {
+                "id": msg.id,
+                "user_sending": msg.user_sending.id,
+                "user_receiving": msg.user_receiving.id,
+                "content": msg.message_content,
+                "date_sent": msg.date_sent,
+                "status":msg.status
+            }
+            for msg in messages
+        ]
+
+        return JsonResponse({'success': True, 'messages': messages_data})
+    else:
+        return JsonResponse({"error":"User does not have messages"})
+
+
+def retrieve_recently_watched(request):
+    user_data_response  = user_info(request)
+
+    user_data = json.loads(user_data_response.content)
+
+    
+    watched = UserMovieJournal.objects.filter(user=user_data.get("id")).order_by('-date_watched')
+
+    data = [
+        {
+            "movie": movie.movie.id,
+            "rating": movie.rating,
+            "date_watched": movie.date_watched.isoformat()
+            
+        }
+        for movie in watched
+    ]
+
+    return JsonResponse(data, safe=False)
+
+
+def update_username(request):
+    
+    from user_login.views import update_cognito_user_attribute_user
+
+    update_name = request.GET.get("username")
+    
+    user_data_response  = user_info(request)
+
+    user_data = json.loads(user_data_response.content)  
+
+
+    entry = User.objects.get(id=user_data.get("id"))
+
+    entry.name = update_name
+
+    entry.save()
+
+
+
+    return JsonResponse({'success': True})
+    
+
+
+
+
+
+
+
+    
+
+
+ 
 
 
 

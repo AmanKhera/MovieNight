@@ -78,12 +78,24 @@ urlpatterns = [
 
     path('watchlist_items/', user_views.grab_watchlist_items, name='add_members'),
 
-    path('api_search/', movie_views.api_movie_search, name='add_members'),
 
-    path('grab_user_groups/', group_views.get_user_groups),
+    path('api_search/', movie_views.api_movie_search, name='api_search'),
+
+    path('get_user_groups/', group_views.get_user_groups),
     path('recommend_movie/', user_views.recommend_movie),
     path('update_recommendation/', user_views.update_recommendation),
     path('send_message/', user_views.send_messages),
+    path('user_info/', user_views.user_info),
+    path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
+    path('group_recommendation/', group_views.group_recommendation, name='group_recommendation'),
+
+    path('discover_movie/', movie_views.discover_movies, name='discover_movie'),
+
+    path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
+    path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
+    path('update_username/', user_views.update_username, name='group_recommendation'),   
+
+
 
 ]
 

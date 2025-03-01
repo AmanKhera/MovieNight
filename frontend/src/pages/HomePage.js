@@ -1,14 +1,18 @@
 import React from 'react';
-import MovieCarousel from '../components/Carousel'
-import PopularCarousel from '../components/PopularCarousel'
-import Toolbar from '../components/Toolbar'
+import MovieCarousel from '../components/Carousel';
+import PopularCarousel from '../components/PopularCarousel';
+import Toolbar from '../components/Toolbar';
+import DiscoverCarousel from '../components/DiscoverCarousel';
 
 const HomePage = () => {
   return (
     <div>
-      <Toolbar/>
-      <PopularCarousel title="Top Popular Movies"/>  {/* To use the MovieCarousel copy the code on the left and change the title to whichever string you want to display at the top of the Carousel*/}
-      <PopularCarousel title="Top Popular Movies"/>  {/* To use the MovieCarousel copy the code on the left and change the title to whichever string you want to display at the top of the Carousel*/}
+      <Toolbar />
+        <PopularCarousel title="Top Popular Movies" />
+        <DiscoverCarousel id="war" />
+        <DiscoverCarousel id="comedy" />
+        <DiscoverCarousel id="history" />
+        <DiscoverCarousel id="thriller" />
     </div>
   );
 };

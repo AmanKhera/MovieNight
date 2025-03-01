@@ -19,10 +19,14 @@ function Toolbar() {
   };
 
   // Keep the alerts for the other actions as-is
-  const searchButtonAction = () => alert('Search button clicked!');
+  const searchButtonAction = () => {
+    navigate("search");
+  };
   const discoverButtonAction = () => alert('Discover button clicked!');
   const ratingButtonAction = () => alert('Rating button clicked!');
-  const messageButtonAction = () => alert('Message button clicked!');
+  const messageButtonAction = () => {
+    navigate("groups");
+  };
   const friendsButtonAction = () => alert('Friends button clicked!');
   const profileButtonAction = () => alert('Profile button clicked!');
 
