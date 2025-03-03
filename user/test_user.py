@@ -38,6 +38,7 @@ class ViewsTestCase(TestCase):
             type=Watchlist.MAIN
         )
 
+        
         # Create valid JWT tokens for testing.
         # The get_user_username view expects a token payload with a "username" key.
         self.access_token = jwt.encode({"username": "testuser"}, TEST_SECRET, algorithm="HS256")
@@ -70,6 +71,7 @@ class ViewsTestCase(TestCase):
         url = "/watchlist/?id={}".format(self.user1.id)
         response = self.client.get(url)
         data = json.loads(response.content)
+
         self.assertTrue(data.get("success"))
         # The response echoes the provided id.
         self.assertEqual(str(data.get("data", {}).get("user_id")), str(self.user1.id))
@@ -265,7 +267,7 @@ class ViewsTestCase(TestCase):
         }
         response_update = self.client.post(url, data=json.dumps(payload_update), content_type="application/json")
         # The view’s update branch may not return a proper success message (falling through to a 405 error)
-        self.assertEqual(response_update.status_code, 405)
+        self.assertEqual(response_update.status_code, 200)
 
     def test_add_to_watched_invalid_method(self):
         url = "/add_to_watched/"
