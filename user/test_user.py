@@ -2,11 +2,19 @@ import json
 import jwt
 
 from django.test import TestCase, Client, RequestFactory
+from django import setup
+
+import os
+import django
 
 # Import the models – adjust the import paths as needed.
 from user.models import User, Relationship, MemberRecommendation, Message
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from group.models import Group
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  # Ensure this matches your project settings module
+setup()
+
 
 # A dummy secret used to encode tokens for testing.
 TEST_SECRET = "secret"
