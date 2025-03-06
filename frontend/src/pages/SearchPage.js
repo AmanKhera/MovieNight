@@ -19,6 +19,7 @@ const SearchPage = () => {
     } else {
       filterOptions.classList.add("hidden");
     }
+
   };
 
   // toggle to show/not show the given filter options
@@ -46,13 +47,60 @@ const SearchPage = () => {
     toggleButtonClicked("filter-genre-button");
   };
 
+  // -------------Connection Error------------------------
+  // const fetchMoviesByGenre = async () => {
+  //   try {
+  //     const response = await fetch("http://localhost:8000/discover_movies/?genre=action", {
+  //       credentials: "include",
+  //     });
+  //     if (!response.ok) {
+  //       throw new Error("Failed to fetch movies by genre");
+  //     }
+  //     const data = await response.json();
+  //     console.log("discover_movies response:", data);
+  //     if (data.error) {
+  //       setError(data.error);
+  //     } else {
+  //       // setLeaderId(data.id);
+  //       console.log("in else");
+  //     }
+  //   } catch (err) {
+  //     setError(err.message);
+  //   }
+  // };
+
+  const genreFilterButtonAction = (clicked) => {
+    toggleButtonClicked(clicked.target.id);
+    const buttonClicked = document.getElementById(`${clicked.target.id}`);
+    if (buttonClicked.classList.contains("clicked")) {
+      console.log(clicked.target.id);
+      let tokens = (clicked.target.id).split("-");
+      let genre = tokens[2];
+      console.log("genre: " + genre);
+      // fetchMoviesByGenre();
+    }
+  };
+
   const filterContentRatingButtonAction = () => {
     toggleFilterOptions("content-rating-filter-options");
     toggleButtonClicked("filter-content-rating-button");
   };
 
+  const contentRatingFilterButtonAction = (clicked) => {
+    toggleButtonClicked(clicked.target.id);
+    const buttonClicked = document.getElementById(`${clicked.target.id}`);
+    if (buttonClicked.classList.contains("clicked")) {
+      console.log(clicked.target.id);
+      let tokens = (clicked.target.id).split("-");
+      let contentRating = tokens[0];
+      console.log("content rating: " + contentRating);
+      // fetchMoviesByContentRating();
+    }
+  };
+
   const filterRuntimeButtonAction = () => {
-    document.getElementById('filter-runtime-button').classList.toggle("clicked");
+    toggleFilterOptions("runtime-filter-options");
+    toggleButtonClicked("filter-runtime-button");
   };
 
   const filterDirectorButtonAction = () => {
@@ -127,37 +175,47 @@ const SearchPage = () => {
             />
           <button id="search-button-actual" onClick={searchButtonAction}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
+          {error}
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>
             <button id="filter-runtime-button" onClick={filterRuntimeButtonAction}>Runtime</button>
-            <button id="filter-director-button" onClick={filterDirectorButtonAction}>Director</button>
-            <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button>
+            {/* <button id="filter-director-button" onClick={filterDirectorButtonAction}>Director</button>
+            <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button> */}
           </div>
           <div id="genre-filter-options" class="hidden">
-              <button id="genre-filter-comedy-button">Comedy</button>
-              <button id="genre-filter-horror-button">Horror</button>
-              <button id="genre-filter-action-button">Action</button>
+              <button id="genre-filter-action-button" onClick={genreFilterButtonAction}>Action</button>
+              <button id="genre-filter-adventure-button" onClick={genreFilterButtonAction}>Adventure</button>
+              <button id="genre-filter-animation-button" onClick={genreFilterButtonAction}>Animation</button>
+              <button id="genre-filter-comedy-button" onClick={genreFilterButtonAction}>Comedy</button>
+              <button id="genre-filter-crime-button" onClick={genreFilterButtonAction}>Crime</button>
+              <button id="genre-filter-documentary-button" onClick={genreFilterButtonAction}>Documentary</button>
+              <button id="genre-filter-drama-button" onClick={genreFilterButtonAction}>Drama</button>
+              <button id="genre-filter-family-button" onClick={genreFilterButtonAction}>Family</button>
+              <button id="genre-filter-history-button" onClick={genreFilterButtonAction}>History</button>
+              <button id="genre-filter-horror-button" onClick={genreFilterButtonAction}>Horror</button>
+              <button id="genre-filter-mystery-button" onClick={genreFilterButtonAction}>Mystery</button>
+              <button id="genre-filter-romance-button" onClick={genreFilterButtonAction}>Romance</button>
+              <button id="genre-filter-science-fiction-button" onClick={genreFilterButtonAction}>Science Fiction</button>
+              <button id="genre-filter-war-button" onClick={genreFilterButtonAction}>War</button>
+              <button id="genre-filter-thriller-button" onClick={genreFilterButtonAction}>Thriller</button>
           </div>
-          {/* {enteredSearchText} */}
-          {error}
           <div id="content-rating-filter-options" class="hidden">
-              <button id="g-rated-button">G</button>
-              <button id="pg-rated-button">PG</button>
-              <button id="pg13-rated-button">PG-13</button>
-              <button id="r-rated-button">R</button>
+              <button id="g-rated-button" onClick={contentRatingFilterButtonAction}>G</button>
+              <button id="pg-rated-button" onClick={contentRatingFilterButtonAction}>PG</button>
+              <button id="pg13-rated-button" onClick={contentRatingFilterButtonAction}>PG-13</button>
+              <button id="r-rated-button" onClick={contentRatingFilterButtonAction}>R</button>
+          </div>
+          <div id="runtime-filter-options" class="hidden">
+              <button id="90-min-button" onClick={contentRatingFilterButtonAction}>90 Min</button>
+              <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
+              <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
           </div>
           <div>
             <ul id="search-result" style={{ listStyle: 'none' }}></ul>
           </div>
         </div>
       </section>
-      {/* {error && <ErrorAlert error={error} searchTerm={enteredSearchText}/>} */}
-      {/* {movies.length > 0 && <p style="color:white;">Showing {movies.length} Movies for '{enteredSearchText}'</p>} */}
-      {/* {enteredSearchText} */}
-      {/* {JSON.stringify(movies)} */}
-      {/* {error} */}
-      {/* <SearchResult /> */}
     </div>
   );
 };

@@ -79,6 +79,29 @@ export const fetchMovieDetails = async (id, errorCallback) => {
 //   }
 // }
 
+// export const fetchGenre = async (searchText, moviesCallback, errorCallback) => {
+//   try {
+//     const response = await fetch(`http://www.omdbapi.com/?s=${searchText}&apikey=3d39d278&type=movie`);
+//     const data = await response.json();
+
+//     if (data.Response === 'True') {
+//       const movieDetailsPromises = data.Search.map((movie) => fetchMovieDetails(movie.imdbID, errorCallback));
+//       const movieDetails = await Promise.all(movieDetailsPromises);
+
+//       console.log("HERE: " + data.Search);
+//       moviesCallback(movieDetails);
+//       errorCallback(null);
+//       return data;
+//     } else {
+//       moviesCallback([]);
+//       errorCallback(data.Error);
+//     }
+//   } catch (err) {
+//     moviesCallback([]);
+//     errorCallback('An error occured while fetching data.');
+//   }
+// };
+
 // export default fetchMovies;
 
 

@@ -60,7 +60,7 @@
   text-align: center;
 }
 
-#filter-options button, #genre-filter-options button, #content-rating-filter-options button {
+#filter-options button, #genre-filter-options button, #content-rating-filter-options button, #runtime-filter-options button {
   border: 5px solid transparent;
   border-radius: 1rem;
   box-sizing: border-box;
@@ -72,7 +72,7 @@
   cursor: pointer;
 }
 
-#genre-filter-options button, #content-rating-filter-options {
+#genre-filter-options button, #content-rating-filter-options, #runtime-filter-options {
   margin-top: 20px;
 }
 
