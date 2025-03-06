@@ -33,7 +33,7 @@ SECRET_KEY = 'django-insecure-o^h99+k1s#ssrwn^_!g%*xf!tj(_j8bi==^#=cvoaru-5m9m=@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['testserver']
+ALLOWED_HOSTS = ['testserver','127.0.0.1', 'localhost', 'frontend.local']
 
 
 # Application definition
@@ -56,7 +56,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',    
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -146,7 +146,7 @@ CORS_ALLOW_METHODS = [
 
 
 #change when production is complete
-CORS_ALLOW_CREDENTIALS = True 
+CORS_ALLOW_CREDENTIALS = True
 
 
 AWS_COGNITO_USER_POOL_ID = "us-east-1_0wS3ue88a"
