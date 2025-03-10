@@ -24,7 +24,6 @@ from group import views as group_views
 
 
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -95,6 +94,7 @@ urlpatterns = [
     path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
     path('update_username/', user_views.update_username, name='group_recommendation'),   
 
+    path('block/', user_views.block_user, name='block_user'),
 
 
 ]

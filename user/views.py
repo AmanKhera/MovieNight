@@ -2,7 +2,7 @@ from django.shortcuts import render
 from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
-from user.models import User, Relationship, MemberRecommendation, Message
+from user.models import User, Relationship, MemberRecommendation, Message, BlockList
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
 from django.shortcuts import get_object_or_404
@@ -781,7 +781,33 @@ def update_username(request):
 
     return JsonResponse({'success': True})
     
+@csrf_exempt
+def block_user(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            blocker_id = data.get("blocker_id")
+            blocked_id = data.get("blocked_id")
 
+            if blocker_id == blocked_id:
+                return JsonResponse({"error": "You cannot block yourself."}, status=400)
+
+            blocker = User.objects.get(id=blocker_id)
+            blocked = User.objects.get(id=blocked_id)
+
+            # Check if already blocked
+            if BlockList.objects.filter(blocker=blocker, blocked=blocked).exists():
+                return JsonResponse({"message": "User is already blocked."}, status=200)
+
+            BlockList.objects.create(blocker=blocker, blocked=blocked)
+            return JsonResponse({"message": "User blocked successfully."}, status=201)
+
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found."}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+    return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
 
