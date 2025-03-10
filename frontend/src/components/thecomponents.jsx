@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 
 /** ========== GROUPS SIDEBAR ========== */
 
-// Helper to read a named cookie (e.g., "csrftoken").
+// Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -19,13 +19,13 @@ const getCookie = (name) => {
 };
 
 export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
-  // === State ===
-  const [leaderId, setLeaderId] = useState(null); // from /user_info/ (used for creating groups)
-  const [userGroups, setUserGroups] = useState([]); // from /get_user_groups/
+  // State variables
+  const [leaderId, setLeaderId] = useState(null);
+  const [userGroups, setUserGroups] = useState([]);
   const [groupName, setGroupName] = useState("");
   const [genre, setGenre] = useState("");
   const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false); // toggle for creating a new group
+  const [showForm, setShowForm] = useState(false);
 
   // State for per‑group member management modal
   const [expandedGroupId, setExpandedGroupId] = useState(null);
@@ -58,7 +58,6 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
           throw new Error("Failed to fetch user info");
         }
         const data = await response.json();
-        console.log("User info response:", data);
         if (data.error) {
           setError(data.error);
         } else {
@@ -177,21 +176,18 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         console.error("CSRF token not found");
         return;
       }
-      const response = await fetch(
-        "http://localhost:8000/remove_member_from_group/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfToken,
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            group_id: group_id,
-            remove_id: removeMemberId,
-          }),
-        }
-      );
+      const response = await fetch("http://localhost:8000/remove_member_from_group/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          group_id: group_id,
+          remove_id: removeMemberId,
+        }),
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Failed to remove member");
@@ -214,7 +210,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     backgroundColor: "#1a0133",
   };
 
-  // Header container using flex for the "My Groups" header and header plus button (for creating new groups)
+  // Header container for "My Groups" and plus button
   const headerFlexStyle = {
     display: "flex",
     alignItems: "center",
@@ -222,7 +218,6 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     marginBottom: "1rem",
   };
 
-  // Button style for the header plus button (for creating a new group)
   const plusButtonStyle = {
     backgroundColor: "#6a0dad",
     color: "#fff",
@@ -233,7 +228,6 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     fontSize: "1.2rem",
   };
 
-  // Style for the per‑group member management plus button
   const memberButtonStyle = {
     backgroundColor: "#6a0dad",
     color: "#fff",
@@ -245,7 +239,6 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     fontSize: "0.9rem",
   };
 
-  // List and list-item styling
   const listStyle = {
     listStyle: "none",
     margin: 0,
@@ -263,7 +256,6 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     justifyContent: "space-between",
   });
 
-  // Modal overlay and content styles for the Create Group pop-up
   const modalOverlayStyle = {
     position: "fixed",
     top: 0,
@@ -298,10 +290,9 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
     top: "0.5rem",
   };
 
-  // Modal overlay and content styles for the Member Management pop-up (reusing similar styles)
   const memberModalOverlayStyle = {
     ...modalOverlayStyle,
-    zIndex: 1100, // Ensure it's above the create group modal if needed
+    zIndex: 1100,
   };
 
   const memberModalContentStyle = {
@@ -312,7 +303,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
 
   return (
     <div style={sidebarStyle}>
-      {/* Header: "My Groups" with header plus button for creating new groups */}
+      {/* Header: "My Groups" with button to create new groups */}
       <div style={headerFlexStyle}>
         <h3 style={{ margin: 0 }}>My Groups</h3>
         <button onClick={() => setShowForm(true)} style={plusButtonStyle}>
@@ -327,11 +318,11 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         {userGroups.map((grp) => (
           <li
             key={grp.group_id}
-            style={listItemStyle(grp.group_name === selectedGroup)}
-            onClick={() => onSelectGroup(grp.group_name)}
+            style={listItemStyle(grp.group_id === selectedGroup?.id)}
+            onClick={() => onSelectGroup(grp)}
           >
             <span>{grp.group_name}</span>
-            {/* Always show the per‑group member management plus button */}
+            {/* Button for member management */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -345,22 +336,16 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         ))}
       </ul>
 
-      {/* Modal pop-up for managing members for the selected group */}
+      {/* Modal for managing group members */}
       {expandedGroupId && (
         <div style={memberModalOverlayStyle}>
           <div style={memberModalContentStyle}>
-            <button
-              onClick={() => setExpandedGroupId(null)}
-              style={closeButtonStyle}
-            >
+            <button onClick={() => setExpandedGroupId(null)} style={closeButtonStyle}>
               ×
             </button>
             <h4 style={{ margin: "0 0 0.5rem 0" }}>
               Manage Members for{" "}
-              {
-                userGroups.find((g) => g.group_id === expandedGroupId)
-                  ?.group_name || "Group"
-              }
+              {userGroups.find((g) => g.group_id === expandedGroupId)?.group_name || "Group"}
             </h4>
             <div style={{ marginBottom: "0.5rem" }}>
               <strong>Add Member:</strong>
@@ -371,10 +356,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
                 onChange={(e) => setAddMemberId(e.target.value)}
                 style={{ marginLeft: "0.5rem", width: "60%" }}
               />
-              <button
-                onClick={() => handleAddMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
+              <button onClick={() => handleAddMember(expandedGroupId)} style={{ marginLeft: "0.5rem" }}>
                 Add
               </button>
             </div>
@@ -387,10 +369,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
                 onChange={(e) => setRemoveMemberId(e.target.value)}
                 style={{ marginLeft: "0.5rem", width: "60%" }}
               />
-              <button
-                onClick={() => handleRemoveMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
+              <button onClick={() => handleRemoveMember(expandedGroupId)} style={{ marginLeft: "0.5rem" }}>
                 Remove
               </button>
             </div>
@@ -398,7 +377,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         </div>
       )}
 
-      {/* Modal pop-up for creating a new group */}
+      {/* Modal for creating a new group */}
       {showForm && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -429,14 +408,14 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
 };
 
 /** ========== CHAT SECTION ========== */
-// Modified ChatSection to integrate with backend messaging endpoints
+// ChatSection now uses the selected group's ID (which is equivalent to a user ID in your backend)
 export const ChatSection = ({ selectedGroup }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Helper: Read a named cookie (e.g., "csrftoken")
+  // Helper to read a named cookie
   const getCookie = (name) => {
     let cookieValue = null;
     if (document.cookie && document.cookie !== "") {
@@ -452,7 +431,7 @@ export const ChatSection = ({ selectedGroup }) => {
     return cookieValue;
   };
 
-  // Fetch current user info on mount
+  // Fetch current user info.
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -472,47 +451,38 @@ export const ChatSection = ({ selectedGroup }) => {
     fetchUserInfo();
   }, []);
 
-  // Poll for messages when currentUser and selectedGroup are available
+  // Poll for messages using selectedGroup.id (which is treated as a user_id in your backend)
   useEffect(() => {
     if (!currentUser || !selectedGroup) return;
 
     const fetchMessages = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/retrieve_messages/?user_id=${currentUser.id}`,
+          `http://localhost:8000/retrieve_messages/?user_id=${selectedGroup.id}`,
           { credentials: "include" }
         );
         const data = await response.json();
         if (data.error) {
           setError(data.error);
         } else {
-          // Filter messages exchanged with the selected group member
-          const filteredMessages = data.messages.filter(
-            (msg) =>
-              (msg.user_sending === currentUser.id &&
-                msg.user_receiving === selectedGroup.id) ||
-              (msg.user_sending === selectedGroup.id &&
-                msg.user_receiving === currentUser.id)
-          );
-          setMessages(filteredMessages);
+          setMessages(data.messages);
         }
       } catch (err) {
         setError(err.message);
       }
     };
 
-    // Initial fetch and then polling every 3 seconds
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [currentUser, selectedGroup]);
 
-  // Handler for sending a new message
+  // Handler for sending a message.
   const onSendMessage = async () => {
     if (!newMessage || !currentUser || !selectedGroup) return;
     try {
       const csrfToken = getCookie("csrftoken");
-      const response = await fetch("http://localhost:8000/send_message/", {
+      const response = await fetch("http://localhost:8000/send_messages/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -530,14 +500,13 @@ export const ChatSection = ({ selectedGroup }) => {
         setError(data.error);
       } else {
         setNewMessage("");
-        // Optionally, refresh messages immediately (polling will catch the new message soon)
       }
     } catch (err) {
       setError(err.message);
     }
   };
 
-  // Styling definitions
+  // Styling definitions.
   const chatStyle = {
     width: "55%",
     display: "flex",
@@ -568,7 +537,6 @@ export const ChatSection = ({ selectedGroup }) => {
     padding: "0.5rem",
   };
 
-  // Handle Enter key press in the input
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       onSendMessage();
@@ -585,10 +553,7 @@ export const ChatSection = ({ selectedGroup }) => {
         {messages.map((msg, idx) => (
           <div key={idx} style={{ marginBottom: "0.5rem" }}>
             <strong>
-              {msg.user_sending === currentUser?.id
-                ? "You"
-                : selectedGroup.name}
-              :
+              {msg.user_sending === currentUser?.id ? "You" : selectedGroup.name}:
             </strong>{" "}
             {msg.content}
           </div>
@@ -614,10 +579,9 @@ export const MoviePoll = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [error, setError] = useState(null);
 
-  // Hardcode a group_id or pass it from parent
+  // Hardcoded group_id (adjust or pass from parent as needed)
   const groupId = 123;
 
-  // On mount, fetch data from group_recommendation
   useEffect(() => {
     const fetchGroupRecommendations = async () => {
       try {
@@ -626,9 +590,7 @@ export const MoviePoll = () => {
           { credentials: "include" }
         );
         if (!response.ok) {
-          throw new Error(
-            `Failed to fetch recommendations: ${response.status}`
-          );
+          throw new Error(`Failed to fetch recommendations: ${response.status}`);
         }
         const data = await response.json();
         if (data.error) {
@@ -640,17 +602,13 @@ export const MoviePoll = () => {
         setError(err.toString());
       }
     };
-
     fetchGroupRecommendations();
   }, [groupId]);
 
-  // Optional: handle "vote" or other actions
   const handleVote = (recommendId) => {
     setRecommendations((prev) =>
       prev.map((rec) =>
-        rec.id === recommendId
-          ? { ...rec, votes: (rec.votes || 0) + 1 }
-          : rec
+        rec.id === recommendId ? { ...rec, votes: (rec.votes || 0) + 1 } : rec
       )
     );
   };
@@ -692,7 +650,6 @@ export const MoviePoll = () => {
     <div style={pollStyle}>
       <h3>Group Recommendations</h3>
       {error && <p style={{ color: "red" }}>{error}</p>}
-
       <div style={pollItemsStyle}>
         {recommendations.map((rec) => (
           <div key={rec.id} style={pollItemStyle}>
@@ -700,12 +657,9 @@ export const MoviePoll = () => {
               <div style={{ fontWeight: "bold" }}>
                 {rec.title || `Recommendation #${rec.id}`}
               </div>
-              {/* More fields, e.g. <div>{rec.description}</div> */}
+              {/* Optionally include other details */}
             </div>
-            <button
-              style={voteButtonStyle}
-              onClick={() => handleVote(rec.id)}
-            >
+            <button style={voteButtonStyle} onClick={() => handleVote(rec.id)}>
               Vote
             </button>
             <span>{rec.votes || 0} votes</span>
@@ -742,7 +696,6 @@ export const UserProfile = () => {
         setErrorMessage(error.toString());
       }
     };
-
     fetchUserInfo();
   }, []);
 
@@ -785,8 +738,7 @@ export const UserProfile = () => {
         <strong>Email:</strong> {userInfo.email}
       </p>
       <p>
-        <strong>Date Joined:</strong>{" "}
-        {new Date(userInfo.date_joined).toLocaleString()}
+        <strong>Date Joined:</strong> {new Date(userInfo.date_joined).toLocaleString()}
       </p>
     </div>
   );

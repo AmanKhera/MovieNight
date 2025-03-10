@@ -44,7 +44,7 @@ const UserWatchlists = () => {
       } finally {
         setLoadingMovies(false);
       }
-    };
+    }; 
 
     fetchWatchlistMovies();
   }, []);

@@ -8,6 +8,7 @@ from movie.models import Movie
 from user.models import User
 from django.db.models import Q
 from user.models import User
+from django.views.decorators.csrf import csrf_exempt
 
 load_dotenv()
 genre_dictionary = {
@@ -32,6 +33,7 @@ genre_dictionary = {
 
 #Movie Poster Method
 #Grabs title of movie and returns poster of movie in json format
+@csrf_exempt
 def Movie_Poster(request):
     title = request.GET.get('title')
     if not title:
@@ -61,6 +63,7 @@ def Movie_Poster(request):
 
 #Popular Movies    
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
+@csrf_exempt
 def popular(request):
     #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
@@ -79,7 +82,7 @@ def popular(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
+@csrf_exempt
 def Search(request):
 
     #Get the search query and filter from GET parameters
@@ -145,6 +148,7 @@ def Search(request):
 from django.http import JsonResponse
 import requests
 import os
+@csrf_exempt
 def api_movie_search(request):
     # Get movie title and release date from query parameters
     movie_title = request.GET.get('title')
