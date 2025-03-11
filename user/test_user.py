@@ -3,6 +3,12 @@ import jwt
 
 from django.test import TestCase, Client, RequestFactory
 
+import os
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "MovieNight.settings")
+django.setup()
+
 # Import the models – adjust the import paths as needed.
 from user.models import User, Relationship, MemberRecommendation, Message
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
@@ -267,7 +273,6 @@ class ViewsTestCase(TestCase):
         # The view’s update branch may not return a proper success message (falling through to a 405 error)
         self.assertEqual(response_update.status_code, 405)
 
-    def test_add_to_watched_invalid_method(self):
         url = "/add_to_watched/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 405)
