@@ -162,3 +162,19 @@ def group_recommendation(request):
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+    
+
+def leave_group(request):
+
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        group_id = data.get('group_id')
+
+        group = Group.objects.get(group_id=group_id)
+
+
+        if GroupMember.objects.get(group = group, user_id = user_id).DoesNotExist:
+            return JsonResponse({"error":"User is not in group"}, status=500)
+        
+        

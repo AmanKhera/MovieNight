@@ -65,6 +65,7 @@ class WatchlistItem(models.Model):
     
     #links to movie
     movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='watchlist_items')
+
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -79,8 +80,10 @@ class UserMovieJournal(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='movie_journals')
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='user_journals')
     date_watched = models.DateField(auto_now_add=True)
-    rating = models.IntegerField()
+    rating = models.FloatField()
     review = models.TextField(max_length=2000, blank=True, null=True)
+
+    favorite = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'user_movie_journal'
