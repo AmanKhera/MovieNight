@@ -94,7 +94,7 @@ urlpatterns = [
     path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
     path('update_username/', user_views.update_username, name='group_recommendation'),   
     path('favorite', movie_views.favorite),
-    path('retrieve_favorite', movie_views.retrieve_favorites)
+    path('retrieve_favorite', movie_views.retrieve_favorites),
 
     path('block/', user_views.block_user, name='block_user'),
 
