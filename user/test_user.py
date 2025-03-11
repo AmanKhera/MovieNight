@@ -2,6 +2,10 @@ import json
 import jwt
 
 from django.test import TestCase, Client, RequestFactory
+from django import setup
+
+import os
+import django
 
 import os
 import django
@@ -13,6 +17,10 @@ django.setup()
 from user.models import User, Relationship, MemberRecommendation, Message
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from group.models import Group
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  # Ensure this matches your project settings module
+setup()
+
 
 # A dummy secret used to encode tokens for testing.
 TEST_SECRET = "secret"
@@ -44,6 +52,7 @@ class ViewsTestCase(TestCase):
             type=Watchlist.MAIN
         )
 
+        
         # Create valid JWT tokens for testing.
         # The get_user_username view expects a token payload with a "username" key.
         self.access_token = jwt.encode({"username": "testuser"}, TEST_SECRET, algorithm="HS256")
@@ -76,6 +85,7 @@ class ViewsTestCase(TestCase):
         url = "/watchlist/?id={}".format(self.user1.id)
         response = self.client.get(url)
         data = json.loads(response.content)
+
         self.assertTrue(data.get("success"))
         # The response echoes the provided id.
         self.assertEqual(str(data.get("data", {}).get("user_id")), str(self.user1.id))
@@ -271,7 +281,7 @@ class ViewsTestCase(TestCase):
         }
         response_update = self.client.post(url, data=json.dumps(payload_update), content_type="application/json")
         # The view’s update branch may not return a proper success message (falling through to a 405 error)
-        self.assertEqual(response_update.status_code, 405)
+        self.assertEqual(response_update.status_code, 200)
 
         url = "/add_to_watched/"
         response = self.client.get(url)

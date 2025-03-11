@@ -24,7 +24,6 @@ from group import views as group_views
 
 
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -97,6 +96,7 @@ urlpatterns = [
     path('favorite', movie_views.favorite),
     path('retrieve_favorite', movie_views.retrieve_favorites)
 
+    path('block/', user_views.block_user, name='block_user'),
 
 
 ]

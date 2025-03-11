@@ -2,7 +2,7 @@ from django.shortcuts import render
 from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from movie.models import Watchlist
-from user.models import User, Relationship, MemberRecommendation, Message
+from user.models import User, Relationship, MemberRecommendation, Message, BlockList
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
 from django.shortcuts import get_object_or_404
@@ -352,14 +352,13 @@ def add_to_watched(request):
         data = json.loads(request.body)
         user_id = data.get('user_id')
         movie_id = data.get('movie_id')
-        rating = data.get('rating')
+        rating = data.get('rating', None)  #default rating to None
         review = data.get('review')
 
-        # Validate required parameters
         if not user_id or not movie_id:
             return JsonResponse({'error': 'user_id and movie_id are required.'}, status=400)
 
-    if rating:
+        if rating is not None:  # ✅ Ensure rating is not None before processing
             try:
                 rating = int(rating)
                 if rating < 1 or rating > 5:
@@ -367,36 +366,37 @@ def add_to_watched(request):
             except ValueError:
                 return JsonResponse({'error': 'Rating must be an integer.'}, status=400)
 
-    if review and len(review) > 2000:
-                return JsonResponse({'error': 'Review must not exceed 2000 characters.'}, status=400)
-    
+        if review and len(review) > 2000:
+            return JsonResponse({'error': 'Review must not exceed 2000 characters.'}, status=400)
 
-    # Retrieve user and movie instances
-    user = User.objects.get(id=user_id)
-    movie = Movie.objects.get(id=movie_id)
-
+        # Retrieve user and movie instances
+        user = User.objects.get(id=user_id)
+        movie = Movie.objects.get(id=movie_id)
 
         # Add entry to the UserMovieJournal table
-    journal_entry, created = UserMovieJournal.objects.get_or_create(
-        user=user,
-        movie=movie,
-        defaults={
-                "rating": rating if rating is not None else 0,  # Default rating
-                "review": review if review else '',  # Default review
-        }
-    )
+        journal_entry, created = UserMovieJournal.objects.get_or_create(
+            user=user,
+            movie=movie,
+            defaults={
+                "rating": rating if rating is not None else 0,  #set default value
+                "review": review if review else '',
+            }
+        )
 
-    if created:
-        return JsonResponse({'message': 'Movie added to watched list successfully.'}, status=201)
-    elif not created:
-                # Update rating and review if the entry already exists
-                if rating is not None:
-                    journal_entry.rating = rating
-                if review is not None:
-                    journal_entry.review = review
-                journal_entry.save()
+        if created:  #case for newly added entry
+            return JsonResponse({'message': 'Movie added to watched list successfully.'}, status=201)
+        elif not created:
+            #case if entry already exists
+            if rating is not None:
+                journal_entry.rating = rating
+            if review is not None:
+                journal_entry.review = review
+            journal_entry.save()
+
+        return JsonResponse({'message': 'Movie updated in watched list successfully.'}, status=200)
 
     return JsonResponse({'error': 'Invalid HTTP method. Use POST.'}, status=405)
+
 
 
 #Recommend Movie
@@ -675,7 +675,33 @@ def username(request):
 
     return JsonResponse({'username': get_user_username(request.session.get("access_token")).get('username')})
     
+@csrf_exempt
+def block_user(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            blocker_id = data.get("blocker_id")
+            blocked_id = data.get("blocked_id")
 
+            if blocker_id == blocked_id:
+                return JsonResponse({"error": "You cannot block yourself."}, status=400)
+
+            blocker = User.objects.get(id=blocker_id)
+            blocked = User.objects.get(id=blocked_id)
+
+            # Check if already blocked
+            if BlockList.objects.filter(blocker=blocker, blocked=blocked).exists():
+                return JsonResponse({"message": "User is already blocked."}, status=200)
+
+            BlockList.objects.create(blocker=blocker, blocked=blocked)
+            return JsonResponse({"message": "User blocked successfully."}, status=201)
+
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User not found."}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+    return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
 

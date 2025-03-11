@@ -122,3 +122,22 @@ class MemberRecommendation(models.Model):
     def str(self):
         return f"Recommendation of movie {self.movie_id} from {self.member_suggested} to {self.user_receiving}"
 
+class BlockList(models.Model):
+    blocker = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name="blocked_users"  # Users that this user has blocked
+    )
+    blocked = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name="blocked_by"  # Users who have blocked this user
+    )
+    date_blocked = models.DateTimeField(auto_now_add=True)  # Timestamp
+
+    class Meta:
+        db_table = 'block_list'
+        unique_together = ('blocker', 'blocked')  # Prevent duplicate block entries
+
+    def __str__(self):
+        return f"{self.blocker.name} blocked {self.blocked.name}"
