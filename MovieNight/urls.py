@@ -82,7 +82,7 @@ urlpatterns = [
 
     path('get_user_groups/', group_views.get_user_groups),
     path('recommend_movie/', user_views.recommend_movie),
-    path('update_recommendation/', user_views.update_recommendation),
+    path('update_recommendation/', user_views.update_recommendation, name='update_recommendation'),
     path('send_message/', user_views.send_messages),
     path('user_info/', user_views.user_info),
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
