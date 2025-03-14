@@ -69,7 +69,9 @@ urlpatterns = [
     #http://127.0.0.1:8000/create_group/?leader_id=1&group_name=amans&genre=horror
     path('create_group/', group_views.create_group, name='create_group'),    
 
-    path('add_members/', group_views.add_member_to_group, name='add_members'),  
+    path('add_members/', group_views.add_member_to_group, name='add_members'),
+
+    path('remove_member/', group_views.remove_member_from_group, name='remove_member'),  
 
     path('add_to_watched/', user_views.add_to_watched, name='add_members'),
 
@@ -97,6 +99,7 @@ urlpatterns = [
     path('retrieve_favorite', movie_views.retrieve_favorites),
 
     path('block/', user_views.block_user, name='block_user'),
+
 
 
 ]
