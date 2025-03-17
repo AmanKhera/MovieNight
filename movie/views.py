@@ -36,7 +36,7 @@ def Movie_Poster(request):
     title = request.GET.get('title')
     if not title:
         return JsonResponse({"error": "Title is required"}, status=400)
-    
+
     api_key = os.getenv("OMDB_API_KEY")
     omdb_url = f"http://www.omdbapi.com/?apikey={api_key}&"
 
@@ -54,12 +54,12 @@ def Movie_Poster(request):
             return JsonResponse({"error": "Poster not found for title"})
 
         return JsonResponse({"Title": title, "poster": poster})
-    
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": "Failed to fetch data from OMDB API", "details": str(e)}, status=500)
 
 
-#Popular Movies    
+#Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
 def popular(request):
     #Defaults to first page if no page is put in
@@ -74,12 +74,12 @@ def popular(request):
         response = requests.get(url)
         data = response.json()
         return JsonResponse(data, safe=False)
- 
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
+# HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
 def Search(request):
 
     #Get the search query and filter from GET parameters
@@ -94,7 +94,7 @@ def Search(request):
     #If no query is provided, returns an empty response
     if not query and not movie_id:
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
-    
+
     if year:
         movies = Movie.objects.filter(Q(title__icontains=query) & Q(year=year)).values(
 
@@ -104,7 +104,7 @@ def Search(request):
         return JsonResponse(response)
 
     if filter_type == "user":
-        users = User.objects.filter(Q(username__icontains=query)).values('id', 'name', 'email')
+        users = User.objects.filter(Q(username__icontains=query)).values('id', 'name', 'email', 'username')
         response['users'] = list(users)
 
     elif filter_type == "director":
@@ -131,8 +131,8 @@ def Search(request):
 
             Q(title__icontains=query) | Q(director__icontains=query)
         ).values('id', 'title', 'year', 'runtime', 'rating', 'plot', 'director')
-        
-        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email')
+
+        users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email', 'username')
 
 
         response['movies'] = list(movies)
@@ -149,7 +149,7 @@ def api_movie_search(request):
     # Get movie title and release date from query parameters
     movie_title = request.GET.get('title')
     release_date = request.GET.get('release_date')  # Expecting "YYYY-MM-DD" or "YYYY"
-    
+
     # Extract the year from the release date if provided
     release_year = None
     if release_date:
@@ -218,7 +218,7 @@ genre_dictionary = {
 }
 
 #Discover Movies Method
-#Params: 
+#Params:
 #page = Used to show more movies of the same genre
 #genre = Given as a string in lowercase and finds movies matching that genre
 #Return: Dictionary with all movie data
@@ -246,13 +246,13 @@ def discover_movies(request):
         response = requests.get(url, params=params)
         data = response.json()
         return JsonResponse(data, safe=False)
- 
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 
 #Discover Movies Method
-#Params: 
+#Params:
 #page = Used to show more movies of the same genre
 #genre = Given as a string in lowercase and finds movies matching that genre
 #Return: Dictionary with all movie data
@@ -280,6 +280,6 @@ def discover_movies(request):
         response = requests.get(url, params=params)
         data = response.json()
         return JsonResponse(data, safe=False)
- 
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)

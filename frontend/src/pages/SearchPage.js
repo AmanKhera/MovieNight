@@ -2,16 +2,23 @@ import React, { useState } from "react";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
 import { fetchMovies, fetchMovieDetails } from '../components/fetchMovies';
-// import SearchResult from '../components/SearchResult';
-
+import { fetchUser } from '../components/fetchUser';
+import profileImage from '../images/profile-btn.png';
+import { useNavigate } from "react-router-dom";
 
 const SearchPage = () => {
 
   const [searchInputText, setSearchInputText] = useState('')
   const [enteredSearchText, setEnteredSearchText] = useState('')
   const [movies, setMovies] = useState([])
+  const [users, setUsers] = useState([])
   const [error, setError] = useState(null)
 
+  const navigate = useNavigate();
+
+  /**
+   * toggle to display/hide the filters
+   */
   const toggleFilters = () => {
     const filterOptions = document.getElementById("filter-options");
     if (filterOptions.classList.contains("hidden")) {
@@ -21,7 +28,10 @@ const SearchPage = () => {
     }
   };
 
-  // toggle to show/not show the given filter options
+  /**
+   * toggle to display/hide the given filter's options
+   * @param {String} elementID - id of a specific filter
+   */
   const toggleFilterOptions = (elementID) => {
     const filterOptions = document.getElementById(`${elementID}`);
     if (filterOptions.classList.contains("hidden")) {
@@ -31,7 +41,10 @@ const SearchPage = () => {
     }
   }
 
-  // toggle to show/not show the given button as clicked
+  /**
+   * toggle to display the given button as clicked or not
+   * @param {String} buttonID - id of a specific button
+   */
   const toggleButtonClicked = (buttonID) => {
     const buttonClicked = document.getElementById(`${buttonID}`);
     if (buttonClicked.classList.contains("clicked")) {
@@ -47,10 +60,10 @@ const SearchPage = () => {
   };
 
 
-  // -------------Connection Error------------------------
+  // -------------Attempt with Genre------------------------
   // const fetchMoviesByGenre = async () => {
   //   try {
-  //     const response = await fetch("http://localhost:8000/discover_movies/?genre=action", {
+  //     const response = await fetch("http://localhost:8000/search", {
   //       credentials: "include",
   //     });
   //     if (!response.ok) {
@@ -111,29 +124,71 @@ const SearchPage = () => {
     document.getElementById('filter-actor-button').classList.toggle("clicked");
   };
 
+  /**
+   * execute user's search for users/movies
+   */
   const searchButtonAction = async () => {
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(searchInputText);
-    // var searchInput = document.getElementById('search-input').value;
-    let result = await fetchMovies(searchInputText, setMovies, setError)
-    console.log("b: " + JSON.stringify(result));
-    console.log("b: " + result.Search.length);
-    await displaySearchResult(result);
+
+    let userResult = await fetchUser(searchInputText, setUsers, setError);
+    if (userResult.length == 0) {
+      document.getElementById("search-result-user").innerHTML = "No users found by that search term";
+    } else {
+      await displayUserSearchResult(userResult);
+    }
+
+    let movieResult = await fetchMovies(searchInputText, setMovies, setError)
+    if (!movieResult) {
+      document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
+    } else {
+      await displayMovieSearchResult(movieResult);
+    }
   };
 
-  const displaySearchResult = async (result) => {
-    // console.log("movies: " + movies);
-    // console.log(JSON.stringify(movies));
-    // let v = JSON.stringify(movies);
-    console.log("v :" + result.Title);
-    console.log("v :" + result.Poster);
-    document.getElementById("search-result").innerHTML = "";
+  /**
+   * takes in the given user data and displays it in the search results
+   * @param {JSON <object>} result - user data resulting from the search
+   */
+  const displayUserSearchResult = async (result) => {
+    document.getElementById("search-result-user").innerHTML = "";
+    for (let i = 0; i < result.length; i++) {
+      let user = document.createElement("li");
+      user.id = result[i].name;
+      let userIcon = document.createElement("img");
+      userIcon.src = profileImage;
+      userIcon.alt = "user icon image";
+      user.appendChild(userIcon);
+      let info = document.createElement("div");
+      user.appendChild(info);
+      let name = document.createElement("h1");
+      name.textContent = result[i].name;
+      info.appendChild(name);
+      let username = document.createElement("h2");
+      if (result[i].username) {
+        username.textContent = "@" + result[i].username;
+      }
+      info.appendChild(username);
+      document.getElementById("search-result-user").appendChild(user);
+    }
+  };
+
+  /**
+   * takes in the given movie data and displays it in the search results
+   * @param {JSON <object>} result - movie data resulting from the search
+   */
+  const displayMovieSearchResult = async (result) => {
+    document.getElementById("search-result-movie").innerHTML = "";
+    if (result.length == 0) {
+      document.getElementById("search-result-user").innerHTML = "No movies found by that search term";
+    }
     for (let i = 0; i < result.Search.length; i++) {
       let movie = document.createElement("li");
       movie.id = result.Search[i].imdbID;
       let poster = document.createElement("img");
       poster.src = result.Search[i].Poster;
       poster.alt = result.Search[i].Title + " movie poster";
+      poster.onclick = () => handleMovieClick(result.Search[i].Title);
       movie.appendChild(poster);
       let info = document.createElement("div");
       movie.appendChild(info);
@@ -147,7 +202,24 @@ const SearchPage = () => {
       let moreInfo = await fetchMovieDetails(movie.id, error);
       director.textContent = "Directed by: " + moreInfo.Director;
       info.appendChild(director);
-      document.getElementById("search-result").appendChild(movie);
+      document.getElementById("search-result-movie").appendChild(movie);
+    }
+  };
+
+  /**
+   * takes in the given movie title and redirects the user to that movie's
+   * movie details page
+   * @param {String} movie - movie title
+   */
+  const handleMovieClick = (movie) => {
+    const titleParam = encodeURIComponent(movie);
+    const releaseDate = movie.release_date; // TMDb usually provides release_date
+
+    // We pass the movie title (and release date, if available) in the URL.
+    if (releaseDate) {
+      navigate(`/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`);
+    } else {
+      navigate(`/movie/${titleParam}`);
     }
   };
 
@@ -175,7 +247,6 @@ const SearchPage = () => {
             />
           <button id="search-button-actual" onClick={searchButtonAction}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
-          {error}
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>
@@ -211,8 +282,12 @@ const SearchPage = () => {
             <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
             <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
           </div>
+          {ErrorAlert}
           <div>
-            <ul id="search-result" style={{ listStyle: 'none' }}></ul>
+            <ul id="search-result-user" style={{ listStyle: 'none' }}></ul>
+          </div>
+          <div>
+            <ul id="search-result-movie" style={{ listStyle: 'none' }}></ul>
           </div>
         </div>
       </section>
