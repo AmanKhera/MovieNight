@@ -113,6 +113,10 @@ li h2 {
   margin-top: 0px;
 }
 
+#search-result-movie li img, #search-result-movie li h1 {
+  cursor: pointer;
+}
+
 #search-result-user, #search-result-movie {
   color: grey;
 }

@@ -194,6 +194,7 @@ const SearchPage = () => {
       movie.appendChild(info);
       let title = document.createElement("h1");
       title.textContent = result.Search[i].Title;
+      title.onclick = () => handleMovieClick(result.Search[i].Title);
       info.appendChild(title);
       let year = document.createElement("h2");
       year.textContent = result.Search[i].Year;
