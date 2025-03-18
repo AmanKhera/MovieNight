@@ -11,9 +11,6 @@ export const fetchUser = async (searchText, usersCallback, errorCallback) => {
       fetch(`http://localhost:8000/search/?filter_type=user&q=${searchText}`, { credentials: "include" }),
       fetch(`http://localhost:8000/search/?filter=user&q=${searchText}`, { credentials: "include" })
     ]);
-    console.log("searchtextk==>>" + typeof searchText);
-    console.log("usercallback==>>" + typeof usersCallback);
-    console.log("errorcallback==>>" + typeof errorCallback);
     const [data1, data2] = await Promise.all([response1.json(), response2.json()]);
     const userData1 = removeGroupUsers(data1.users);
     const userData2 = removeGroupUsers(data2.users);

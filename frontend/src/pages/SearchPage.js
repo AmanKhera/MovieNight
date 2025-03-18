@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
-import { fetchMovies, fetchMovieDetails } from '../components/fetchMovies';
+import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
 import { useNavigate } from "react-router-dom";
@@ -117,7 +117,13 @@ const SearchPage = () => {
   };
 
   const filterDirectorButtonAction = () => {
-    document.getElementById('filter-director-button').classList.toggle("clicked");
+    toggleButtonClicked("filter-director-button");
+    if (document.getElementById('filter-director-button').classList.contains("clicked")) {
+      document.getElementById('search-input').placeholder = "Type a director's name here...";
+    } else {
+      document.getElementById('search-input').placeholder = "Type your search here...";
+    }
+    toggleFilterOptions("director-filter-options");
   };
 
   const filterActorButtonAction = () => {
@@ -131,18 +137,23 @@ const SearchPage = () => {
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(searchInputText);
 
-    let userResult = await fetchUser(searchInputText, setUsers, setError);
-    if (userResult.length == 0) {
-      document.getElementById("search-result-user").innerHTML = "No users found by that search term";
+    if (document.getElementById('filter-director-button').classList.contains("clicked")) {
+      let directorResult = await fetchMoviesByDirector(searchInputText, setMovies, setError);
+      await displayMovieSearchResult(directorResult);
     } else {
-      await displayUserSearchResult(userResult);
-    }
+      let userResult = await fetchUser(searchInputText, setUsers, setError);
+      if (userResult.length == 0) {
+        document.getElementById("search-result-user").innerHTML = "No users found by that search term";
+      } else {
+        await displayUserSearchResult(userResult);
+      }
 
-    let movieResult = await fetchMovies(searchInputText, setMovies, setError)
-    if (!movieResult) {
-      document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
-    } else {
-      await displayMovieSearchResult(movieResult);
+      let movieResult = await fetchMovies(searchInputText, setMovies, setError)
+      if (!movieResult) {
+        document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
+      } else {
+        await displayMovieSearchResult(movieResult);
+      }
     }
   };
 
@@ -256,7 +267,7 @@ const SearchPage = () => {
             <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button>
           </div>
           <div id="genre-filter-options" class="hidden">
-          <button id="genre-filter-action-button" onClick={genreFilterButtonAction}>Action</button>
+            <button id="genre-filter-action-button" onClick={genreFilterButtonAction}>Action</button>
             <button id="genre-filter-adventure-button" onClick={genreFilterButtonAction}>Adventure</button>
             <button id="genre-filter-animation-button" onClick={genreFilterButtonAction}>Animation</button>
             <button id="genre-filter-comedy-button" onClick={genreFilterButtonAction}>Comedy</button>
@@ -282,6 +293,9 @@ const SearchPage = () => {
             <button id="90-min-button" onClick={contentRatingFilterButtonAction}>90 Min</button>
             <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
             <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
+          </div>
+          <div id="director-filter-options" class="hidden">
+            <p>To filter by director, search the director's name in the search bar</p>
           </div>
           {ErrorAlert}
           <div>
