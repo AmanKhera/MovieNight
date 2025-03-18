@@ -24,7 +24,6 @@ from group import views as group_views
 
 
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
 
@@ -40,7 +39,7 @@ urlpatterns = [
     #returns dictionary as {"Title": "Inception", "poster": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_SX300.jpg"}
     path('movie_poster/', movie_views.Movie_Poster, name='movie_poster'),
 
-    path('user_name/', user_views.get_user_username, name='username'),
+    path('username/', user_views.username, name='username'),
 
     #grabs current popular movies and returns a dictionary as JSON
     #can use page in url to get more results but by default page is not needed
@@ -83,7 +82,7 @@ urlpatterns = [
 
     path('get_user_groups/', group_views.get_user_groups),
     path('recommend_movie/', user_views.recommend_movie),
-    path('update_recommendation/', user_views.update_recommendation),
+    path('update_recommendation/', user_views.update_recommendation, name='update_recommendation'),
     path('send_message/', user_views.send_messages),
     path('user_info/', user_views.user_info),
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
@@ -94,7 +93,10 @@ urlpatterns = [
     path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
     path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
     path('update_username/', user_views.update_username, name='group_recommendation'),   
+    path('favorite', movie_views.favorite),
+    path('retrieve_favorite', movie_views.retrieve_favorites),
 
+    path('block/', user_views.block_user, name='block_user'),
 
 
 ]

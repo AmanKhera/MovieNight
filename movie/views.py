@@ -4,10 +4,12 @@ from django.http import JsonResponse
 import requests
 import os
 from dotenv import load_dotenv
-from movie.models import Movie
+from movie.models import Movie, Watchlist, WatchlistItem, UserMovieJournal
 from user.models import User
 from django.db.models import Q
-from user.models import User
+from user.views import get_user_username
+import json
+from django.views.decorators.csrf import csrf_exempt
 
 load_dotenv()
 genre_dictionary = {
@@ -32,6 +34,8 @@ genre_dictionary = {
 
 #Movie Poster Method
 #Grabs title of movie and returns poster of movie in json format
+#params: title: Which is title of movie
+#returns a dictionary containing title and poster
 def Movie_Poster(request):
     title = request.GET.get('title')
     if not title:
@@ -61,6 +65,8 @@ def Movie_Poster(request):
 
 #Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
+#params: page: optional param used to show more results 
+#returns json containing popular movies with all relevant information
 def popular(request):
     #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
@@ -79,7 +85,12 @@ def popular(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-# HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+
+#Search function
+#Can be used to search for movie, user, director, and via movie id
+#params: q: which is usually movie title but can also be user or director if specified in filter_type
+#params: filter: filter can be 'user', or 'director' also requires q param
+#returns: list of movies or users
 def Search(request):
 
     #Get the search query and filter from GET parameters
@@ -91,15 +102,16 @@ def Search(request):
     #Initialize response
     response = {'query': query}
 
+
     #If no query is provided, returns an empty response
     if not query and not movie_id:
         return JsonResponse({'error': 'Query parameter is required'}, status=400)
 
     if year:
         movies = Movie.objects.filter(Q(title__icontains=query) & Q(year=year)).values(
-
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
+        
         response['movies'] = list(movies)
         return JsonResponse(response)
 
@@ -142,9 +154,11 @@ def Search(request):
 
 
 
-from django.http import JsonResponse
-import requests
-import os
+
+#API Movie Search Function
+#If search function does not return correct movie us this function instead
+#params: title: title of movie, and release date: the year the movie is released
+#returns the correct movie and the movie is also added to our database
 def api_movie_search(request):
     # Get movie title and release date from query parameters
     movie_title = request.GET.get('title')
@@ -168,7 +182,7 @@ def api_movie_search(request):
     try:
         response = requests.get(omdb_url, params=query_params)
         data = response.json()
-        print(data.get('Rated'))
+
         if data.get('Response') == 'False':
             return JsonResponse({'error': data.get('Error', 'Movie not found.')}, status=404)
 
@@ -198,24 +212,6 @@ def api_movie_search(request):
 
 
 
-genre_dictionary = {
-    "action":28,
-    "adventure":12,
-    "animation":16,
-    "comedy":35,
-    "crime":80,
-    "documentary":99,
-    "drama":18,
-    "family":10751,
-    "fantasy":14,
-    "history":36,
-    "horror":27,
-    "mystery":9648,
-    "romance":10749,
-    "science fiction":878,
-    "war":10752,
-    "thriller":37
-}
 
 #Discover Movies Method
 #Params:
@@ -251,6 +247,7 @@ def discover_movies(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+
 #Discover Movies Method
 #Params:
 #page = Used to show more movies of the same genre
@@ -258,28 +255,64 @@ def discover_movies(request):
 #Return: Dictionary with all movie data
 def discover_movies(request):
 
-    #Defaults to first page if no page is put in
-    page = request.GET.get('page', 1)
-    genre = request.GET.get('genre')
 
 
-    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+#Favorite method
+#Desc: This method can be used to toggle favorite
+#Example if a user favorites a movie and presses the button again it will unfavorite it
+#Requires post request
+#params: Movie_id
+#returns if favorite is true or false, if true frontend needs to call add to watchlist method
+@csrf_exempt
+def favorite(request):
 
-    url = "https://api.themoviedb.org/3/discover/movie"
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            movie_id = data.get("movie_id")
 
-    params = {
-        "api_key": TMDB_API_KEY,
-        "language": "en-US",
-        "sort_by": "popularity.desc",
-        "with_genres": genre_dictionary[genre],
-        "page": page
-    }
+            username = get_user_username(request.session.get("access_token")).get('username')
+            id = (User.objects.get(name=username)).id
 
-    try:
+            movie_item, create = UserMovieJournal.objects.get_or_create(user=id, movie_id=movie_id)
 
-        response = requests.get(url, params=params)
-        data = response.json()
-        return JsonResponse(data, safe=False)
+            if movie_item.favorite == True:
+                movie_item.favorite = False
+                movie_item.save()
+                return JsonResponse({"Favorite":False}, status=200)
+            
+            movie_item.favorite = True
+            movie_item.save()
 
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse({"Favorite":True}, status=200)
+     
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error':"Expected POST request"}, status=500)
+    
+    
+        
+#Retrieve Favorites method
+#No parameter is needed
+#Returns jsonresponse which contains all favorited movies and their related information
+def retrieve_favorites(request):
+
+    if request.method == "GET":
+        username = get_user_username(request.session.get("access_token")).get('username')
+        user = User.objects.get(name = username)
+
+        favorite_movies = Movie.objects.filter(
+            user_journals__user=user,
+            user_journals__favorite=True
+        ).distinct()
+ 
+        favorite_items = list(favorite_movies.values())
+
+        return JsonResponse({'favorite_items': favorite_items}, status=200)
+
+    else:
+        return JsonResponse({'error':"Expected GET request"}, status=500)
+            
+
+
