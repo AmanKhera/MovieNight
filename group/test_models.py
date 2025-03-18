@@ -48,7 +48,7 @@ class GroupMemberModelTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create(name="TestUser", email="test@example.com")
-        self.group = Group.objects.create(group_id=self.user, leader=self.user, group_name="Fun Group")
+        self.group = Group.objects.create(group_id=self.user, leader=self.user, group_name="Fun Group", voting_limit = 3)
         self.group_member = GroupMember.objects.create(group=self.group, member=self.user, role="admin")
 
     def test_group_member_str(self):

@@ -95,12 +95,15 @@ urlpatterns = [
     path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
     path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
     path('update_username/', user_views.update_username, name='group_recommendation'),   
-    path('favorite', movie_views.favorite),
-    path('retrieve_favorite', movie_views.retrieve_favorites),
+    path('favorite', movie_views.favorite, name = 'favorite'),
+    path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
     path('block/', user_views.block_user, name='block_user'),
 
+    path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
+
+    path('leave_group/', group_views.leave_group, name = 'leave_group'),
+    ]
 
 
-]
 

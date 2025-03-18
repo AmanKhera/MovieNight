@@ -18,8 +18,8 @@ class GroupViewsTest(TestCase):
     def setUp(self):
         """Set up test data"""
         self.client = Client()
-        self.user1 = User.objects.create(name="Leader", email="leader@example.com")
-        self.user2 = User.objects.create(name="Member", email="member@example.com")
+        self.user1 = User.objects.create(name="Leader", email="leader@example.com", username = "testuser1")
+        self.user2 = User.objects.create(name="Member", email="member@example.com", username = "testuser2")
         
         self.group = Group.objects.create(
             group_id=self.user1,
@@ -56,8 +56,8 @@ class GroupViewsTest(TestCase):
 
     def test_remove_member_from_group(self):
         """Test removing a member from a group"""
-        response = self.client.post(reverse('remove_member_from_group'), json.dumps({
-            "group_id": self.group.group_id,
+        response = self.client.post(reverse('remove_member'), json.dumps({
+            "group_id": self.group.group_id.id,
             "remove_id": self.user2.id
         }), content_type="application/json")
 
@@ -66,14 +66,19 @@ class GroupViewsTest(TestCase):
 
     def test_get_user_groups(self):
         """Test retrieving groups a user belongs to"""
-        response = self.client.get(reverse('get_user_groups'))
+        payload = {"username": self.user2.username}
+        response = self.client.get(reverse('get_user_groups'),  data=json.dumps(payload),  content_type="application/json"  )
+
+        print("📥 Response Status Code:", response.status_code)  # ✅ Debugging
+        print("📥 Response Content:", response.json())  # ✅ Debugging
+
         self.assertEqual(response.status_code, 200)
 
     def test_leave_group(self):
         """Test leaving a group"""
         response = self.client.post(reverse('leave_group'), json.dumps({
             "user_id": self.user2.id,
-            "group_id": self.group.group_id
+            "group_id": self.group.group_id.id
         }), content_type="application/json")
 
         self.assertEqual(response.status_code, 200)
