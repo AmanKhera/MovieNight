@@ -69,7 +69,9 @@ urlpatterns = [
     #http://127.0.0.1:8000/create_group/?leader_id=1&group_name=amans&genre=horror
     path('create_group/', group_views.create_group, name='create_group'),    
 
-    path('add_members/', group_views.add_member_to_group, name='add_members'),  
+    path('add_members/', group_views.add_member_to_group, name='add_members'),
+
+    path('remove_member/', group_views.remove_member_from_group, name='remove_member'),  
 
     path('add_to_watched/', user_views.add_to_watched, name='add_members'),
 
@@ -93,11 +95,15 @@ urlpatterns = [
     path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
     path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
     path('update_username/', user_views.update_username, name='group_recommendation'),   
-    path('favorite', movie_views.favorite),
-    path('retrieve_favorite', movie_views.retrieve_favorites),
+    path('favorite', movie_views.favorite, name = 'favorite'),
+    path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
     path('block/', user_views.block_user, name='block_user'),
 
+    path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
 
-]
+    path('leave_group/', group_views.leave_group, name = 'leave_group'),
+    ]
+
+
 

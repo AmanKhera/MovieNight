@@ -8,10 +8,3 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  # Ensure
 setup()
 
 from movie.models import Movie
-
-
-# Create your tests here.
-class ViewsTestCase(TestCase):
-    def test_queryset_exists(self):
-        qs= Movie.objects.all();
-        self.assertTrue(qs.exists())

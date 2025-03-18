@@ -12,6 +12,10 @@ class Movie(models.Model):
     plot = models.TextField(blank=True, null=True)
     director = models.CharField(max_length=100, blank=True, null=True)
 
+
+    def __str__(self):
+        return self.title
+    
     class Meta:
         managed = False
         db_table = 'movie_movie'
