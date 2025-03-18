@@ -5,6 +5,7 @@ import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector } from '../compon
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
 import { useNavigate } from "react-router-dom";
+import { SpinnerCircular } from 'spinners-react';
 
 const SearchPage = () => {
 
@@ -136,6 +137,7 @@ const SearchPage = () => {
   const searchButtonAction = async () => {
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(searchInputText);
+    document.getElementById("spinner").classList.remove("hidden");
 
     if (document.getElementById('filter-director-button').classList.contains("clicked")) {
       let directorResult = await fetchMoviesByDirector(searchInputText, setMovies, setError);
@@ -162,6 +164,7 @@ const SearchPage = () => {
    * @param {JSON <object>} result - user data resulting from the search
    */
   const displayUserSearchResult = async (result) => {
+    document.getElementById("spinner").classList.add("hidden");
     document.getElementById("search-result-user").innerHTML = "";
     for (let i = 0; i < result.length; i++) {
       let user = document.createElement("li");
@@ -189,6 +192,7 @@ const SearchPage = () => {
    * @param {JSON <object>} result - movie data resulting from the search
    */
   const displayMovieSearchResult = async (result) => {
+    document.getElementById("spinner").classList.add("hidden");
     document.getElementById("search-result-movie").innerHTML = "";
     if (result.length == 0) {
       document.getElementById("search-result-user").innerHTML = "No movies found by that search term";
@@ -259,6 +263,9 @@ const SearchPage = () => {
             />
           <button id="search-button-actual" onClick={searchButtonAction}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
+          <div>
+            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden"/>
+          </div>
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>

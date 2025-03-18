@@ -125,3 +125,7 @@ li h2 {
 #search-result-user, #search-result-movie {
   color: grey;
 }
+
+#spinner {
+  margin-top: 20px;
+}
