@@ -6,12 +6,12 @@ body {
   background-color: #10002B;
   min-height: 100vh; /* Ensure full height of the page */
   display: flex;
-  flex-direction: column; 
+  flex-direction: column;
 }
 
 nav {
   display: flex;
-  justify-content: space-between; /* Space items apart horizontally */ 
+  justify-content: space-between; /* Space items apart horizontally */
   align-items: center;
   background-color: #10002B;
   padding: 10px 0; /* Add padding to create space */
@@ -52,7 +52,7 @@ nav {
   display: flex;
   gap: 10px; /* Space between buttons */
   position: absolute; /* Position the button container */
-  bottom: 30px; /* Add more space below the buttons */
+  bottom: 110px; /* Add more space below the buttons */
   right: 10px; /* Align buttons to the right */
 }
 
@@ -101,17 +101,14 @@ nav {
 }
 
 .hover-text {
-  visibility: hidden;
   width: auto;
   background-color: #240046;
   color: #ffffff;
   font-family: 'Patua One', serif;
-  text-align: center;
   border-radius: 5px;
   padding: 5px;
   position: absolute;
-  z-index: 1;
-  top: 35%;
+  top: 100%;
   margin-left: -80px;
   opacity: 0;
   transition: opacity 0.3s;
