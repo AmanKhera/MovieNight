@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
-import { fetchMovies, fetchMovieDetails } from '../components/fetchMovies';
+import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
 import { useNavigate } from "react-router-dom";
+import { SpinnerCircular } from 'spinners-react';
 
 const SearchPage = () => {
 
@@ -117,12 +118,28 @@ const SearchPage = () => {
   };
 
   const filterDirectorButtonAction = () => {
-    document.getElementById('filter-director-button').classList.toggle("clicked");
+    toggleButtonClicked("filter-director-button");
+    if (document.getElementById('filter-director-button').classList.contains("clicked")) {
+      document.getElementById('search-input').placeholder = "Type a director's name here...";
+    } else {
+      document.getElementById('search-input').placeholder = "Type your search here...";
+    }
+    toggleFilterOptions("director-filter-options");
   };
 
   const filterActorButtonAction = () => {
     document.getElementById('filter-actor-button').classList.toggle("clicked");
   };
+
+  const filterYearButtonAction = () => {
+    toggleButtonClicked("filter-year-button");
+    if (document.getElementById('filter-year-button').classList.contains("clicked")) {
+      document.getElementById('search-input').placeholder = "Type the year here...";
+    } else {
+      document.getElementById('search-input').placeholder = "Type your search here...";
+    }
+    toggleFilterOptions("year-filter-options");
+  }
 
   /**
    * execute user's search for users/movies
@@ -130,19 +147,30 @@ const SearchPage = () => {
   const searchButtonAction = async () => {
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(searchInputText);
+    document.getElementById("spinner").classList.remove("hidden");
+    document.getElementById("search-result-user").innerHTML = "";
+    document.getElementById("search-result-movie").innerHTML = "";
 
-    let userResult = await fetchUser(searchInputText, setUsers, setError);
-    if (userResult.length == 0) {
-      document.getElementById("search-result-user").innerHTML = "No users found by that search term";
+    if (document.getElementById('filter-director-button').classList.contains("clicked")) {
+      let directorResult = await fetchMoviesByDirector(searchInputText, setMovies, setError);
+      await displayMovieSearchResult(directorResult);
+    } else if (document.getElementById('filter-year-button').classList.contains("clicked")) {
+      let yearResult = await fetchMoviesByYear(searchInputText, setMovies, setError);
+      await displayMovieSearchResult(yearResult);
     } else {
-      await displayUserSearchResult(userResult);
-    }
+      let userResult = await fetchUser(searchInputText, setUsers, setError);
+      if (userResult.length == 0) {
+        document.getElementById("search-result-user").innerHTML = "No users found by that search term";
+      } else {
+        await displayUserSearchResult(userResult);
+      }
 
-    let movieResult = await fetchMovies(searchInputText, setMovies, setError)
-    if (!movieResult) {
-      document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
-    } else {
-      await displayMovieSearchResult(movieResult);
+      let movieResult = await fetchMovies(searchInputText, setMovies, setError)
+      if (!movieResult) {
+        document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
+      } else {
+        await displayMovieSearchResult(movieResult);
+      }
     }
   };
 
@@ -151,7 +179,7 @@ const SearchPage = () => {
    * @param {JSON <object>} result - user data resulting from the search
    */
   const displayUserSearchResult = async (result) => {
-    document.getElementById("search-result-user").innerHTML = "";
+    document.getElementById("spinner").classList.add("hidden");
     for (let i = 0; i < result.length; i++) {
       let user = document.createElement("li");
       user.id = result[i].name;
@@ -178,7 +206,7 @@ const SearchPage = () => {
    * @param {JSON <object>} result - movie data resulting from the search
    */
   const displayMovieSearchResult = async (result) => {
-    document.getElementById("search-result-movie").innerHTML = "";
+    document.getElementById("spinner").classList.add("hidden");
     if (result.length == 0) {
       document.getElementById("search-result-user").innerHTML = "No movies found by that search term";
     }
@@ -248,15 +276,19 @@ const SearchPage = () => {
             />
           <button id="search-button-actual" onClick={searchButtonAction}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
+          <div>
+            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden"/>
+          </div>
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>
             <button id="filter-runtime-button" onClick={filterRuntimeButtonAction}>Runtime</button>
             <button id="filter-director-button" onClick={filterDirectorButtonAction}>Director</button>
             <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button>
+            <button id="filter-year-button" onClick={filterYearButtonAction}>Year</button>
           </div>
           <div id="genre-filter-options" class="hidden">
-          <button id="genre-filter-action-button" onClick={genreFilterButtonAction}>Action</button>
+            <button id="genre-filter-action-button" onClick={genreFilterButtonAction}>Action</button>
             <button id="genre-filter-adventure-button" onClick={genreFilterButtonAction}>Adventure</button>
             <button id="genre-filter-animation-button" onClick={genreFilterButtonAction}>Animation</button>
             <button id="genre-filter-comedy-button" onClick={genreFilterButtonAction}>Comedy</button>
@@ -282,6 +314,12 @@ const SearchPage = () => {
             <button id="90-min-button" onClick={contentRatingFilterButtonAction}>90 Min</button>
             <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
             <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
+          </div>
+          <div id="director-filter-options" class="hidden">
+            <p>To search by <strong>director</strong>, search the <strong>director's name</strong> in the search bar</p>
+          </div>
+          <div id="year-filter-options" class="hidden">
+            <p>To search by <strong>year</strong>, type the desired <strong>year</strong> in the search bar</p>
           </div>
           {ErrorAlert}
           <div>

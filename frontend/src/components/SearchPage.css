@@ -82,6 +82,11 @@ after the user has searched for something
   margin-top: 20px;
 }
 
+#director-filter-options p, #year-filter-options p {
+  color: whitesmoke;
+  margin-top: 30px;
+}
+
 li {
   display: flex;
 }
@@ -119,4 +124,8 @@ li h2 {
 
 #search-result-user, #search-result-movie {
   color: grey;
+}
+
+#spinner {
+  margin-top: 20px;
 }

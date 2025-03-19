@@ -65,7 +65,7 @@ def Movie_Poster(request):
 
 #Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
-#params: page: optional param used to show more results 
+#params: page: optional param used to show more results
 #returns json containing popular movies with all relevant information
 def popular(request):
     #Defaults to first page if no page is put in
@@ -111,7 +111,7 @@ def Search(request):
         movies = Movie.objects.filter(Q(title__icontains=query) & Q(year=year)).values(
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
-        
+
         response['movies'] = list(movies)
         return JsonResponse(response)
 
@@ -253,6 +253,9 @@ def discover_movies(request):
 #page = Used to show more movies of the same genre
 #genre = Given as a string in lowercase and finds movies matching that genre
 #Return: Dictionary with all movie data
+
+# def discover_movies(request):
+
 def discover_movies(request):
         #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
@@ -262,6 +265,7 @@ def discover_movies(request):
     TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
     url = "https://api.themoviedb.org/3/discover/movie"
+
 
     params = {
         "api_key": TMDB_API_KEY,
@@ -304,19 +308,19 @@ def favorite(request):
                 movie_item.favorite = False
                 movie_item.save()
                 return JsonResponse({"Favorite":False}, status=200)
-            
+
             movie_item.favorite = True
             movie_item.save()
 
             return JsonResponse({"Favorite":True}, status=200)
-     
+
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error':"Expected POST request"}, status=500)
-    
-    
-        
+
+
+
 #Retrieve Favorites method
 #No parameter is needed
 #Returns jsonresponse which contains all favorited movies and their related information
@@ -330,13 +334,13 @@ def retrieve_favorites(request):
             user_journals__user=user,
             user_journals__favorite=True
         ).distinct()
- 
+
         favorite_items = list(favorite_movies.values())
 
         return JsonResponse({'favorite_items': favorite_items}, status=200)
 
     else:
         return JsonResponse({'error':"Expected GET request"}, status=500)
-            
+
 
 
