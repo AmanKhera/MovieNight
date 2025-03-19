@@ -8,30 +8,53 @@ const UserWatchlists = () => {
 
   const navigate = useNavigate();
 
-  // Fetch the user's watchlist items and then get each movie's details using the movie_id
+  // Fetch the user's watchlist items and then get each movie's details using the movie_id.
+  // For each valid movie, fetch the poster from the Movie_Poster endpoint.
   useEffect(() => {
     const fetchWatchlistMovies = async () => {
       try {
-        // Fetch watchlist items (ensure cookies are included)
         const response = await fetch("http://localhost:8000/watchlist_items/", {
           credentials: "include",
         });
         const data = await response.json();
         if (response.ok && data.status === "success") {
+          // For each watchlist item, fetch movie details using its movie_id.
           const moviePromises = data.watchlist.map((item) =>
             fetch(`http://localhost:8000/search/?id=${item.movie_id}`, {
               credentials: "include",
             })
               .then((res) => res.json())
-              .then((movieData) => {
-                if (movieData.movies && movieData.movies.length > 0) {
-                  return movieData.movies[0];
-                }
-                return null;
-              })
+              .then((movieData) =>
+                movieData.movies && movieData.movies.length > 0
+                  ? movieData.movies[0]
+                  : null
+              )
           );
           const detailedMovies = await Promise.all(moviePromises);
-          setMovies(detailedMovies.filter((movie) => movie !== null));
+          const validMovies = detailedMovies.filter((movie) => movie !== null);
+
+          // Now fetch poster for each movie using the Movie_Poster endpoint.
+          const moviesWithPosters = await Promise.all(
+            validMovies.map(async (movie) => {
+              try {
+                const posterRes = await fetch(
+                  `http://localhost:8000/movie_poster/?title=${encodeURIComponent(
+                    movie.title || movie.original_title
+                  )}`,
+                  { credentials: "include" }
+                );
+                const posterData = await posterRes.json();
+                if (posterRes.ok && posterData.poster) {
+                  return { ...movie, poster: posterData.poster };
+                }
+                return { ...movie };
+              } catch (err) {
+                console.error("Error fetching poster for:", movie.title, err);
+                return { ...movie };
+              }
+            })
+          );
+          setMovies(moviesWithPosters);
         } else {
           setMessage({
             text: data.message || "Failed to fetch watchlist items.",
@@ -49,8 +72,7 @@ const UserWatchlists = () => {
     fetchWatchlistMovies();
   }, []);
 
-  // When a movie is clicked, navigate to the movie details page using the title
-  // and include the release_date query parameter (if available)
+  // When a movie is clicked, navigate to its details page.
   const handleMovieClick = (movie) => {
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
     const releaseDate = movie.release_date;
@@ -61,7 +83,17 @@ const UserWatchlists = () => {
     }
   };
 
-  // Inline CSS styles for a grid layout with 6 movies per row
+  // Helper function to determine the correct poster URL.
+  // It checks if the movie object has a poster (fetched from Movie_Poster),
+  // otherwise it falls back to a placeholder.
+  const getPosterUrl = (movie) => {
+    if (movie.poster) {
+      return movie.poster;
+    }
+    return "https://via.placeholder.com/200x300?text=No+Image";
+  };
+
+  // Inline CSS styles for a grid layout with 6 movies per row.
   const styles = `
     .watchlist-container {
       width: 100vw;
@@ -71,13 +103,11 @@ const UserWatchlists = () => {
       padding: 20px;
       box-sizing: border-box;
     }
-
     .watchlist-container h2 {
       font-size: 1.8rem;
       margin-left: 1%;
       margin-bottom: 10px;
     }
-
     .message {
       position: relative;
       margin-bottom: 20px;
@@ -91,7 +121,6 @@ const UserWatchlists = () => {
     .message.error {
       background-color: #f44336;
     }
-
     /* Grid container: 6 columns, wrapping to new rows as needed */
     .movies-grid {
       display: grid;
@@ -99,35 +128,30 @@ const UserWatchlists = () => {
       gap: 20px;
       justify-items: center;
     }
-
     .movie-item {
       width: 180px;
       cursor: pointer;
       text-align: center;
     }
-
     .movie-item .poster {
       width: 100%;
       height: 270px;
       border-radius: 8px;
       overflow: hidden;
-      background-color: #000; /* fallback background */
+      background-color: #000;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
     .movie-item .poster img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       transition: transform 0.3s ease;
     }
-
     .movie-item .poster img:hover {
       transform: scale(1.05);
     }
-
     .movie-title {
       font-size: 1rem;
       margin-top: 8px;
@@ -135,18 +159,6 @@ const UserWatchlists = () => {
       min-height: 2.4em;
     }
   `;
-
-  // Helper function to determine the correct poster URL
-  const getPosterUrl = (movie) => {
-    // Check for poster in multiple possible properties
-    const posterUrl = movie.poster || movie.poster_path || movie.Poster;
-    if (posterUrl) {
-      // If it already starts with "http", assume it's a full URL
-      return posterUrl.startsWith("http") ? posterUrl : `https://image.tmdb.org/t/p/w500${posterUrl}`;
-    }
-    // Fallback placeholder image
-    return "https://via.placeholder.com/200x300?text=No+Image";
-  };
 
   if (loadingMovies) {
     return (
