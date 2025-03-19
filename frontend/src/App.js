@@ -6,6 +6,7 @@ import MovieDetailsPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
 import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
+import UserPage from './pages/UserPage';
 
 function App() {
   // Fetch the CSRF token when the app loads
@@ -36,6 +37,7 @@ function App() {
           <Route path="/groups" element={<GroupPage />} />
           <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/UserProfile" element={<UserPage />} />
         </Routes>
       </BrowserRouter>
     </div>
