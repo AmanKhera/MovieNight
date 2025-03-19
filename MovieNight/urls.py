@@ -101,7 +101,7 @@ urlpatterns = [
     path('block/', user_views.block_user, name='block_user'),
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
-
+    path('frontend_user/', user_views.frontend_username, name = 'get_user_groups'),
     path('leave_group/', group_views.leave_group, name = 'leave_group'),
     ]
 

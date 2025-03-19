@@ -9,11 +9,30 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchRecentlyWatched = async () => {
+    const fetchUserIdAndMovies = async () => {
       try {
-        const response = await fetch("http://localhost:8000/recently_watched/", {
+        // 1) Get the user info (which includes user.id)
+        const userInfoRes = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
+        const userInfoData = await userInfoRes.json();
+
+        if (!userInfoRes.ok || !userInfoData.id) {
+          setMessage({
+            text: userInfoData.error || "Failed to fetch user info.",
+            type: "error",
+          });
+          setLoadingMovies(false);
+          return;
+        }
+
+        const userId = userInfoData.id;
+
+        // 2) Fetch recently watched using the retrieved user ID
+        const response = await fetch(
+          `http://localhost:8000/recently_watched/?user_id=${userId}`,
+          { credentials: "include" }
+        );
         const data = await response.json();
 
         if (!response.ok) {
@@ -64,17 +83,20 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
           })
         );
 
-        // Only take the first 7 movies, like WatchlistCarousel
+        // Only take the first 7 movies
         setMovies(moviesWithPosters.slice(0, 7));
       } catch (err) {
         console.error("Error fetching recently watched movies:", err);
-        setMessage({ text: "Error fetching recently watched movies.", type: "error" });
+        setMessage({
+          text: "Error fetching recently watched movies.",
+          type: "error",
+        });
       } finally {
         setLoadingMovies(false);
       }
     };
 
-    fetchRecentlyWatched();
+    fetchUserIdAndMovies();
   }, []);
 
   // Navigate to the movie details page
@@ -101,18 +123,6 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
     return "https://via.placeholder.com/200x300?text=No+Image";
   };
 
-  // If fewer than 7 movies, use natural sizing & left-align them.
-  // If 7 or more, stretch them evenly across the row.
-  const movieItemStyle =
-    movies.length >= 7
-      ? { flex: "0 0 calc(100% / 7 - 10px)" }
-      : { flex: "0 0 auto" };
-
-  const moviesRowStyle =
-    movies.length >= 7
-      ? { justifyContent: "space-between" }
-      : { justifyContent: "flex-start" };
-
   if (loadingMovies) {
     return <div>Loading recently watched movies...</div>;
   }
@@ -126,18 +136,18 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
       <h2>{title}</h2>
       {message && <div className={`message ${message.type}`}>{message.text}</div>}
 
-      <div className="movies-row" style={moviesRowStyle}>
+      <div className="movies-row">
         {movies.map((movie, index) => (
           <div
             className="movie-item"
             key={`${movie.id}-${index}`}
-            style={movieItemStyle}
             onClick={() => handleMovieClick(movie)}
           >
-            {/* Poster container */}
             <div className="poster">
-              <img src={getPosterUrl(movie)} alt={movie.title || movie.original_title} />
-              {/* Semi-transparent bar overlay with the movie title */}
+              <img
+                src={getPosterUrl(movie)}
+                alt={movie.title || movie.original_title}
+              />
               <div className="title-overlay">
                 <div className="overlay-title">
                   {movie.title || movie.original_title}
@@ -148,20 +158,19 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
         ))}
       </div>
 
-      {/* Inline CSS (matching the WatchlistCarousel, but with a rectangular overlay for the title) */}
+      {/* Inline CSS */}
       <style>{`
         .watchlist-carousel {
           width: 100%;
           margin: 0 auto;
           background-color: #240046;
           color: #fff;
-          /* Reduced top padding and increased bottom padding */
           padding: 5px 20px 30px 20px;
           box-sizing: border-box;
         }
         .watchlist-carousel h2 {
           font-size: 1.8rem;
-          margin: 0 0 8px 0; /* No top margin, small bottom margin */
+          margin: 0 0 8px 0;
           text-align: center;
         }
         .message {
@@ -174,17 +183,23 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
           background-color: #f44336;
           color: white;
         }
-        /* Single row layout (up to 7 movies) */
+
+        /* Layout for the row of posters (no horizontal scrollbar) */
         .movies-row {
           display: flex;
-          flex-wrap: nowrap;
+          flex-wrap: wrap; /* Allow wrapping if screen is too narrow */
           gap: 10px;
-          /* We handle justification dynamically via inline style */
+          justify-content: space-between;
         }
+
+        /* Each movie item takes up roughly 1/7 of the row */
         .movie-item {
+          flex: 1 1 calc(100% / 7 - 10px);
+          box-sizing: border-box;
           cursor: pointer;
           text-align: center;
         }
+
         .poster {
           position: relative;
           width: 100%;
@@ -205,7 +220,6 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
         .poster img:hover {
           transform: scale(1.05);
         }
-        /* Rectangular bar overlay at the bottom of the poster */
         .title-overlay {
           position: absolute;
           bottom: 0;
@@ -213,13 +227,13 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
           width: 100%;
           padding: 5px;
           box-sizing: border-box;
-          background: rgba(0, 0, 0, 0.5); /* Semi-transparent dark bar */
-          text-align: center; /* or left, if you prefer */
+          background: rgba(0, 0, 0, 0.5);
+          text-align: center;
         }
         .overlay-title {
           font-size: 0.9rem;
           margin: 0;
-          color: #fff; /* ensure text is white on dark overlay */
+          color: #fff;
         }
       `}</style>
     </div>

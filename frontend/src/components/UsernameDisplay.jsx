@@ -42,16 +42,33 @@ const UsernameDisplay = () => {
   useEffect(() => {
     const fetchUsername = async () => {
       try {
-        const response = await fetch("http://localhost:8000/user_info/", {
+        // 1) Get user info (including user_id) from /user_info/
+        const infoRes = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
-        const data = await response.json();
-        if (response.ok && data.username) {
-          setUsername(data.username);
+        const infoData = await infoRes.json();
+
+        if (!infoRes.ok || !infoData.id) {
+          console.error("Error fetching user info:", infoData.error || "No user ID returned");
+          return;
+        }
+
+        // 2) Use that user_id to call /frontend_username/
+        const userId = infoData.id;
+        const usernameRes = await fetch(
+          `http://localhost:8000/frontend_user/?user_id=${userId}`,
+          { credentials: "include" }
+        );
+        const usernameData = await usernameRes.json();
+
+        // 3) Update state if we got a valid response
+        if (usernameRes.ok && usernameData.Username) {
+          setUsername(usernameData.Username);
+        } else {
+          console.error("Error from /frontend_username/:", usernameData.Failure || "No Username key");
         }
       } catch (err) {
         console.error("Error fetching username:", err);
-        // Leave username as "Username"
       }
     };
 

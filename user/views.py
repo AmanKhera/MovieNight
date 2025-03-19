@@ -704,14 +704,16 @@ def block_user(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
+def frontend_username(request):
+    user_id = request.GET.get("user_id")
 
-
+    if User.objects.filter(id = user_id).exists():
+        return JsonResponse({"Username": User.objects.get(id=user_id).username}, status = 200)
+    else:
+        return JsonResponse({"Failure":"User does not exist"}, status=400)
 
 
     
 
 
  
-
-
-
