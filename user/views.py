@@ -689,9 +689,10 @@ def block_user(request):
             blocker = User.objects.get(id=blocker_id)
             blocked = User.objects.get(id=blocked_id)
 
-            # Check if already blocked
+            #unblock if already blocked
             if BlockList.objects.filter(blocker=blocker, blocked=blocked).exists():
-                return JsonResponse({"message": "User is already blocked."}, status=200)
+                BlockList.objects.filter(blocker=blocker, blocked=blocked).delete()
+                return JsonResponse({"message": "User Unblocked"}, status=200)
 
             BlockList.objects.create(blocker=blocker, blocked=blocked)
             return JsonResponse({"message": "User blocked successfully."}, status=201)
