@@ -705,7 +705,19 @@ def block_user(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
+def view_blocked_users(request):
 
+    user_id = request.GET.get('id')
+
+    #ids of users that are blocked by user
+    blocked_ids = set(BlockList.objects.filter(following_id=user_id).values_list('blocker_id', flat=True))
+
+    blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
+
+    #returns dictionary where id is the key and name is the value
+    response = {str(user['id']): user['name'] for user in blocked_list}
+
+    return JsonResponse(response, status=200)
 
 
 
