@@ -114,3 +114,50 @@ export const fetchUserInfo = async () => {
   
     return moviesWithPosters.slice(0, 7);
   };
+
+  export const addToWatchlistAPI = async (movie) => {
+    const titleParam = movie.title || movie.original_title;
+    if (!titleParam) {
+      throw new Error("Invalid movie title");
+    }
+  
+    const releaseDate = movie.release_date || "";
+    const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
+  
+    const params = ["q=" + titleParam];
+    if (releaseYear) {
+      params.push("year=" + releaseYear);
+    }
+  
+    const searchUrl = "http://localhost:8000/search/?" + params.join("&");
+    const searchResponse = await fetch(searchUrl, {
+      method: "GET",
+      credentials: "include",
+    });
+  
+    if (!searchResponse.ok) {
+      const errorData = await searchResponse.json();
+      throw new Error(errorData.error || "Failed to search");
+    }
+  
+    const searchData = await searchResponse.json();
+    if (!searchData.movies || searchData.movies.length === 0) {
+      throw new Error("Movie not found in search");
+    }
+  
+    const foundMovieId = searchData.movies[0].id;
+    const addResponse = await fetch(
+      "http://localhost:8000/add_movie/?movie_id=" + foundMovieId,
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+  
+    if (!addResponse.ok) {
+      const errorData = await addResponse.json();
+      throw new Error(errorData.error || "Failed to add to watchlist");
+    }
+  
+    return await addResponse.json();
+  };

@@ -2,6 +2,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import HomePage from './pages/HomePage';
 import MovieDetailsPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
@@ -16,6 +18,16 @@ export const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5, // 5 minutes
     },
   },
+});
+
+// Set up local storage persister for React Query
+const localStoragePersister = createSyncStoragePersister({
+  storage: window.localStorage,
+});
+
+persistQueryClient({
+  queryClient,
+  persister: localStoragePersister,
 });
 
 function App() {
