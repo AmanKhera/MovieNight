@@ -178,7 +178,8 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         console.error("CSRF token not found");
         return;
       }
-      const response = await fetch("http://localhost:8000/remove_member_from_group/", {
+      // Updated URL to match Django configuration
+      const response = await fetch("http://localhost:8000/remove_member/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -325,8 +326,10 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
         {userGroups.map((grp) => (
           <li
             key={grp.group_id}
-            style={listItemStyle(grp.group_name === selectedGroup)}
-            onClick={() => onSelectGroup(grp.group_name)}
+            style={listItemStyle(
+              selectedGroup && grp.group_name === selectedGroup.group_name
+            )}
+            onClick={() => onSelectGroup(grp)}
           >
             <span>{grp.group_name}</span>
             {/* Always show the per‑group member management plus button */}
@@ -352,10 +355,8 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
             </button>
             <h4 style={{ margin: "0 0 0.5rem 0" }}>
               Manage Members for{" "}
-              {
-                userGroups.find((g) => g.group_id === expandedGroupId)?.group_name ||
-                "Group"
-              }
+              {userGroups.find((g) => g.group_id === expandedGroupId)?.group_name ||
+                "Group"}
             </h4>
             <div style={{ marginBottom: "0.5rem" }}>
               <strong>Add Member:</strong>
@@ -424,13 +425,12 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
 };
 
 /** ========== CHAT SECTION ========== */
-export const ChatSection = ({
-  selectedGroup,
-  messages,
-  newMessage,
-  setNewMessage,
-  onSendMessage,
-}) => {
+export const ChatSection = ({ selectedGroup }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  // Store the current user as an object (id and username).
+  const [currentUser, setCurrentUser] = useState(null);
+
   const chatStyle = {
     width: "55%",
     display: "flex",
@@ -462,23 +462,114 @@ export const ChatSection = ({
     padding: "0.5rem",
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      onSendMessage();
+  // Fetch the current user's info from the backend.
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/user_info/", {
+          credentials: "include",
+        });
+        const data = await response.json();
+        if (response.ok) {
+          // Save both the id and username.
+          setCurrentUser({ id: data.id, username: data.username });
+        } else {
+          console.error("Error fetching user info:", data.error);
+        }
+      } catch (error) {
+        console.error("Error fetching user info:", error);
+      }
+    };
+    fetchUserInfo();
+  }, []);
+
+  // Function to fetch messages from the backend.
+  const fetchMessages = async () => {
+    if (!selectedGroup) return;
+    try {
+      const response = await fetch(
+        `http://localhost:8000/retrieve_messages/?num_messages=50&user_id=${selectedGroup.group_id}`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        // Ensure messages is always an array.
+        setMessages(data.messages || []);
+      } else {
+        console.error("Retrieve error:", data.error);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error("Error retrieving messages:", error);
+      setMessages([]);
     }
   };
+
+  // Function to send a message using the updated backend endpoint.
+  const handleSendMessage = async () => {
+    if (!selectedGroup || !newMessage || !currentUser) return;
+    try {
+      const csrfToken = getCookie("csrftoken");
+      const response = await fetch("http://localhost:8000/send_messages/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          user_sending: currentUser.id,
+          user_recieving: selectedGroup.group_id,
+          message: newMessage,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        console.log("Message sent:", data.Success);
+        setNewMessage("");
+        fetchMessages(); // Refresh messages after sending.
+      } else {
+        console.error("Send error:", data.error);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleSendMessage();
+    }
+  };
+
+  // Fetch messages whenever the selected group changes and poll every 5 seconds.
+  useEffect(() => {
+    if (selectedGroup) {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedGroup]);
 
   return (
     <div style={chatStyle}>
       <div style={chatHeaderStyle}>
-        <h3>{selectedGroup}</h3>
+        <h3>{selectedGroup ? selectedGroup.group_name : "Select a Group"}</h3>
         <div style={{ display: "flex", gap: "0.5rem" }}></div>
       </div>
 
       <div style={messagesContainerStyle}>
         {messages.map((msg, idx) => (
           <div key={idx} style={{ marginBottom: "0.5rem" }}>
-            <strong>{msg.sender}:</strong> {msg.text}
+            <strong>
+              {typeof msg.user_sending === "number" &&
+              currentUser &&
+              msg.user_sending === currentUser.id
+                ? currentUser.username
+                : msg.user_sending}
+              :
+            </strong>{" "}
+            {msg.content}
           </div>
         ))}
       </div>
@@ -492,11 +583,22 @@ export const ChatSection = ({
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <button onClick={onSendMessage}>➤</button>
+        <button onClick={handleSendMessage}>➤</button>
       </div>
     </div>
   );
 };
+
+/** END OF CHAT SECTION
+ * CHAT
+ * CHAT
+ * CHAT
+ * CHAT
+ * CHAT
+ * CHAT
+ * CHAT
+ * CHAT
+ */
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 export const MoviePoll = () => {
@@ -673,6 +775,76 @@ export const UserProfile = () => {
         <strong>Date Joined:</strong>{" "}
         {new Date(userInfo.date_joined).toLocaleString()}
       </p>
+    </div>
+  );
+};
+
+/** ========== USER USERNAME ========== */
+// This component fetches the current user's id and then uses the new backend endpoint
+// "frontend_username" to display the user's username.
+export const UserUsername = () => {
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState("");
+  const [userId, setUserId] = useState(null);
+
+  // First, fetch the current user's info to get the id.
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/user_info/", {
+          credentials: "include",
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setUserId(data.id);
+        } else {
+          setError(data.error || "Failed to fetch user info");
+        }
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
+
+  // Once we have the user id, fetch the username.
+  useEffect(() => {
+    if (userId) {
+      const fetchUsername = async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:8000/frontend_username/?user_id=${userId}`,
+            { credentials: "include" }
+          );
+          console.log(data.Username + "USERNAME ISSSSSSSSSSS")
+          const data = await response.json();
+          if (response.ok) {
+            setUsername(data.Username);
+          } else {
+            setError(data.Failure || "Failed to fetch username");
+          }
+        } catch (err) {
+          setError(err.message);
+        }
+      };
+
+      fetchUsername();
+    }
+  }, [userId]);
+
+  const containerStyle = {
+    marginTop: "1rem",
+    padding: "1rem",
+    backgroundColor: "#240046",
+    color: "white",
+    borderRadius: "4px",
+  };
+
+  return (
+    <div style={containerStyle}>
+      <h3>User Username</h3>
+      {error ? <p style={{ color: "red" }}>{error}</p> : <p>{username}</p>}
     </div>
   );
 };

@@ -535,27 +535,30 @@ def send_messages(request):
 
 #Retrieve Messages method
 #might not work frontend plz check
-def retrieve_messages(request, num_messages):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+def retrieve_messages(request):
+
+    user = request.GET.get('user_id')
     
+    # Read num_messages from query parameters (default to 50 if not provided)
+    num_messages = request.GET.get('num_messages', '50')
     try:
         num_messages = int(num_messages)
     except ValueError:
         return JsonResponse({'error': 'Invalid number of messages'}, status=400)
     
-    messages = Message.objects.filter(user_receiving=request.user).order_by('-date_sent')[:num_messages]
+    messages = Message.objects.filter(user_receiving=user).order_by('-date_sent')[:num_messages]
     messages_data = []
     for msg in messages:
         messages_data.append({
             'id': msg.id,
             'user_sending': msg.user_sending.username,
-            'user_receiving': msg.user_receiving.username,
+            'user_recieving': msg.user_recieving.username,
             'message_content': msg.message_content,
             'date_sent': msg.date_sent,
             'status': msg.status,
         })
-    return JsonResponse({'messages': messages_data})      
+    return JsonResponse({'messages': messages_data})
+  
             
 
 
