@@ -510,7 +510,7 @@ export const ChatSection = ({ selectedGroup }) => {
     if (!selectedGroup || !newMessage || !currentUser) return;
     try {
       const csrfToken = getCookie("csrftoken");
-      const response = await fetch("http://localhost:8000/send_messages/", {
+      const response = await fetch("http://localhost:8000/send_message/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -581,7 +581,7 @@ def user_info(request):
         user = User.objects.get(email=decoded_token.get("email"))
         
         return JsonResponse({
-            "username": user.name,
+            "username": user.username,
             "email": user.email,
             "id": user.id,
             "date_joined": user.date_joined,
