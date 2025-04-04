@@ -30,6 +30,10 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   // The friend username that the current user wants to add/remove
   const [friendUsernameToAdd, setFriendUsernameToAdd] = useState("");
 
+
+    console.log("LOADEDDDDDDDDDDDDDDDDDDDD")
+
+
   // ====== Styling ======
   const sidebarStyle = {
     width: "15%",
@@ -62,6 +66,8 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     padding: 0,
   };
 
+  // We map the backend response so that the value (originally "name")
+  // is assigned to the property "username".
   const listItemStyle = (active) => ({
     padding: "1rem",
     marginBottom: "0.5rem",
@@ -145,7 +151,9 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     fetchUserInfo();
   }, []);
 
-  // 2) Fetch mutual friends for the current user
+  // 2) Fetch mutual friends for the current user.
+  // The backend returns a dictionary like { "2": "Aman", "3": "johndoe" }.
+  // We remap it so each friend becomes { id: "2", username: "Aman" }.
   const fetchMutualFriends = async (userId) => {
     if (!userId) return;
     try {
@@ -157,11 +165,11 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
         throw new Error("Failed to fetch mutual friends");
       }
       const data = await response.json();
-      // Convert dictionary to array: { "2": "Alice", ... } -> [{ id: "2", name: "Alice" }, ...]
-      const friendArray = Object.entries(data).map(([id, name]) => ({
+      const friendArray = Object.entries(data).map(([id, username]) => ({
         id,
-        name,
+        username: username, // Assign the returned "name" to the property "username"
       }));
+      console.log(friendArray)
       setFriendsList(friendArray);
     } catch (err) {
       setError(err.message);
@@ -175,7 +183,6 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   }, [currentUserId]);
 
   // 3) Toggle friend relationship using the /create_relationship/ endpoint.
-  // Instead of using an ID input, we use the friend’s username.
   // Use the /search/ endpoint to look up a user by username.
   const handleAddFriend = async () => {
     if (!currentUserId || !friendUsernameToAdd) return;
@@ -194,7 +201,6 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
       }
       // Use the first matched user.
       const friendId = friendData.users[0].id;
-
       // Now call create_relationship using the found friendId.
       const csrfToken = getCookie("csrftoken");
       const url = `http://localhost:8000/create_relationship/?follower_id=${currentUserId}&following_id=${friendId}`;
@@ -220,17 +226,13 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   // 4) Render the sidebar
   return (
     <div style={sidebarStyle}>
-      {/* Header: "My Friends" with a plus button to open the Add Friend modal */}
       <div style={headerFlexStyle}>
         <h3 style={{ margin: 0 }}>My Friends</h3>
         <button onClick={() => setShowAddFriendModal(true)} style={plusButtonStyle}>
           +
         </button>
       </div>
-
       {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {/* List of mutual friends */}
       <ul style={listStyle}>
         {friendsList.map((friend) => (
           <li
@@ -238,12 +240,10 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
             style={listItemStyle(selectedFriend && friend.id === selectedFriend.id)}
             onClick={() => onSelectFriend(friend)}
           >
-            <span>{friend.name}</span>
+            <span>{friend.username}</span>
           </li>
         ))}
       </ul>
-
-      {/* Add Friend modal */}
       {showAddFriendModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -309,7 +309,6 @@ export const FriendChatSection = ({ selectedFriend }) => {
     padding: "0.5rem",
   };
 
-  // 1) Fetch the current user's info from /user_info/
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -329,19 +328,27 @@ export const FriendChatSection = ({ selectedFriend }) => {
     fetchUserInfo();
   }, []);
 
-  // 2) Fetch messages between currentUser and selectedFriend using /retrieve_messages/
+  // Fetch messages in both directions and combine them.
   const fetchMessages = async () => {
     if (!selectedFriend || !currentUser) return;
     try {
-      const response = await fetch(
-        `http://localhost:8000/retrieve_messages/?num_messages=50&user_id=${selectedFriend.id}`,
+      const num_messages = 50;
+      const response1 = await fetch(
+        `http://localhost:8000/retrieve_messages/?num_messages=${num_messages}&user_id_1=${currentUser.id}&user_id_2=${selectedFriend.id}`,
         { credentials: "include" }
       );
-      const data = await response.json();
-      if (response.ok) {
-        setMessages(data.messages || []);
+      const data1 = await response1.json();
+      const response2 = await fetch(
+        `http://localhost:8000/retrieve_messages/?num_messages=${num_messages}&user_id_1=${selectedFriend.id}&user_id_2=${currentUser.id}`,
+        { credentials: "include" }
+      );
+      const data2 = await response2.json();
+      if (response1.ok && response2.ok) {
+        const combined = [...(data1.messages || []), ...(data2.messages || [])];
+        combined.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
+        setMessages(combined);
       } else {
-        console.error("Retrieve error:", data.error);
+        console.error("Error retrieving messages");
         setMessages([]);
       }
     } catch (error) {
@@ -350,7 +357,6 @@ export const FriendChatSection = ({ selectedFriend }) => {
     }
   };
 
-  // 3) Send a message using /send_message/
   const handleSendMessage = async () => {
     if (!selectedFriend || !newMessage || !currentUser) return;
     try {
@@ -387,7 +393,6 @@ export const FriendChatSection = ({ selectedFriend }) => {
     }
   };
 
-  // 4) When selectedFriend changes, fetch messages and set up polling every 5 seconds.
   useEffect(() => {
     if (selectedFriend && currentUser) {
       fetchMessages();
@@ -396,31 +401,30 @@ export const FriendChatSection = ({ selectedFriend }) => {
     }
   }, [selectedFriend, currentUser]);
 
-  // 5) Render the chat section
   return (
     <div style={chatStyle}>
       <div style={chatHeaderStyle}>
         <h3>
-          {selectedFriend ? `Chat with ${selectedFriend.name}` : "Select a Friend"}
+          {selectedFriend
+            ? `Chat with ${selectedFriend.username}`
+            : "Select a Friend"}
         </h3>
       </div>
-
       <div style={messagesContainerStyle}>
         {messages.map((msg, idx) => (
           <div key={idx} style={{ marginBottom: "0.5rem" }}>
             <strong>
-              {typeof msg.user_sending === "number" &&
+              {typeof msg.user_sending === "string" &&
               currentUser &&
-              msg.user_sending === currentUser.id
+              msg.user_sending === currentUser.username
                 ? currentUser.username
                 : msg.user_sending}
               :
             </strong>{" "}
-            {msg.content}
+            {msg.message_content}
           </div>
         ))}
       </div>
-
       <div style={chatInputAreaStyle}>
         <input
           style={{ flex: 1, padding: "0.5rem" }}
@@ -436,40 +440,4 @@ export const FriendChatSection = ({ selectedFriend }) => {
   );
 };
 
-/** ========== PARENT COMPONENT: FRIENDS PAGE ========== */
-const FriendsPage = () => {
-  const [selectedFriend, setSelectedFriend] = useState(null);
 
-  // Basic CSS for layout
-  const cssStyles = `
-    .friends-page {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    
-    .main-content {
-      flex: 1;
-      display: flex;
-      background-color: #f7f7f7;
-    }
-  `;
-
-  return (
-    <>
-      <style>{cssStyles}</style>
-      <div className="friends-page">
-        <Toolbar />
-        <div className="main-content">
-          <FriendsSidebar
-            selectedFriend={selectedFriend}
-            onSelectFriend={(friend) => setSelectedFriend(friend)}
-          />
-          <FriendChatSection selectedFriend={selectedFriend} />
-        </div>
-      </div>
-    </>
-  );
-};
-
-export default FriendsPage;
