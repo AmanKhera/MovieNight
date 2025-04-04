@@ -537,7 +537,8 @@ def send_messages(request):
 #might not work frontend plz check
 def retrieve_messages(request):
 
-    user = request.GET.get('user_id')
+    user_1 = request.GET.get('user_id_1')
+    user_2 = request.GET.get('user_id_2')
     
     # Read num_messages from query parameters (default to 50 if not provided)
     num_messages = request.GET.get('num_messages', '50')
@@ -546,7 +547,7 @@ def retrieve_messages(request):
     except ValueError:
         return JsonResponse({'error': 'Invalid number of messages'}, status=400)
     
-    messages = Message.objects.filter(user_receiving=user).order_by('-date_sent')[:num_messages]
+    messages = Message.objects.filter(user_receiving=user_2,user_sending = user_1  ).order_by('-date_sent')[:num_messages]
     messages_data = []
     for msg in messages:
         messages_data.append({
