@@ -11,6 +11,7 @@ import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
 import UserPage from './pages/UserPage';
 import { fetchRecentlyWatched, fetchWatchlistMovies } from './api';
+import FriendsPage from './pages/FriendsPage';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +65,7 @@ function App() {
             <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/UserProfile" element={<UserPage />} />
+            <Route path="/FriendsPage" element={<FriendsPage />} />
           </Routes>
         </BrowserRouter>
       </div>
