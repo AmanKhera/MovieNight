@@ -13,6 +13,7 @@ import UserPage from './pages/UserPage';
 import { fetchRecentlyWatched, fetchWatchlistMovies } from './api';
 import FriendsPage from './pages/FriendsPage';
 import RecommendationMoviePage from './pages/RecommendMoviePage';
+import ChatGPTGenerator from './components/ChatGPTGenerator';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ function App() {
             <Route path="/UserProfile" element={<UserPage />} />
             <Route path="/FriendsPage" element={<FriendsPage />} />
             <Route path='RecommendationMoviePage' element={<RecommendationMoviePage/>}/>
+            <Route path='/Test' element={<ChatGPTGenerator/>}/>
           </Routes>
         </BrowserRouter>
       </div>

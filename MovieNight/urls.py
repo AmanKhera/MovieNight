@@ -103,6 +103,7 @@ urlpatterns = [
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
     path('frontend_user/', user_views.frontend_username, name = 'get_user_groups'),
     path('leave_group/', group_views.leave_group, name = 'leave_group'),
+    path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
     ]
 
 
