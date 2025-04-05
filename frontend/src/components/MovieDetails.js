@@ -9,6 +9,7 @@ const MovieDetailsPage = () => {
 
   const [movie, setMovie] = useState(null);
   const [posterURL, setPosterURL] = useState(null);
+  const [backdropURL, setBackdropURL] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loadingAdd, setLoadingAdd] = useState(false);
@@ -16,7 +17,6 @@ const MovieDetailsPage = () => {
   const [enhancedPlot, setEnhancedPlot] = useState(null);
   const [loadingPlot, setLoadingPlot] = useState(false);
 
-  // Fetch movie details
   useEffect(() => {
     const fetchMovie = async () => {
       try {
@@ -52,11 +52,23 @@ const MovieDetailsPage = () => {
     fetchMovie().then(movieData => {
       if (movieData) {
         enhancePlot(movieData);
+        fetchBackdrop(movieData.title);
       }
     });
   }, [id, release_date]);
 
-  // Fetch the poster image
+  const fetchBackdrop = async (title) => {
+    try {
+      const response = await fetch(`http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`);
+      const data = await response.json();
+      if (data.backdrop) {
+        setBackdropURL(data.backdrop);
+      }
+    } catch (error) {
+      console.error("Failed to fetch backdrop:", error);
+    }
+  };
+
   useEffect(() => {
     if (!movie || !movie.title) return;
 
@@ -76,15 +88,12 @@ const MovieDetailsPage = () => {
     fetchPoster();
   }, [movie]);
 
-  // Enhance the plot using AI
   const enhancePlot = async (movieData) => {
     setLoadingPlot(true);
     try {
       const response = await fetch('http://localhost:8000/generate-movie-summary/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           movie_info: {
             title: movieData.title,
@@ -103,13 +112,12 @@ const MovieDetailsPage = () => {
       }
     } catch (err) {
       console.error("Plot enhancement failed:", err);
-      setEnhancedPlot(movieData.plot); // Fallback to original plot
+      setEnhancedPlot(movieData.plot);
     } finally {
       setLoadingPlot(false);
     }
   };
 
-  // Add movie to watchlist
   const addToWatchlist = async (movie) => {
     const titleParam = movie.title || movie.original_title;
     if (!titleParam) {
@@ -117,36 +125,24 @@ const MovieDetailsPage = () => {
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-  
+
     const releaseDate = movie.release_date || "";
     const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
-  
+
     setLoadingAdd(true);
     try {
-      const searchUrl = `http://localhost:8000/search/?q=${encodeURIComponent(
-        titleParam
-      )}${releaseYear ? `&year=${encodeURIComponent(releaseYear)}` : ""}`;
-      const searchResponse = await fetch(searchUrl, {
-        method: "GET",
-        credentials: "include",
-      });
+      const searchUrl = `http://localhost:8000/search/?q=${encodeURIComponent(titleParam)}${releaseYear ? `&year=${encodeURIComponent(releaseYear)}` : ""}`;
+      const searchResponse = await fetch(searchUrl, { method: "GET", credentials: "include" });
       const searchData = await searchResponse.json();
-      
+
       if (searchResponse.ok && searchData.movies && searchData.movies.length > 0) {
         const foundMovieId = searchData.movies[0].id;
-        const addResponse = await fetch(
-          `http://localhost:8000/add_movie/?movie_id=${foundMovieId}`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
-        );
+        const addResponse = await fetch(`http://localhost:8000/add_movie/?movie_id=${foundMovieId}`, {
+          method: "GET",
+          credentials: "include",
+        });
         const addData = await addResponse.json();
-        if (addResponse.ok) {
-          setMessage({ text: addData.message || "Movie added to watchlist!", type: "success" });
-        } else {
-          setMessage({ text: addData.error || "An error occurred.", type: "error" });
-        }
+        setMessage({ text: addData.message || "Movie added to watchlist!", type: "success" });
       } else {
         setMessage({ text: "Movie not found in search.", type: "error" });
       }
@@ -164,18 +160,18 @@ const MovieDetailsPage = () => {
   if (!movie) return <div style={styles.error}>No movie details found.</div>;
 
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
+      <div style={styles.backdropOverlay} />
+
       {message && (
-        <div style={{ 
-          ...styles.message, 
-          backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" 
+        <div style={{
+          ...styles.message,
+          backgroundColor: message.type === "success" ? "#4caf50" : "#f44336"
         }}>
           {message.text}
         </div>
       )}
-      
-      <h1 style={styles.title}>{movie.title}</h1>
-      
+
       <div style={styles.detailsWrapper}>
         <div style={styles.posterContainer}>
           <img
@@ -192,21 +188,22 @@ const MovieDetailsPage = () => {
             {loadingAdd ? "..." : "+"}
           </button>
         </div>
-        
+
         <div style={styles.info}>
+          <h1 style={styles.title}>{movie.title}</h1>
+          <div style={styles.metaBadges}>
+            <span style={styles.badge}>📅 {movie.year}</span>
+            <span style={styles.badge}>⭐ {movie.rating}</span>
+            <span style={styles.badge}>⏱ {movie.runtime}</span>
+            <span style={styles.badge}>🎬 {movie.director}</span>
+          </div>
+
           <h2 style={styles.sectionTitle}>Plot</h2>
           {loadingPlot ? (
             <div style={styles.plotLoading}>Generating enhanced description...</div>
           ) : (
             <p style={styles.plotText}>{enhancedPlot || movie.plot}</p>
           )}
-          
-          <div style={styles.metadata}>
-            <p><strong>Release Year:</strong> {movie.year}</p>
-            <p><strong>Rating:</strong> {movie.rating}</p>
-            <p><strong>Runtime:</strong> {movie.runtime}</p>
-            <p><strong>Director:</strong> {movie.director}</p>
-          </div>
         </div>
       </div>
     </div>
@@ -214,11 +211,21 @@ const MovieDetailsPage = () => {
 };
 
 const styles = {
-  container: { 
-    padding: "20px", 
-    color: "#fff", 
+  container: {
+    position: "relative",
+    padding: "40px 20px",
+    color: "#fff",
     backgroundColor: "#240046",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
     minHeight: "100vh"
+  },
+  backdropOverlay: {
+    position: "absolute",
+    inset: 0,
+    background: "rgba(36, 0, 70, 0.85)",
+    zIndex: 0
   },
   loading: {
     color: "#fff",
@@ -234,39 +241,35 @@ const styles = {
   },
   message: {
     padding: "15px",
-    margin: "0 auto 20px",
+    marginBottom: "20px",
     color: "#fff",
     borderRadius: "4px",
     textAlign: "center",
     maxWidth: "80%",
-    fontSize: "1rem"
+    margin: "0 auto 20px auto",
+    fontSize: "1rem",
+    zIndex: 2,
+    position: "relative"
   },
-  title: { 
-    textAlign: "center", 
-    margin: "0 0 30px 0",
-    fontSize: "2rem",
-    color: "#f8f9fa"
-  },
-  detailsWrapper: { 
-    display: "flex", 
-    flexDirection: { xs: "column", md: "row" },
-    alignItems: "flex-start", 
-    gap: "40px", 
+  detailsWrapper: {
+    display: "flex",
+    gap: "40px",
+    alignItems: "flex-start",
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "0 20px"
+    position: "relative",
+    zIndex: 1
   },
-  posterContainer: { 
-    position: "relative", 
-    width: "300px", 
+  posterContainer: {
+    position: "relative",
+    width: "300px",
     flexShrink: 0,
     borderRadius: "8px",
     overflow: "hidden",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.3)"
+    boxShadow: "0 4px 12px rgba(0,0,0,0.6)"
   },
-  poster: { 
-    width: "100%", 
-    height: "auto",
+  poster: {
+    width: "100%",
     display: "block"
   },
   addButton: {
@@ -281,20 +284,32 @@ const styles = {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
     transition: "all 0.2s",
-    "&:hover": {
-      transform: "scale(1.1)",
-      backgroundColor: "#fff"
-    }
   },
   info: {
-    flex: 1,
-    padding: "0 0 20px 0"
+    flex: 1
+  },
+  title: {
+    margin: "0 0 15px 0",
+    fontSize: "2.5rem",
+    color: "#fff"
+  },
+  metaBadges: {
+    marginBottom: "20px",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px"
+  },
+  badge: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    padding: "6px 12px",
+    borderRadius: "4px",
+    fontSize: "0.9rem"
   },
   sectionTitle: {
     fontSize: "1.5rem",
-    marginBottom: "20px",
+    marginBottom: "15px",
     color: "#e0aaff"
   },
   plotLoading: {
@@ -306,19 +321,6 @@ const styles = {
     lineHeight: "1.6",
     marginBottom: "25px",
     fontSize: "1.1rem"
-  },
-  metadata: {
-    backgroundColor: "rgba(46, 16, 101, 0.5)",
-    padding: "20px",
-    borderRadius: "8px",
-    "& p": {
-      margin: "10px 0",
-      fontSize: "1rem"
-    },
-    "& strong": {
-      color: "#e0aaff",
-      marginRight: "8px"
-    }
   }
 };
 
