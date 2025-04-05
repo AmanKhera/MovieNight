@@ -348,11 +348,11 @@ def retrieve_favorites(request):
 
 #CHATGPT Implementation
 
-import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from openai import OpenAI
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -365,21 +365,24 @@ def generate_movie_summary(request):
     
     try:
         data = json.loads(request.body)
-        movie_data = data.get('movie_data', '')
+        movie_info = data.get('movie_info', {})
         
-        if not movie_data:
-            return JsonResponse({'error': 'Movie data is required'}, status=400)
+        if not movie_info:
+            return JsonResponse({'error': 'Movie information is required'}, status=400)
         
-        prompt = f"""Here is information about a movie:
-{movie_data}
+        # Construct prompt from movie info
+        prompt = f"""Create an engaging, spoiler-free plot summary for this movie:
+Title: {movie_info.get('title', '')}
+Year: {movie_info.get('year', '')}
+Director: {movie_info.get('director', '')}
+Original Plot: {movie_info.get('plot', '')}
 
-Please provide a concise, engaging plot summary (about 150 words) that would interest potential viewers. 
-Avoid spoilers and focus on what makes the movie appealing."""
+Write a 100-150 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful movie assistant."},
+                {"role": "system", "content": "You are a movie expert who creates compelling summaries."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=300,
@@ -389,7 +392,5 @@ Avoid spoilers and focus on what makes the movie appealing."""
         summary = response.choices[0].message.content
         return JsonResponse({'summary': summary})
         
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
