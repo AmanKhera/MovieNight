@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useLocation, Link } from "react-router-dom";
 
 const MovieDetailsPage = () => {
   const { id } = useParams();
@@ -16,6 +16,7 @@ const MovieDetailsPage = () => {
   const [message, setMessage] = useState(null);
   const [enhancedPlot, setEnhancedPlot] = useState(null);
   const [loadingPlot, setLoadingPlot] = useState(false);
+  const hasEnhancedPlot = useRef(false);
 
   useEffect(() => {
     const fetchMovie = async () => {
@@ -49,9 +50,12 @@ const MovieDetailsPage = () => {
       }
     };
 
-    fetchMovie().then(movieData => {
+    fetchMovie().then((movieData) => {
       if (movieData) {
-        enhancePlot(movieData);
+        if (!hasEnhancedPlot.current) {
+          enhancePlot(movieData);
+          hasEnhancedPlot.current = true;
+        }
         fetchBackdrop(movieData.title);
       }
     });
@@ -59,7 +63,9 @@ const MovieDetailsPage = () => {
 
   const fetchBackdrop = async (title) => {
     try {
-      const response = await fetch(`http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`);
+      const response = await fetch(
+        `http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`
+      );
       const data = await response.json();
       if (data.backdrop) {
         setBackdropURL(data.backdrop);
@@ -75,7 +81,9 @@ const MovieDetailsPage = () => {
     const fetchPoster = async () => {
       try {
         const encodedTitle = encodeURIComponent(movie.title);
-        const response = await fetch(`http://localhost:8000/movie_poster/?title=${encodedTitle}`);
+        const response = await fetch(
+          `http://localhost:8000/movie_poster/?title=${encodedTitle}`
+        );
         const data = await response.json();
         if (data.poster) {
           setPosterURL(data.poster);
@@ -91,17 +99,17 @@ const MovieDetailsPage = () => {
   const enhancePlot = async (movieData) => {
     setLoadingPlot(true);
     try {
-      const response = await fetch('http://localhost:8000/generate-movie-summary/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("http://localhost:8000/generate-movie-summary/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           movie_info: {
             title: movieData.title,
             year: movieData.year,
             director: movieData.director,
-            plot: movieData.plot
-          }
-        })
+            plot: movieData.plot,
+          },
+        }),
       });
 
       const data = await response.json();
@@ -131,18 +139,26 @@ const MovieDetailsPage = () => {
 
     setLoadingAdd(true);
     try {
-      const searchUrl = `http://localhost:8000/search/?q=${encodeURIComponent(titleParam)}${releaseYear ? `&year=${encodeURIComponent(releaseYear)}` : ""}`;
+      const searchUrl = `http://localhost:8000/search/?q=${encodeURIComponent(titleParam)}${
+        releaseYear ? `&year=${encodeURIComponent(releaseYear)}` : ""
+      }`;
       const searchResponse = await fetch(searchUrl, { method: "GET", credentials: "include" });
       const searchData = await searchResponse.json();
 
       if (searchResponse.ok && searchData.movies && searchData.movies.length > 0) {
         const foundMovieId = searchData.movies[0].id;
-        const addResponse = await fetch(`http://localhost:8000/add_movie/?movie_id=${foundMovieId}`, {
-          method: "GET",
-          credentials: "include",
-        });
+        const addResponse = await fetch(
+          `http://localhost:8000/add_movie/?movie_id=${foundMovieId}`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
         const addData = await addResponse.json();
-        setMessage({ text: addData.message || "Movie added to watchlist!", type: "success" });
+        setMessage({
+          text: addData.message || "Movie added to watchlist!",
+          type: "success",
+        });
       } else {
         setMessage({ text: "Movie not found in search.", type: "error" });
       }
@@ -160,14 +176,21 @@ const MovieDetailsPage = () => {
   if (!movie) return <div style={styles.error}>No movie details found.</div>;
 
   return (
-    <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
+    <div
+      style={{
+        ...styles.container,
+        backgroundImage: backdropURL ? `url(${backdropURL})` : undefined,
+      }}
+    >
       <div style={styles.backdropOverlay} />
 
       {message && (
-        <div style={{
-          ...styles.message,
-          backgroundColor: message.type === "success" ? "#4caf50" : "#f44336"
-        }}>
+        <div
+          style={{
+            ...styles.message,
+            backgroundColor: message.type === "success" ? "#4caf50" : "#f44336",
+          }}
+        >
           {message.text}
         </div>
       )}
@@ -195,7 +218,15 @@ const MovieDetailsPage = () => {
             <span style={styles.badge}>📅 {movie.year}</span>
             <span style={styles.badge}>⭐ {movie.rating}</span>
             <span style={styles.badge}>⏱ {movie.runtime}</span>
-            <span style={styles.badge}>🎬 {movie.director}</span>
+            <span style={styles.badge}>
+              🎬{" "}
+              <Link
+                to={`/search?filter=director&q=${encodeURIComponent(movie.director)}`}
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
+                {movie.director}
+              </Link>
+            </span>
           </div>
 
           <h2 style={styles.sectionTitle}>Plot</h2>
@@ -219,25 +250,25 @@ const styles = {
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",
-    minHeight: "100vh"
+    minHeight: "100vh",
   },
   backdropOverlay: {
     position: "absolute",
     inset: 0,
     background: "rgba(36, 0, 70, 0.85)",
-    zIndex: 0
+    zIndex: 0,
   },
   loading: {
     color: "#fff",
     textAlign: "center",
     padding: "40px",
-    fontSize: "1.2rem"
+    fontSize: "1.2rem",
   },
   error: {
     color: "#ff6b6b",
     textAlign: "center",
     padding: "40px",
-    fontSize: "1.2rem"
+    fontSize: "1.2rem",
   },
   message: {
     padding: "15px",
@@ -249,7 +280,7 @@ const styles = {
     margin: "0 auto 20px auto",
     fontSize: "1rem",
     zIndex: 2,
-    position: "relative"
+    position: "relative",
   },
   detailsWrapper: {
     display: "flex",
@@ -258,7 +289,7 @@ const styles = {
     maxWidth: "1200px",
     margin: "0 auto",
     position: "relative",
-    zIndex: 1
+    zIndex: 1,
   },
   posterContainer: {
     position: "relative",
@@ -266,11 +297,11 @@ const styles = {
     flexShrink: 0,
     borderRadius: "8px",
     overflow: "hidden",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.6)"
+    boxShadow: "0 4px 12px rgba(0,0,0,0.6)",
   },
   poster: {
     width: "100%",
-    display: "block"
+    display: "block",
   },
   addButton: {
     position: "absolute",
@@ -288,40 +319,40 @@ const styles = {
     transition: "all 0.2s",
   },
   info: {
-    flex: 1
+    flex: 1,
   },
   title: {
     margin: "0 0 15px 0",
     fontSize: "2.5rem",
-    color: "#fff"
+    color: "#fff",
   },
   metaBadges: {
     marginBottom: "20px",
     display: "flex",
     flexWrap: "wrap",
-    gap: "10px"
+    gap: "10px",
   },
   badge: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     padding: "6px 12px",
     borderRadius: "4px",
-    fontSize: "0.9rem"
+    fontSize: "0.9rem",
   },
   sectionTitle: {
     fontSize: "1.5rem",
     marginBottom: "15px",
-    color: "#e0aaff"
+    color: "#e0aaff",
   },
   plotLoading: {
     color: "#adb5bd",
     fontStyle: "italic",
-    marginBottom: "25px"
+    marginBottom: "25px",
   },
   plotText: {
     lineHeight: "1.6",
     marginBottom: "25px",
-    fontSize: "1.1rem"
-  }
+    fontSize: "1.1rem",
+  },
 };
 
 export default MovieDetailsPage;

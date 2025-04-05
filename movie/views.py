@@ -377,7 +377,7 @@ Year: {movie_info.get('year', '')}
 Director: {movie_info.get('director', '')}
 Original Plot: {movie_info.get('plot', '')}
 
-Write a 100-150 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
+Write a 150-200 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
