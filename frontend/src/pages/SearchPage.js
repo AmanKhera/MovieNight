@@ -193,7 +193,7 @@ const SearchPage = () => {
       await displayMovieSearchResult(yearResult);
     } else {
       let userResult = await fetchUser(finalQuery, setUsers, setError);
-      if (userResult.length == 0) {
+      if (userResult.length === 0) { //################# == to ===
         document.getElementById("search-result-user").innerHTML = "No users found by that search term";
       } else {
         await displayUserSearchResult(userResult);
