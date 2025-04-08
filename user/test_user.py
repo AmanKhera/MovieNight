@@ -34,6 +34,20 @@ class ViewsTestCase(TestCase):
         self.user2 = User.objects.create(name="otheruser", email="otheruser@example.com")
         self.user3 = User.objects.create(name="thirduser", email="thirduser@example.com")
 
+        self.group1 = Group.objects.create(
+            group_id=self.user1,
+            leader=self.user1,
+            group_name="Test Group 1",
+            genre="Action",
+            voting_limit=3)
+        
+        self.group2 = Group.objects.create(
+            group_id=self.user2,
+            leader=self.user2,
+            group_name="Test Group 2",
+            genre="Horror",
+            voting_limit=3)
+
         Watchlist.objects.filter(user_id=self.user1.id).delete()
         Watchlist.objects.filter(user_id=self.user2.id).delete()
         Watchlist.objects.filter(user_id=self.user3.id).delete()
@@ -41,8 +55,8 @@ class ViewsTestCase(TestCase):
 
         #dummy movie.
         self.movie = Movie.objects.create(
-            title="Test Movie",
-            year=2024,       
+            title="Inception",
+            year=2010,       
             runtime=120,     
             rating=8.5       
         )
@@ -326,6 +340,32 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 201)
         data = json.loads(response.content)
         self.assertIn("Movie recommended successfully", data.get("message", ""))
+
+        #tests for recommend_movie
+    def test_recommend_movie_to_group_success(self):
+        payload = {
+            "member_suggested": self.user1.id,
+            "user_receiving": self.group1.group_id.id,
+            "movie_id": self.movie.id
+        }
+        url = "/recommend_movie/"
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.content)
+        self.assertIn("Movie recommended successfully", data.get("message", ""))
+
+    def test_recommend_movie_to_group_genre_error(self):
+        payload = {
+            "member_suggested": self.user1.id,
+            "user_receiving": self.group2.group_id.id,
+            "movie_id": self.movie.id
+        }
+        url = "/recommend_movie/"
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("Movie doesn't fit group genre", data.get("error", ""))
 
     def test_recommend_movie_missing_fields(self):
         payload = {
