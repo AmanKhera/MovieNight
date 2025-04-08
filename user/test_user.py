@@ -12,7 +12,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "MovieNight.settings")
 django.setup()
 
 #import models
-from user.models import User, Relationship, MemberRecommendation, Message
+from user.models import User, Relationship, MemberRecommendation, Message, BlockList
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from group.models import Group, GroupMember
 
@@ -34,6 +34,20 @@ class ViewsTestCase(TestCase):
         self.user2 = User.objects.create(name="otheruser", email="otheruser@example.com")
         self.user3 = User.objects.create(name="thirduser", email="thirduser@example.com")
 
+        self.group1 = Group.objects.create(
+            group_id=self.user1,
+            leader=self.user1,
+            group_name="Test Group 1",
+            genre="Action",
+            voting_limit=3)
+        
+        self.group2 = Group.objects.create(
+            group_id=self.user2,
+            leader=self.user2,
+            group_name="Test Group 2",
+            genre="Horror",
+            voting_limit=3)
+
         Watchlist.objects.filter(user_id=self.user1.id).delete()
         Watchlist.objects.filter(user_id=self.user2.id).delete()
         Watchlist.objects.filter(user_id=self.user3.id).delete()
@@ -41,8 +55,8 @@ class ViewsTestCase(TestCase):
 
         #dummy movie.
         self.movie = Movie.objects.create(
-            title="Test Movie",
-            year=2024,       
+            title="Inception",
+            year=2010,       
             runtime=120,     
             rating=8.5       
         )
@@ -183,6 +197,9 @@ class ViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Relationship removed", data.get("message"))
 
+    
+    
+    
     def test_create_relationship_same_user(self):
         url = "/create_relationship/?follower_id={}&following_id={}".format(
             self.user1.id, self.user1.id
@@ -324,6 +341,32 @@ class ViewsTestCase(TestCase):
         data = json.loads(response.content)
         self.assertIn("Movie recommended successfully", data.get("message", ""))
 
+        #tests for recommend_movie
+    def test_recommend_movie_to_group_success(self):
+        payload = {
+            "member_suggested": self.user1.id,
+            "user_receiving": self.group1.group_id.id,
+            "movie_id": self.movie.id
+        }
+        url = "/recommend_movie/"
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.content)
+        self.assertIn("Movie recommended successfully", data.get("message", ""))
+
+    def test_recommend_movie_to_group_genre_error(self):
+        payload = {
+            "member_suggested": self.user1.id,
+            "user_receiving": self.group2.group_id.id,
+            "movie_id": self.movie.id
+        }
+        url = "/recommend_movie/"
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("Movie doesn't fit group genre", data.get("error", ""))
+
     def test_recommend_movie_missing_fields(self):
         payload = {
             "member_suggested": self.user1.id,
@@ -457,5 +500,31 @@ class ViewsTestCase(TestCase):
         data = json.loads(response.content)
         self.assertIn("error", data)
 
-        
+    #tests for block_user
+    def test_block_user(self):
+        """Test blocking and unblocking a user"""
+        url = reverse('block_user')
+        #first call: Block the user. expect 201 Created
+        payload = {
+            "blocker_id": self.user1.id,
+            "blocked_id": self.user2.id
+        }
+
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        data = json.loads(response.content)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(data.get("message"), "User blocked successfully.")
+
+        self.assertTrue(BlockList.objects.filter(blocker=self.user1, blocked=self.user2).exists())
+
+        #second call should unblock the user and return code 200
+        response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        data = json.loads(response.content)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data.get("message"), "User Unblocked")
+
+        #check that user is removed from block list
+        self.assertFalse(BlockList.objects.filter(blocker=self.user1, blocked=self.user2).exists())    
     

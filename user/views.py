@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist
 import json
+import os
+import requests
 from django.views.decorators.csrf import csrf_exempt
 import jwt
 from django.core import serializers
@@ -414,10 +416,33 @@ def recommend_movie(request):
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
 
+            movie = Movie.objects.get(id=movie_id)
+            query_params = {
+                't': movie.title,
+                'y': movie.year
+            }
+            #print(movie.title, "\n", movie.year)
+
+            OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+            omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}"
+
+            response = requests.get(omdb_url, params=query_params)
+            data = response.json()
+
+            if data.get("Response") == "False":
+                return JsonResponse({"error": "Movie not found in OMDb."}, status=404)
+
+            movie_genre = data.get("Genre", "Unknown Genre")
+            genres = movie_genre.split(',')
+            genres = [genre.strip() for genre in genres]
+                
+            print(genres)
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
                 return JsonResponse({"error": "Missing required fields."}, status=400)
+            
+            
 
             # Validate if users exist before proceeding
             try:
@@ -429,7 +454,14 @@ def recommend_movie(request):
                 user_receiving = User.objects.get(id=user_receiving_id)
             except User.DoesNotExist:
                 return JsonResponse({"error": "User receiving does not exist."}, status=400)
-
+            
+            if Group.objects.filter(group_id = user_receiving).exists():
+                group = Group.objects.filter(group_id= user_receiving).first()
+                if group.genre != None:
+                    if group.genre not in genres:   #print("group found: ",group.genre)
+                        return JsonResponse({"error":"Movie doesn't fit group genre"}, status = 400)
+                
+            
             # Ensure movie_id is an integer
             try:
                 movie_id = int(movie_id)
@@ -689,9 +721,10 @@ def block_user(request):
             blocker = User.objects.get(id=blocker_id)
             blocked = User.objects.get(id=blocked_id)
 
-            # Check if already blocked
+            #unblock if already blocked
             if BlockList.objects.filter(blocker=blocker, blocked=blocked).exists():
-                return JsonResponse({"message": "User is already blocked."}, status=200)
+                BlockList.objects.filter(blocker=blocker, blocked=blocked).delete()
+                return JsonResponse({"message": "User Unblocked"}, status=200)
 
             BlockList.objects.create(blocker=blocker, blocked=blocked)
             return JsonResponse({"message": "User blocked successfully."}, status=201)
@@ -704,6 +737,22 @@ def block_user(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
+
+def view_blocked_users(request):
+
+    user_id = request.GET.get('id')
+
+    #ids of users that are blocked by user
+    blocked_ids = set(BlockList.objects.filter(following_id=user_id).values_list('blocker_id', flat=True))
+
+    blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
+
+    #returns dictionary where id is the key and name is the value
+    response = {str(user['id']): user['name'] for user in blocked_list}
+
+    return JsonResponse(response, status=200)
+
+
 def frontend_username(request):
     user_id = request.GET.get("user_id")
 
@@ -711,6 +760,7 @@ def frontend_username(request):
         return JsonResponse({"Username": User.objects.get(id=user_id).username}, status = 200)
     else:
         return JsonResponse({"Failure":"User does not exist"}, status=400)
+
 
 
     
