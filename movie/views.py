@@ -344,3 +344,53 @@ def retrieve_favorites(request):
 
 
 
+
+
+#CHATGPT Implementation
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from openai import OpenAI
+import os
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+@csrf_exempt
+def generate_movie_summary(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        movie_info = data.get('movie_info', {})
+        
+        if not movie_info:
+            return JsonResponse({'error': 'Movie information is required'}, status=400)
+        
+        # Construct prompt from movie info
+        prompt = f"""Create an engaging, spoiler-free plot summary for this movie:
+Title: {movie_info.get('title', '')}
+Year: {movie_info.get('year', '')}
+Director: {movie_info.get('director', '')}
+Original Plot: {movie_info.get('plot', '')}
+
+Write a 150-200 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a movie expert who creates compelling summaries."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        
+        summary = response.choices[0].message.content
+        return JsonResponse({'summary': summary})
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
