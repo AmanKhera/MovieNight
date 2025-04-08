@@ -4,56 +4,49 @@ body {
   margin: 0;
   padding: 0;
   background-color: #10002B;
-  min-height: 100vh; /* Ensure full height of the page */
+  min-height: 100vh;
   display: flex;
-  flex-direction: column; 
+  flex-direction: column;
 }
 
 nav {
-  display: flex;
-  justify-content: space-between; /* Space items apart horizontally */ 
-  align-items: center;
+  /* Make the toolbar taller to fit a bigger logo/poster */
+  position: relative;
+  height: 200px; /* Increase if your logo is taller */
   background-color: #10002B;
-  padding: 10px 0; /* Add padding to create space */
-  height: 5%; /* Adjust the height of the toolbar */
-  position: relative; /* Enable precise positioning for child elements */
+  padding: 0;
+  box-sizing: border-box;
 }
 
+/* LOGO/POSTER AREA */
 #logo {
-  width: 100%;
-  max-width: 250px;
-  min-width: 150px;
-  margin-left: 15px;
-  margin-top: -25px;
-  padding: 0px 0; /* Add space above and below the logo */
-}
-
-.responsive-image {
-  width: 100%;
-  height: auto;
-  display: block;
-  margin: 10px 0; /* Add additional space above and below the image */
+  position: absolute;
+  top: 10px;
+  left: 20px;
+  margin: 0;
 }
 
 #logo button {
-  font-size: 20px;
-  padding: 10px 20px;
   background-color: #10002B;
   border: none;
-  border-radius: 30%;
   cursor: pointer;
+  padding: 0; /* No extra padding around the image */
 }
 
-#logo button:hover {
-  background-color: #240046;
+.responsive-image {
+  display: block;
+  width: auto;
+  max-height: 180px; /* Constrain logo height so it doesn't overflow the nav */
+  margin: 0;
 }
 
+/* ICON BUTTONS AT THE BOTTOM-RIGHT */
 .buttons {
+  position: absolute;
+  bottom: 10px;
+  right: 20px;
   display: flex;
-  gap: 10px; /* Space between buttons */
-  position: absolute; /* Position the button container */
-  bottom: 30px; /* Add more space below the buttons */
-  right: 10px; /* Align buttons to the right */
+  gap: 10px;
 }
 
 .buttons .button {
@@ -61,7 +54,7 @@ nav {
 }
 
 .buttons button {
-  padding: 10px 15px;
+  padding: 10px;
   background-color: #10002B;
   border: none;
   cursor: pointer;
@@ -77,70 +70,70 @@ nav {
   background-color: #240046;
 }
 
-/* Hover Text Styling */
+/* HOVER TEXT (TOOLTIP) */
+/* General button class that wraps each icon */
 .button {
   position: relative;
   display: inline-block;
 }
 
+/* HOVER TEXT FOR LOGO (if you want a tooltip on the logo) */
 .hover-text-logo {
   visibility: hidden;
-  width: auto;
+  position: absolute;
+  bottom: 100%;             /* Show tooltip above the logo */
+  left: 50%;
+  transform: translateX(-50%);
   background-color: #240046;
-  color: #ffffff;
+  color: #fff;
   font-family: 'Patua One', serif;
-  text-align: center;
   border-radius: 5px;
   padding: 5px;
-  position: relative;
-  z-index: 1;
-  top: 90%;
-  margin-left: -100px;
+  text-align: center;
   opacity: 0;
   transition: opacity 0.3s;
+  z-index: 1;
 }
 
+/* HOVER TEXT FOR ICON BUTTONS */
 .hover-text {
   visibility: hidden;
-  width: auto;
+  position: absolute;
+  bottom: 100%;             /* Position above the icon */
+  left: 50%;
+  transform: translateX(-50%);
   background-color: #240046;
   color: #ffffff;
   font-family: 'Patua One', serif;
-  text-align: center;
   border-radius: 5px;
   padding: 5px;
-  position: absolute;
-  z-index: 1;
-  top: 35%;
-  margin-left: -80px;
+  text-align: center;
   opacity: 0;
   transition: opacity 0.3s;
+  z-index: 1;
 }
 
-.hover-text::after {
+/* Tooltip arrow pointing DOWN (from the tooltip to the icon) */
+.hover-text::after,
+.hover-text-logo::after {
   content: '';
   position: absolute;
-  bottom: 100%;
+  top: 100%; /* Arrow at the bottom edge of the tooltip */
   left: 50%;
-  margin-left: -5px;
+  transform: translateX(-50%);
   border-width: 5px;
   border-style: solid;
-  border-color: #10002B transparent transparent transparent;
+  border-color: #240046 transparent transparent transparent;
 }
 
+/* Show tooltip on hover */
 .button:hover .hover-text,
 .button:hover .hover-text-logo {
   visibility: visible;
   opacity: 1;
 }
 
-/* Fix for White Space Below */
-html {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
-
+/* FOOTER (optional) */
 footer {
   margin: 0;
   padding: 10px;

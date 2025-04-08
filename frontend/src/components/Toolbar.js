@@ -20,15 +20,17 @@ function Toolbar() {
 
   // Keep the alerts for the other actions as-is
   const searchButtonAction = () => {
-    navigate("search");
+    navigate("/search");
   };
   const discoverButtonAction = () => alert('Discover button clicked!');
   const ratingButtonAction = () => alert('Rating button clicked!');
   const messageButtonAction = () => {
-    navigate("groups");
+    navigate("/groups");
   };
   const friendsButtonAction = () => alert('Friends button clicked!');
-  const profileButtonAction = () => alert('Profile button clicked!');
+  const profileButtonAction = () => {
+    navigate("/UserProfile");
+  };
 
   return (
     <nav>
@@ -36,7 +38,6 @@ function Toolbar() {
         <button>
           <img src={logo} alt="Movie Night logo" className="responsive-image" />
         </button>
-        <span className="hover-text-logo">Homepage</span>
       </div>
       <div className="buttons">
         <div className="button" id="search-button" onClick={searchButtonAction}>
