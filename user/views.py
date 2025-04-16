@@ -416,6 +416,13 @@ def recommend_movie(request):
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
 
+            # Ensure movie_id is an integer
+            try:
+                movie_id = int(movie_id)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+
+
             movie = Movie.objects.get(id=movie_id)
             query_params = {
                 't': movie.title,
@@ -442,7 +449,7 @@ def recommend_movie(request):
             if not all([member_suggested_id, user_receiving_id, movie_id]):
                 return JsonResponse({"error": "Missing required fields."}, status=400)
             
-            
+           
 
             # Validate if users exist before proceeding
             try:
@@ -455,18 +462,10 @@ def recommend_movie(request):
             except User.DoesNotExist:
                 return JsonResponse({"error": "User receiving does not exist."}, status=400)
             
-            if Group.objects.filter(group_id = user_receiving).exists():
-                group = Group.objects.filter(group_id= user_receiving).first()
-                if group.genre != None:
-                    if group.genre not in genres:   #print("group found: ",group.genre)
-                        return JsonResponse({"error":"Movie doesn't fit group genre"}, status = 400)
-                
-            
-            # Ensure movie_id is an integer
-            try:
-                movie_id = int(movie_id)
-            except (ValueError, TypeError):
-                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+            group = Group.objects.filter(group_id=user_receiving).first()
+            if group:
+                if group.genre and group.genre not in genres:
+                    return JsonResponse({"error": "Movie doesn't fit group genre"}, status=400)
 
             # Create the recommendation record
             recommendation = MemberRecommendation.objects.create(

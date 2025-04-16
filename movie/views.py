@@ -299,10 +299,10 @@ def favorite(request):
             data = json.loads(request.body)
             movie_id = data.get("movie_id")
 
-            username = get_user_username(request.session.get("access_token")).get('username')
-            id = (User.objects.get(name=username)).id
+            username = data.get('username')
+            user = (User.objects.get(username=username))
 
-            movie_item, create = UserMovieJournal.objects.get_or_create(user=id, movie_id=movie_id)
+            movie_item, create = UserMovieJournal.objects.get_or_create(user=user, movie_id=movie_id)
 
             if movie_item.favorite == True:
                 movie_item.favorite = False
@@ -325,10 +325,9 @@ def favorite(request):
 #No parameter is needed
 #Returns jsonresponse which contains all favorited movies and their related information
 def retrieve_favorites(request):
-
     if request.method == "GET":
-        username = get_user_username(request.session.get("access_token")).get('username')
-        user = User.objects.get(name = username)
+        username = request.GET.get('username')
+        user = User.objects.get(username = username)
 
         favorite_movies = Movie.objects.filter(
             user_journals__user=user,
