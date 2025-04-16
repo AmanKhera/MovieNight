@@ -91,7 +91,7 @@ class UserMovieJournal(models.Model):
 
     class Meta:
         db_table = 'user_movie_journal'
-        unique_together = ('title', 'year')
+        #unique_together = ('title', 'year')
 
     def __str__(self):
         return f'{self.user} - {self.movie} ({self.date_watched})'
