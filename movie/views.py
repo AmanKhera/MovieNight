@@ -130,6 +130,8 @@ def Search(request):
         )
         response['movies'] = list(movies)
 
+
+
     #search via movie id
     elif not query:
         movies = Movie.objects.filter(
