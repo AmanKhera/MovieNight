@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from user.models import Message
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
@@ -192,3 +193,28 @@ def leave_group(request):
     return JsonResponse({"error": "Invalid request method"}, status=405)
         
         
+def retrieve_group_messages(request):
+
+    group_id = request.GET.get('group_id')
+
+    # Read num_messages from query parameters (default to 50 if not provided)
+    num_messages = request.GET.get('num_messages', '50')
+
+    try:
+        num_messages = int(num_messages)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid number of messages'}, status=400)
+
+
+    messages = Message.objects.filter(user_receiving = group_id).order_by('-date_sent')[:num_messages]
+    messages_data = []
+    for msg in messages:
+        messages_data.append({
+            'id': msg.id,
+            'user_sending': msg.user_sending.username,
+            'user_recieving': msg.user_receiving.username,
+            'message_content': msg.message_content,
+            'date_sent': msg.date_sent,
+            'status': msg.status,
+        })
+    return JsonResponse({'messages': messages_data})

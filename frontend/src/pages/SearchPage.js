@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
 import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
-import { useNavigate } from "react-router-dom";
 import { SpinnerCircular } from 'spinners-react';
 
 const SearchPage = () => {
@@ -16,6 +16,39 @@ const SearchPage = () => {
   const [error, setError] = useState(null)
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const filter = params.get('filter');
+    const q = params.get('q');
+    if (filter === 'director') {
+      const directorButton = document.getElementById('filter-director-button');
+      if (directorButton && !directorButton.classList.contains('clicked')) {
+        directorButton.classList.add('clicked');
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.placeholder = "Type a director's name here...";
+        }
+      }
+    }
+    if (filter === 'year') {
+      const yearButton = document.getElementById('filter-year-button');
+      if (yearButton && !yearButton.classList.contains('clicked')) {
+        yearButton.classList.add('clicked');
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.placeholder = "Type the year here...";
+        }
+      }
+    }
+    if (q) {
+      setSearchInputText(q);
+      setTimeout(() => {
+        searchButtonAction(q);
+      }, 0);
+    }
+  }, [location.search]);
 
   /**
    * toggle to display/hide the filters
@@ -144,28 +177,29 @@ const SearchPage = () => {
   /**
    * execute user's search for users/movies
    */
-  const searchButtonAction = async () => {
+  const searchButtonAction = async (query) => {
+    const finalQuery = query || searchInputText;
     toggleButtonClicked("search-button-actual");
-    setEnteredSearchText(searchInputText);
+    setEnteredSearchText(finalQuery);
     document.getElementById("spinner").classList.remove("hidden");
     document.getElementById("search-result-user").innerHTML = "";
     document.getElementById("search-result-movie").innerHTML = "";
 
     if (document.getElementById('filter-director-button').classList.contains("clicked")) {
-      let directorResult = await fetchMoviesByDirector(searchInputText, setMovies, setError);
+      let directorResult = await fetchMoviesByDirector(finalQuery, setMovies, setError);
       await displayMovieSearchResult(directorResult);
     } else if (document.getElementById('filter-year-button').classList.contains("clicked")) {
-      let yearResult = await fetchMoviesByYear(searchInputText, setMovies, setError);
+      let yearResult = await fetchMoviesByYear(finalQuery, setMovies, setError);
       await displayMovieSearchResult(yearResult);
     } else {
-      let userResult = await fetchUser(searchInputText, setUsers, setError);
-      if (userResult.length == 0) {
+      let userResult = await fetchUser(finalQuery, setUsers, setError);
+      if (userResult.length === 0) { //################# == to ===
         document.getElementById("search-result-user").innerHTML = "No users found by that search term";
       } else {
         await displayUserSearchResult(userResult);
       }
 
-      let movieResult = await fetchMovies(searchInputText, setMovies, setError)
+      let movieResult = await fetchMovies(finalQuery, setMovies, setError)
       if (!movieResult) {
         document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
       } else {
@@ -207,8 +241,9 @@ const SearchPage = () => {
    */
   const displayMovieSearchResult = async (result) => {
     document.getElementById("spinner").classList.add("hidden");
-    if (result.length == 0) {
-      document.getElementById("search-result-user").innerHTML = "No movies found by that search term";
+    if (!result || !result.Search || result.Search.length === 0) {
+      document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
+      return;
     }
     for (let i = 0; i < result.Search.length; i++) {
       let movie = document.createElement("li");
@@ -274,7 +309,7 @@ const SearchPage = () => {
                   searchButtonAction();
               }}
             />
-          <button id="search-button-actual" onClick={searchButtonAction}>Search</button>
+          <button id="search-button-actual" onClick={() => searchButtonAction()}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
           <div>
             <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden"/>

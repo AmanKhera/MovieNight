@@ -279,10 +279,10 @@ def get_mutual_friends(request):
     #Mutual friends are the intersection of following and followers
     mutual_friend_ids = set(following_ids).intersection(set(followers_ids))
 
-    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','name')
+    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','username')
 
     #returns dictionary where id is the key and name is the value
-    response = {str(user['id']): user['name'] for user in mutual_info}
+    response = {str(user['id']): user['username'] for user in mutual_info}
 
     return JsonResponse(response, status=200)
 
@@ -566,27 +566,31 @@ def send_messages(request):
 
 #Retrieve Messages method
 #might not work frontend plz check
-def retrieve_messages(request, num_messages):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+def retrieve_messages(request):
+
+    user_1 = request.GET.get('user_id_1')
+    user_2 = request.GET.get('user_id_2')
     
+    # Read num_messages from query parameters (default to 50 if not provided)
+    num_messages = request.GET.get('num_messages', '50')
     try:
         num_messages = int(num_messages)
     except ValueError:
         return JsonResponse({'error': 'Invalid number of messages'}, status=400)
     
-    messages = Message.objects.filter(user_receiving=request.user).order_by('-date_sent')[:num_messages]
+    messages = Message.objects.filter(user_sending=user_1, user_receiving = user_2).order_by('-date_sent')[:num_messages]
     messages_data = []
     for msg in messages:
         messages_data.append({
             'id': msg.id,
             'user_sending': msg.user_sending.username,
-            'user_receiving': msg.user_receiving.username,
+            'user_recieving': msg.user_receiving.username,
             'message_content': msg.message_content,
             'date_sent': msg.date_sent,
             'status': msg.status,
         })
-    return JsonResponse({'messages': messages_data})      
+    return JsonResponse({'messages': messages_data})
+  
             
 
 
@@ -609,7 +613,7 @@ def user_info(request):
         user = User.objects.get(email=decoded_token.get("email"))
         
         return JsonResponse({
-            "username": user.name,
+            "username": user.username,
             "email": user.email,
             "id": user.id,
             "date_joined": user.date_joined,
@@ -630,35 +634,35 @@ def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
 
 
-#Retrieve_messages method
-#params:
-#user_id: Used to retrieve messages relating to that user
-#returns: Messages sent and recieved by that user
-def retrieve_messages(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "This method reqires get request"})
+# #Retrieve_messages method
+# #params:
+# #user_id: Used to retrieve messages relating to that user
+# #returns: Messages sent and recieved by that user
+# def retrieve_messages(request):
+#     if request.method != "GET":
+#         return JsonResponse({"error": "This method reqires get request"})
     
-    user_id = request.GET.get("user_id")
+#     user_id = request.GET.get("user_id")
 
-    if User.objects.filter(id = user_id).exists():
-        messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
+#     if User.objects.filter(id = user_id).exists():
+#         messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
 
-        #Serializes messages into a JSON format
-        messages_data = [
-            {
-                "id": msg.id,
-                "user_sending": msg.user_sending.id,
-                "user_receiving": msg.user_receiving.id,
-                "content": msg.message_content,
-                "date_sent": msg.date_sent,
-                "status":msg.status
-            }
-            for msg in messages
-        ]
+#         #Serializes messages into a JSON format
+#         messages_data = [
+#             {
+#                 "id": msg.id,
+#                 "user_sending": msg.user_sending.id,
+#                 "user_receiving": msg.user_receiving.id,
+#                 "content": msg.message_content,
+#                 "date_sent": msg.date_sent,
+#                 "status":msg.status
+#             }
+#             for msg in messages
+#         ]
 
-        return JsonResponse({'success': True, 'messages': messages_data})
-    else:
-        return JsonResponse({"error":"User does not have messages"})
+#         return JsonResponse({'success': True, 'messages': messages_data})
+#     else:
+#         return JsonResponse({"error":"User does not have messages"})
 
 
 #Retrieve recently watched method

@@ -1,74 +1,18 @@
-import React, { useState, useEffect } from "react";
+// src/components/WatchlistStack.jsx
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { fetchWatchlistMovies, addToWatchlistAPI } from "../api";
 
 const WatchlistStack = ({ title = "Your Watchlist" }) => {
-  const [movies, setMovies] = useState([]);
+  const navigate = useNavigate();
+  const { data: movies, isLoading, error } = useQuery({
+    queryKey: ["watchlistMovies"],
+    queryFn: fetchWatchlistMovies,
+  });
+
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState({}); // for add-to-watchlist button
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchWatchlistMovies = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/watchlist_items/", {
-          credentials: "include",
-        });
-        const data = await response.json();
-        if (response.ok && data.status === "success") {
-          const moviePromises = data.watchlist.map((item) =>
-            fetch(`http://localhost:8000/search/?id=${item.movie_id}`, {
-              credentials: "include",
-            })
-              .then((res) => res.json())
-              .then((movieData) => {
-                if (movieData.movies && movieData.movies.length > 0) {
-                  return movieData.movies[0];
-                }
-                return null;
-              })
-          );
-          const detailedMovies = await Promise.all(moviePromises);
-          const validMovies = detailedMovies.filter((movie) => movie !== null);
-
-          // For movies without a valid poster, fetch poster from /movie_poster/
-          const updatedMovies = await Promise.all(
-            validMovies.map(async (movie) => {
-              if (!movie.poster_path || movie.poster_path === "N/A") {
-                try {
-                  const posterResponse = await fetch(
-                    "http://localhost:8000/movie_poster/?title=" +
-                      encodeURIComponent(movie.title || movie.original_title),
-                    { credentials: "include" }
-                  );
-                  const posterData = await posterResponse.json();
-                  if (posterData.poster) {
-                    return { ...movie, poster_path: posterData.poster };
-                  }
-                } catch (err) {
-                  console.error("Error fetching poster for", movie.title, err);
-                }
-              }
-              return movie;
-            })
-          );
-
-          setMovies(updatedMovies);
-          // Set the initial index for infinite scrolling (if there are enough movies)
-          // (Not used in this stack, but part of the component's code)
-        } else {
-          setMessage({
-            text: data.message || "Failed to fetch watchlist items.",
-            type: "error",
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching watchlist items:", err);
-        setMessage({ text: "Error fetching watchlist items.", type: "error" });
-      }
-    };
-
-    fetchWatchlistMovies();
-  }, []);
 
   const addToWatchlist = async (movie) => {
     const titleParam = movie.title || movie.original_title;
@@ -77,43 +21,9 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-    const releaseDate = movie.release_date || "";
-    const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
-
     setLoading((prev) => ({ ...prev, [movie.id]: true }));
     try {
-      const params = ["q=" + titleParam];
-      if (releaseYear) {
-        params.push("year=" + releaseYear);
-      }
-      const searchUrl = "http://localhost:8000/search/?" + params.join("&");
-      const searchResponse = await fetch(searchUrl, {
-        method: "GET",
-        credentials: "include",
-      });
-      if (!searchResponse.ok) {
-        throw new Error("Failed to search");
-      }
-      const searchData = await searchResponse.json();
-      if (searchData.error) {
-        throw new Error(searchData.error);
-      }
-      if (!searchData.movies || searchData.movies.length === 0) {
-        throw new Error("Movie not found in search.");
-      }
-      const foundMovieId = searchData.movies[0].id;
-      const addResponse = await fetch(
-        "http://localhost:8000/add_movie/?movie_id=" + foundMovieId,
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
-      if (!addResponse.ok) {
-        const addData = await addResponse.json();
-        throw new Error(addData.error || "An error occurred.");
-      }
-      const addData = await addResponse.json();
+      const addData = await addToWatchlistAPI(movie);
       setMessage({
         text: addData.message || "Movie added to watchlist!",
         type: "success",
@@ -131,20 +41,38 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
     const releaseDate = movie.release_date;
     if (releaseDate) {
-      navigate(`/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`);
+      navigate(
+        `/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`
+      );
     } else {
       navigate(`/movie/${titleParam}`);
     }
   };
 
-  // Limit to 5 movies for the stack display
-  const moviesToShow = movies.slice(0, 5);
+  // Helper function to return the correct poster URL
+  const getPosterUrl = (movie) => {
+    if (movie.poster) {
+      return movie.poster;
+    }
+    if (movie.poster_path) {
+      return movie.poster_path.startsWith("http")
+        ? movie.poster_path
+        : `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+    }
+    return "https://via.placeholder.com/200x300?text=No+Image";
+  };
 
-  if (movies.length === 0) {
+  // Limit to 5 movies for the stack display
+  const moviesToShow = movies ? movies.slice(0, 5) : [];
+
+  if (isLoading) {
     return <div>Loading watchlist movies...</div>;
   }
 
-  // Updated inline CSS with larger title font size.
+  if (error) {
+    return <div className="message error">Error: {error.message}</div>;
+  }
+
   const styles = `
     .watchlist-stack {
       width: 40vh;
@@ -158,7 +86,7 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
       border-radius: 8px;
     }
     .watchlist-stack h2 {
-      font-size: 1.3rem; /* Increased from 1rem */
+      font-size: 1.3rem;
       margin-bottom: 10px;
       text-align: center;
     }
@@ -252,13 +180,7 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
           <div key={movie.id} className={`movie-item ${index === 4 ? "last" : ""}`}>
             <img
               onClick={() => handleMovieClick(movie)}
-              src={
-                movie.poster_path
-                  ? movie.poster_path.startsWith("http")
-                    ? movie.poster_path
-                    : `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-                  : "https://via.placeholder.com/200x300?text=No+Image"
-              }
+              src={getPosterUrl(movie)}
               alt={movie.title || movie.original_title}
             />
             <button
