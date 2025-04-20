@@ -98,6 +98,9 @@ def Search(request):
     year = request.GET.get('year','').strip()
     movie_id = request.GET.get('id','')
     filter_type = request.GET.get('filter', '').strip().lower()
+    rating = request.GET.get('rating', '').strip() 
+    max_runtime = request.GET.get('runtime', '').strip()
+
 
     #Initialize response
     response = {'query': query}
@@ -129,6 +132,25 @@ def Search(request):
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
         response['movies'] = list(movies)
+
+    elif filter_type == "rating":
+        movies = Movie.objects.filter(Q(rating__iexact=query)).values(
+            'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
+        )
+        response['movies'] = list(movies)
+
+    elif filter_type == "runtime":
+        if query.isdigit():
+            max_runtime = int(query)
+            if max_runtime in [90, 120, 180]:  # preset runtimes
+                movies = Movie.objects.filter(runtime__lte=max_runtime).values(
+                    'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
+                )
+                response['movies'] = list(movies)
+            else:
+                return JsonResponse({'error': 'Unsupported runtime preset.'}, status=400)
+        else:
+            return JsonResponse({'error': 'Runtime must be a numeric preset (90, 120, 180).'}, status=400)
 
     #search via movie id
     elif not query:
