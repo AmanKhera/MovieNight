@@ -85,6 +85,19 @@ def popular(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# Helper for pagination
+def paginate(queryset, page, items_per_page=20):
+    try:
+        page = int(page)
+        if page < 1:
+            page = 1
+    except (ValueError, TypeError):
+        page = 1
+
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
+    return queryset[start:end]
+
 
 #Search function
 #Can be used to search for movie, user, director, and via movie id
@@ -98,6 +111,11 @@ def Search(request):
     year = request.GET.get('year','').strip()
     movie_id = request.GET.get('id','')
     filter_type = request.GET.get('filter', '').strip().lower()
+    rating = request.GET.get('rating', '').strip() 
+    max_runtime = request.GET.get('runtime', '').strip()
+
+    page = request.GET.get('page', 1)
+    
 
     #Initialize response
     response = {'query': query}
@@ -131,6 +149,24 @@ def Search(request):
         response['movies'] = list(movies)
 
 
+    elif filter_type == "rating":
+        movies = Movie.objects.filter(Q(rating__iexact=rating)).values(
+            'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
+        )
+        response['movies'] = list(movies)
+
+    elif filter_type == "runtime":
+        if query.isdigit():
+            max_runtime = int(query)
+            if max_runtime in [90, 120, 180]:  # preset runtimes
+                movies = Movie.objects.filter(runtime__lte=max_runtime).values(
+                    'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
+                )
+                response['movies'] = list(movies)
+            else:
+                return JsonResponse({'error': 'Unsupported runtime preset.'}, status=400)
+        else:
+            return JsonResponse({'error': 'Runtime must be a numeric preset (90, 120, 180).'}, status=400)
 
     #search via movie id
     elif not query:
@@ -149,8 +185,8 @@ def Search(request):
         users = User.objects.filter(Q(name__icontains=query)).values('id', 'name', 'email', 'username')
 
 
-        response['movies'] = list(movies)
-        response['users'] = list(users)
+        response['movies'] = list(paginate(movies,page))
+        response['users'] = list(paginate(users,page))
 
     return JsonResponse(response, safe=False)
 
@@ -301,10 +337,10 @@ def favorite(request):
             data = json.loads(request.body)
             movie_id = data.get("movie_id")
 
-            username = get_user_username(request.session.get("access_token")).get('username')
-            id = (User.objects.get(name=username)).id
+            username = data.get('username')
+            user = (User.objects.get(username=username))
 
-            movie_item, create = UserMovieJournal.objects.get_or_create(user=id, movie_id=movie_id)
+            movie_item, create = UserMovieJournal.objects.get_or_create(user=user, movie_id=movie_id)
 
             if movie_item.favorite == True:
                 movie_item.favorite = False
@@ -327,10 +363,9 @@ def favorite(request):
 #No parameter is needed
 #Returns jsonresponse which contains all favorited movies and their related information
 def retrieve_favorites(request):
-
     if request.method == "GET":
-        username = get_user_username(request.session.get("access_token")).get('username')
-        user = User.objects.get(name = username)
+        username = request.GET.get('username')
+        user = User.objects.get(username = username)
 
         favorite_movies = Movie.objects.filter(
             user_journals__user=user,
