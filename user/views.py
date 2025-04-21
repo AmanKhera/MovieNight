@@ -443,7 +443,7 @@ def recommend_movie(request):
             genres = movie_genre.split(',')
             genres = [genre.strip() for genre in genres]
                 
-            print(genres)
+            #print(genres)
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
@@ -491,49 +491,49 @@ def recommend_movie(request):
 #like: True or False
 #returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
 #
-@csrf_exempt
-def update_recommendation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            recommendation_id = data.get("recommendation_id")
-            like = data.get('like')
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+# @csrf_exempt
+# def update_recommendation(request):
+#     if request.method == "POST":
+#         try:
+#             data = json.loads(request.body)
+#             recommendation_id = data.get("recommendation_id")
+#             like = data.get('like')
+#         except json.JSONDecodeError:
+#             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
-        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
-            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-        else:
-            return JsonResponse({"error": "Recommendation does not exist"})
+#         if MemberRecommendation.objects.filter(id = recommendation_id).exists():
+#             recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+#         else:
+#             return JsonResponse({"error": "Recommendation does not exist"})
         
-        #increments voting by 1
-        if like:
-            recommendation.voting = recommendation.voting + 1
-            #updates voting column
-            recommendation.save()
-        else:
-            recommendation.voting = recommendation.voting - 1
-            recommendation.save()
+#         #increments voting by 1
+#         if like:
+#             recommendation.voting = recommendation.voting + 1
+#             #updates voting column
+#             recommendation.save()
+#         else:
+#             recommendation.voting = recommendation.voting - 1
+#             recommendation.save()
 
-        user_rec = recommendation.user_receiving
+#         user_rec = recommendation.user_receiving
 
-        if Group.objects.filter(group_id = user_rec.id).exists():
+#         if Group.objects.filter(group_id = user_rec.id).exists():
 
-            group = Group.objects.get(group_id = user_rec.id)
-            voting_limit = group.voting_limit
-            #convert to decimal and divide by # of group members
-            if recommendation.voting >= voting_limit:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
-        elif User.objects.filter(id = user_rec.id):
-            if recommendation.voting == 1:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
+#             group = Group.objects.get(group_id = user_rec.id)
+#             voting_limit = group.voting_limit
+#             #convert to decimal and divide by # of group members
+#             if recommendation.voting >= voting_limit:
+#                 return JsonResponse({"Recommendation": True})
+#             else:
+#                 return JsonResponse({"Recommendation": False})
+#         # elif User.objects.filter(id = user_rec.id):
+#         #     if recommendation.voting == 1:
+#         #         return JsonResponse({"Recommendation": True})
+#         #     else:
+#         #         return JsonResponse({"Recommendation": False})
 
-        else:
-            return JsonResponse({"error": "Recieving user does not exist "})
+#         else:
+#             return JsonResponse({"error": "Recieving user does not exist "})
         
 
 #Send Messages method

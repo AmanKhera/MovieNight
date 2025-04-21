@@ -97,3 +97,25 @@ class UserMovieJournal(models.Model):
         return f'{self.user} - {self.movie} ({self.date_watched})'
 
 
+class RecommendationFeedback(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='recommendation_feedbacks'
+    )
+    movie = models.ForeignKey(
+        Movie,
+        on_delete=models.CASCADE,
+        related_name='feedback_entries'
+    )
+    liked = models.BooleanField(
+        help_text="True = liked, False = disliked"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        db_table = 'recommendation_feedback'
+        unique_together = ('user', 'movie')
