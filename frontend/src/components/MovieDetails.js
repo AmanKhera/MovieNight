@@ -8,6 +8,7 @@ const MovieDetailsPage = () => {
   const queryParams = new URLSearchParams(location.search);
   const release_date = queryParams.get("release_date");
 
+  const [userId, setUserId] = useState(null);           // ← new
   const [movie, setMovie] = useState(null);
   const [posterURL, setPosterURL] = useState(null);
   const [backdropURL, setBackdropURL] = useState(null);
@@ -26,6 +27,23 @@ const MovieDetailsPage = () => {
   const [enhancedPlot, setEnhancedPlot] = useState(null);
   const [loadingPlot, setLoadingPlot] = useState(false);
   const hasEnhancedPlot = useRef(false);
+
+  // ---- fetch current user ID on mount ----
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const resp = await fetch("http://localhost:8000/user_info/", {
+          credentials: "include",
+        });
+        if (!resp.ok) throw new Error("Failed to fetch user info");
+        const js = await resp.json();
+        setUserId(js.id);
+      } catch (e) {
+        console.error("user_info error:", e);
+      }
+    };
+    fetchUser();
+  }, []);
 
   // 1) Fetch OMDB info, then local DB ID
   useEffect(() => {
@@ -154,9 +172,9 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // 6) Add to watched
+  // 6) Add to watched (now uses userId)
   const addToWatched = async () => {
-    if (!watchedRating) return;
+    if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
     try {
       const idToSend = movie.db_id || movie.id;
@@ -164,7 +182,12 @@ const MovieDetailsPage = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ user_id: 1, movie_id: idToSend, rating: parseInt(watchedRating, 10), review: watchedReview }),
+        body: JSON.stringify({
+          user_id: userId,                 // ← use real userId
+          movie_id: idToSend,
+          rating: parseInt(watchedRating, 10),
+          review: watchedReview
+        }),
       });
       const d = await resp.json();
       setMessage({ text: d.message, type: resp.ok ? "success" : "error" });
@@ -182,19 +205,22 @@ const MovieDetailsPage = () => {
   };
 
   if (loading) return <div style={styles.loading}>Loading…</div>;
-  if (error) return <div style={styles.error}>Error: {error}</div>;
+  if (error)   return <div style={styles.error}>Error: {error}</div>;
 
   return (
     <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
       <div style={styles.backdropOverlay} />
+
       {message && (
         <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
           {message.text}
         </div>
       )}
+
       <div style={styles.detailsWrapper}>
         <div style={styles.posterContainer}>
           <img src={posterURL || "https://via.placeholder.com/300x450"} alt={movie.title} style={styles.poster} />
+
           <button
             style={styles.addButton}
             onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }}
@@ -202,6 +228,7 @@ const MovieDetailsPage = () => {
           >
             {loadingAdd ? "…" : "+"}
           </button>
+
           {showAddMenu && (
             <div className="add-menu">
               {!showWatchedForm ? (
@@ -229,18 +256,29 @@ const MovieDetailsPage = () => {
             </div>
           )}
         </div>
+
         <div style={styles.info}>
           <h1 style={styles.title}>{movie.title}</h1>
           <div style={styles.metaBadges}>
             <span style={styles.badge}>📅 {movie.year}</span>
             <span style={styles.badge}>⭐ {movie.rating}</span>
             <span style={styles.badge}>⏱ {movie.runtime}</span>
-            <span style={styles.badge}>🎬 <Link to={`/search?filter=director&q=${encodeURIComponent(movie.director)}`} style={styles.link}>{movie.director}</Link></span>
+            <span style={styles.badge}>
+              🎬{" "}
+              <Link to={`/search?filter=director&q=${encodeURIComponent(movie.director)}`} style={styles.link}>
+                {movie.director}
+              </Link>
+            </span>
           </div>
+
           <h2 style={styles.sectionTitle}>Plot</h2>
-          {loadingPlot ? <div style={styles.plotLoading}>Generating enhanced description…</div> : <p style={styles.plotText}>{enhancedPlot || movie.plot}</p>}
+          {loadingPlot
+            ? <div style={styles.plotLoading}>Generating enhanced description…</div>
+            : <p style={styles.plotText}>{enhancedPlot || movie.plot}</p>
+          }
         </div>
       </div>
+
       <style>{`
         .add-menu {
           position: absolute;
