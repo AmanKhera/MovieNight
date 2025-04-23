@@ -32,6 +32,8 @@ class GroupModelTest(TestCase):
         self.assertEqual(self.group.group_name, "Test Group")
         self.assertEqual(self.group.leader, self.user1)
         self.assertEqual(self.group.genre, "Action")
+        print(self.user1.id)
+        print(self.group.group_id)
 
     def test_group_member_creation(self):
         """Test if a user can be added as a group member"""

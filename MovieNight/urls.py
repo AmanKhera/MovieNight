@@ -73,18 +73,16 @@ urlpatterns = [
 
     path('remove_member/', group_views.remove_member_from_group, name='remove_member'),  
 
-    path('add_to_watched/', user_views.add_to_watched, name='add_members'),
+    path('add_to_watched/', user_views.add_to_watched, name='add_to_watched'),
 
-    path('grab_watchlist/', user_views.grab_watchlists, name='add_members'),
+    path('grab_watchlist/', user_views.grab_watchlists, name='grab_watchlist'),
 
-    path('watchlist_items/', user_views.grab_watchlist_items, name='add_members'),
+    path('watchlist_items/', user_views.grab_watchlist_items, name='watchlist_items'),
 
 
     path('api_search/', movie_views.api_movie_search, name='api_search'),
-
-    path('get_user_groups/', group_views.get_user_groups),
     path('recommend_movie/', user_views.recommend_movie),
-    path('update_recommendation/', user_views.update_recommendation, name='update_recommendation'),
+    path('update_recommendation/', group_views.update_recommendation, name='update_recommendation'),
     path('send_message/', user_views.send_messages),
     path('user_info/', user_views.user_info),
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
@@ -92,17 +90,21 @@ urlpatterns = [
 
     path('discover_movie/', movie_views.discover_movies, name='discover_movie'),
 
-    path('retrieve_messages/', user_views.retrieve_messages, name='group_recommendation'),
-    path('recently_watched/', user_views.retrieve_recently_watched, name='group_recommendation'),
-    path('update_username/', user_views.update_username, name='group_recommendation'),   
+    path('retrieve_messages/', user_views.retrieve_messages, name='retrieve_messages'),
+    path('recently_watched/', user_views.retrieve_recently_watched, name='recently_watched'),
+    path('update_username/', user_views.update_username, name='update_username'),   
     path('favorite', movie_views.favorite, name = 'favorite'),
     path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
     path('block/', user_views.block_user, name='block_user'),
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
-    path('frontend_user/', user_views.frontend_username, name = 'get_user_groups'),
+    path('frontend_user/', user_views.frontend_username, name = 'frontend_user'),
     path('leave_group/', group_views.leave_group, name = 'leave_group'),
+    path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
+    path('group_messages/', group_views.retrieve_group_messages, name='group_messages'),
+    path('movie_rec/', movie_views.generate_recommendations, name='group_messages'),
+    path('movie_review/', movie_views.review_recommendations, name='group_messages'),
     ]
 
 

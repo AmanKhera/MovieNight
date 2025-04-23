@@ -22,12 +22,18 @@ function Toolbar() {
   const searchButtonAction = () => {
     navigate("/search");
   };
-  const discoverButtonAction = () => alert('Discover button clicked!');
-  const ratingButtonAction = () => alert('Rating button clicked!');
+  const discoverButtonAction = () => {
+    navigate("/DiscoverPage");
+  };
+  const ratingButtonAction = () => {
+    navigate("/ReviewedPage");
+  };
   const messageButtonAction = () => {
     navigate("/groups");
   };
-  const friendsButtonAction = () => alert('Friends button clicked!');
+  const friendsButtonAction = () => {
+    navigate("/FriendsPage");
+  };
   const profileButtonAction = () => {
     navigate("/UserProfile");
   };

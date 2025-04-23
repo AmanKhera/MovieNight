@@ -111,7 +111,7 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Year == year) {
+        if (movie != null && movie.Year === year) { //### == to ===
           moviesArray.push(movie);
         }
       }

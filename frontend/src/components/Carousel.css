@@ -1,44 +1,51 @@
 .carousel {
-  padding: 10px 20px;
+  padding: 20px;
+  margin-bottom: 40px; /* Added to space out multiple carousels */
   background-color: #000;
   color: #fff;
-  font-family: Arial, sans-serif;
+  font-family: 'Helvetica Neue', sans-serif;
   overflow: hidden;
 }
 
 .carousel h2 {
-  margin-bottom: 10px;
-  font-size: 20px;
+  margin-bottom: 15px;
+  font-size: 24px;
   color: #fff;
-  text-align: left; /* Change this from 'center' to 'left' */
+  text-align: left;
 }
-
 
 .carousel-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  height: auto; /* Ensure it wraps the content height */
+  height: auto;
 }
 
 .carousel-container {
   display: flex;
-  gap: 1%; /* Adjusted gap between items */
+  gap: 2%;
   width: 100%;
+  transition: transform 0.5s ease-in-out;
 }
 
 .carousel-item {
-  flex: 0 0 9%; /* Each item takes up 9% of the container width */
+  flex: 0 0 auto;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.carousel-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
 .carousel-image {
   width: 100%;
-  aspect-ratio: 2 / 3; /* Makes the image taller than it is wide */
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 5px;
   transition: transform 0.3s ease;
@@ -49,23 +56,29 @@
 }
 
 .carousel-info {
-  margin-top: 3px;
-  font-size: 12px;
+  margin-top: 8px;
+  font-size: 14px;
   color: #ccc;
 }
 
 .arrow {
-  background: none;
-  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
   border: none;
-  font-size: 2rem;
+  color: #fff;
+  font-size: 2.5rem;
   cursor: pointer;
   padding: 10px;
-  transition: transform 0.2s;
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
   z-index: 10;
   position: absolute;
-  top: 50%; /* Center vertically */
-  transform: translateY(-50%); /* Adjust for arrow's height */
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.arrow:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: translateY(-50%) scale(1.1);
 }
 
 .arrow.left-arrow {
@@ -80,4 +93,3 @@
   color: #555;
   cursor: not-allowed;
 }
-

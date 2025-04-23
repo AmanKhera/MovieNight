@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from user.models import Message
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
@@ -82,10 +83,10 @@ def add_member_to_group(request):
     
     try:
         group_id = request.GET.get("group_id")
-        member_id = request.GET.get("member_id")
+        username = request.GET.get("username")
 
         group = Group.objects.get(group_id=group_id)
-        member = User.objects.get(id=member_id)
+        member = User.objects.get(username=username)
 
         if GroupMember.objects.filter(group=group, member=member).exists():
             return JsonResponse({'message': 'Member is already a part of this group'}, status=200)
@@ -106,8 +107,8 @@ def add_member_to_group(request):
 def remove_member_from_group(request):
     try:
         data = json.loads(request.body)
-        username = get_user_username(request.session.get("access_token")).get('username')
-        current_user_id = User.objects.get(name=username).id  # Ensure leader is the one removing members
+        username = request.GET.get("username")
+        current_user_id = User.objects.get(username=username).id  # Ensure leader is the one removing members
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
 
@@ -131,9 +132,10 @@ def remove_member_from_group(request):
 @csrf_exempt
 def get_user_groups(request):
     try:
-        username = get_user_username(request.session.get("access_token")).get('username')
-        user = User.objects.get(name=username)
-        
+        username = request.GET.get("username")  # Get from query parameters instead
+
+        user = User.objects.get(username=username)
+
         # Get all group memberships for the user
         memberships = user.group_memberships.all()
 
@@ -148,6 +150,7 @@ def get_user_groups(request):
         ]
 
         return JsonResponse({"groups": groups}, status=200)
+
     except User.DoesNotExist:
         return JsonResponse({"error": "User not found"}, status=404)
     except Exception as e:
@@ -157,24 +160,112 @@ def get_user_groups(request):
 def group_recommendation(request):
     group_id = request.GET.get('group_id')
     try:
-        recommendations = MemberRecommendation.objects.filter(user_receiving=group_id)
+        recommendations = MemberRecommendation.objects.filter(user_receiving=group_id).order_by('-voting')
         recommendations_list = list(recommendations.values())
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
 
+@csrf_exempt
 def leave_group(request):
 
     if request.method == 'POST':
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        group_id = data.get('group_id')
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            group_id = data.get('group_id')
 
-        group = Group.objects.get(group_id=group_id)
+            group = Group.objects.get(group_id=group_id)
 
+            membership = GroupMember.objects.get(group=group, member_id=user_id)
+            membership.delete()
 
-        if GroupMember.objects.get(group = group, user_id = user_id).DoesNotExist:
-            return JsonResponse({"error":"User is not in group"}, status=500)
+            return JsonResponse({"message": "User has left the group"}, status=200)
+
+        except GroupMember.DoesNotExist:
+            return JsonResponse({"error": "User is not in group"}, status=500)
+        except Group.DoesNotExist:
+            return JsonResponse({"error": "Group not found"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
         
         
+def retrieve_group_messages(request):
+
+    group_id = request.GET.get('group_id')
+
+    # Read num_messages from query parameters (default to 50 if not provided)
+    num_messages = request.GET.get('num_messages', '50')
+
+    try:
+        num_messages = int(num_messages)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid number of messages'}, status=400)
+
+
+    messages = Message.objects.filter(user_receiving = group_id).order_by('-date_sent')[:num_messages]
+    messages_data = []
+    for msg in messages:
+        messages_data.append({
+            'id': msg.id,
+            'user_sending': msg.user_sending.username,
+            'user_recieving': msg.user_receiving.username,
+            'message_content': msg.message_content,
+            'date_sent': msg.date_sent,
+            'status': msg.status,
+        })
+    return JsonResponse({'messages': messages_data})
+
+
+#Update Recommendation
+#params: Requires post request,
+#recommendation_id: row id of the recommendation which can be grabbed via group_recommedation method (universal function not just for groups)
+#like: True or False
+#returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
+#
+@csrf_exempt
+def update_recommendation(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            recommendation_id = data.get("recommendation_id")
+            like = data.get('like')
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
+            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+        else:
+            return JsonResponse({"error": "Recommendation does not exist"})
+        
+        #increments voting by 1
+        if like:
+            recommendation.voting = recommendation.voting + 1
+            #updates voting column
+            recommendation.save()
+        else:
+            recommendation.voting = recommendation.voting - 1
+            recommendation.save()
+
+        user_rec = recommendation.user_receiving
+
+        if Group.objects.filter(group_id = user_rec.id).exists():
+
+            group = Group.objects.get(group_id = user_rec.id)
+            voting_limit = group.voting_limit
+            #convert to decimal and divide by # of group members
+            if recommendation.voting >= voting_limit:
+                return JsonResponse({"Recommendation": True})
+            else:
+                return JsonResponse({"Recommendation": False})
+#         # elif User.objects.filter(id = user_rec.id):
+#         #     if recommendation.voting == 1:
+#         #         return JsonResponse({"Recommendation": True})
+#         #     else:
+#         #         return JsonResponse({"Recommendation": False})
+
+        else:
+            return JsonResponse({"error": "Recieving user does not exist "})

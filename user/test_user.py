@@ -1,10 +1,8 @@
 import json
-from django.urls import reverse
 import jwt
-
+from django.urls import reverse
 from django.test import TestCase, Client, RequestFactory
 from django import setup
-
 import os
 import django
 
@@ -17,8 +15,8 @@ from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from group.models import Group, GroupMember
 
 #make sure this matches project settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  
-setup()
+# os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  
+# setup()
 
 
 #dummy secret used to encode tokens for testing.
@@ -33,20 +31,24 @@ class ViewsTestCase(TestCase):
         self.user1 = User.objects.create(name="testuser", email="testuser@example.com")
         self.user2 = User.objects.create(name="otheruser", email="otheruser@example.com")
         self.user3 = User.objects.create(name="thirduser", email="thirduser@example.com")
-
-        self.group1 = Group.objects.create(
-            group_id=self.user1,
-            leader=self.user1,
-            group_name="Test Group 1",
-            genre="Action",
-            voting_limit=3)
+        self.group1_user = User.objects.create(name="Test Group 1", email="group1@example.com", username = "group1user")
+        self.group2_user = User.objects.create(name="Test Group 2", email="group2@example.com", username = "group2user")
         
+        self.group1 = Group.objects.create(
+            group_id=self.group1_user,
+            leader=self.user1,
+            group_name=self.group1_user.name,
+            genre="Action",
+            voting_limit=3
+        )
+
         self.group2 = Group.objects.create(
-            group_id=self.user2,
+            group_id=self.group2_user,
             leader=self.user2,
-            group_name="Test Group 2",
+            group_name=self.group2_user.name,
             genre="Horror",
-            voting_limit=3)
+            voting_limit=3
+        )
 
         Watchlist.objects.filter(user_id=self.user1.id).delete()
         Watchlist.objects.filter(user_id=self.user2.id).delete()
@@ -337,6 +339,8 @@ class ViewsTestCase(TestCase):
         }
         url = "/recommend_movie/"
         response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+        print("📥 Response Status Code:", response.status_code)  # ✅ Debugging
+        print("📥 Response Content:", response.json())  # ✅ Debugging
         self.assertEqual(response.status_code, 201)
         data = json.loads(response.content)
         self.assertIn("Movie recommended successfully", data.get("message", ""))

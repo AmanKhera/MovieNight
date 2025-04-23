@@ -279,10 +279,10 @@ def get_mutual_friends(request):
     #Mutual friends are the intersection of following and followers
     mutual_friend_ids = set(following_ids).intersection(set(followers_ids))
 
-    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','name')
+    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','username')
 
     #returns dictionary where id is the key and name is the value
-    response = {str(user['id']): user['name'] for user in mutual_info}
+    response = {str(user['id']): user['username'] for user in mutual_info}
 
     return JsonResponse(response, status=200)
 
@@ -416,6 +416,13 @@ def recommend_movie(request):
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
 
+            # Ensure movie_id is an integer
+            try:
+                movie_id = int(movie_id)
+            except (ValueError, TypeError):
+                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+
+
             movie = Movie.objects.get(id=movie_id)
             query_params = {
                 't': movie.title,
@@ -436,13 +443,13 @@ def recommend_movie(request):
             genres = movie_genre.split(',')
             genres = [genre.strip() for genre in genres]
                 
-            print(genres)
+            #print(genres)
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
                 return JsonResponse({"error": "Missing required fields."}, status=400)
             
-            
+           
 
             # Validate if users exist before proceeding
             try:
@@ -455,18 +462,10 @@ def recommend_movie(request):
             except User.DoesNotExist:
                 return JsonResponse({"error": "User receiving does not exist."}, status=400)
             
-            if Group.objects.filter(group_id = user_receiving).exists():
-                group = Group.objects.filter(group_id= user_receiving).first()
-                if group.genre != None:
-                    if group.genre not in genres:   #print("group found: ",group.genre)
-                        return JsonResponse({"error":"Movie doesn't fit group genre"}, status = 400)
-                
-            
-            # Ensure movie_id is an integer
-            try:
-                movie_id = int(movie_id)
-            except (ValueError, TypeError):
-                return JsonResponse({"error": "Invalid movie ID."}, status=400)
+            group = Group.objects.filter(group_id=user_receiving).first()
+            if group:
+                if group.genre and group.genre not in genres:
+                    return JsonResponse({"error": "Movie doesn't fit group genre"}, status=400)
 
             # Create the recommendation record
             recommendation = MemberRecommendation.objects.create(
@@ -492,49 +491,49 @@ def recommend_movie(request):
 #like: True or False
 #returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
 #
-@csrf_exempt
-def update_recommendation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            recommendation_id = data.get("recommendation_id")
-            like = data.get('like')
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+# @csrf_exempt
+# def update_recommendation(request):
+#     if request.method == "POST":
+#         try:
+#             data = json.loads(request.body)
+#             recommendation_id = data.get("recommendation_id")
+#             like = data.get('like')
+#         except json.JSONDecodeError:
+#             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
-        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
-            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-        else:
-            return JsonResponse({"error": "Recommendation does not exist"})
+#         if MemberRecommendation.objects.filter(id = recommendation_id).exists():
+#             recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+#         else:
+#             return JsonResponse({"error": "Recommendation does not exist"})
         
-        #increments voting by 1
-        if like:
-            recommendation.voting = recommendation.voting + 1
-            #updates voting column
-            recommendation.save()
-        else:
-            recommendation.voting = recommendation.voting - 1
-            recommendation.save()
+#         #increments voting by 1
+#         if like:
+#             recommendation.voting = recommendation.voting + 1
+#             #updates voting column
+#             recommendation.save()
+#         else:
+#             recommendation.voting = recommendation.voting - 1
+#             recommendation.save()
 
-        user_rec = recommendation.user_receiving
+#         user_rec = recommendation.user_receiving
 
-        if Group.objects.filter(group_id = user_rec.id).exists():
+#         if Group.objects.filter(group_id = user_rec.id).exists():
 
-            group = Group.objects.get(group_id = user_rec.id)
-            voting_limit = group.voting_limit
-            #convert to decimal and divide by # of group members
-            if recommendation.voting >= voting_limit:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
-        elif User.objects.filter(id = user_rec.id):
-            if recommendation.voting == 1:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
+#             group = Group.objects.get(group_id = user_rec.id)
+#             voting_limit = group.voting_limit
+#             #convert to decimal and divide by # of group members
+#             if recommendation.voting >= voting_limit:
+#                 return JsonResponse({"Recommendation": True})
+#             else:
+#                 return JsonResponse({"Recommendation": False})
+#         # elif User.objects.filter(id = user_rec.id):
+#         #     if recommendation.voting == 1:
+#         #         return JsonResponse({"Recommendation": True})
+#         #     else:
+#         #         return JsonResponse({"Recommendation": False})
 
-        else:
-            return JsonResponse({"error": "Recieving user does not exist "})
+#         else:
+#             return JsonResponse({"error": "Recieving user does not exist "})
         
 
 #Send Messages method
@@ -567,27 +566,31 @@ def send_messages(request):
 
 #Retrieve Messages method
 #might not work frontend plz check
-def retrieve_messages(request, num_messages):
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+def retrieve_messages(request):
+
+    user_1 = request.GET.get('user_id_1')
+    user_2 = request.GET.get('user_id_2')
     
+    # Read num_messages from query parameters (default to 50 if not provided)
+    num_messages = request.GET.get('num_messages', '50')
     try:
         num_messages = int(num_messages)
     except ValueError:
         return JsonResponse({'error': 'Invalid number of messages'}, status=400)
     
-    messages = Message.objects.filter(user_receiving=request.user).order_by('-date_sent')[:num_messages]
+    messages = Message.objects.filter(user_sending=user_1, user_receiving = user_2).order_by('-date_sent')[:num_messages]
     messages_data = []
     for msg in messages:
         messages_data.append({
             'id': msg.id,
             'user_sending': msg.user_sending.username,
-            'user_receiving': msg.user_receiving.username,
+            'user_recieving': msg.user_receiving.username,
             'message_content': msg.message_content,
             'date_sent': msg.date_sent,
             'status': msg.status,
         })
-    return JsonResponse({'messages': messages_data})      
+    return JsonResponse({'messages': messages_data})
+  
             
 
 
@@ -610,7 +613,7 @@ def user_info(request):
         user = User.objects.get(email=decoded_token.get("email"))
         
         return JsonResponse({
-            "username": user.name,
+            "username": user.username,
             "email": user.email,
             "id": user.id,
             "date_joined": user.date_joined,
@@ -631,35 +634,35 @@ def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
 
 
-#Retrieve_messages method
-#params:
-#user_id: Used to retrieve messages relating to that user
-#returns: Messages sent and recieved by that user
-def retrieve_messages(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "This method reqires get request"})
+# #Retrieve_messages method
+# #params:
+# #user_id: Used to retrieve messages relating to that user
+# #returns: Messages sent and recieved by that user
+# def retrieve_messages(request):
+#     if request.method != "GET":
+#         return JsonResponse({"error": "This method reqires get request"})
     
-    user_id = request.GET.get("user_id")
+#     user_id = request.GET.get("user_id")
 
-    if User.objects.filter(id = user_id).exists():
-        messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
+#     if User.objects.filter(id = user_id).exists():
+#         messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
 
-        #Serializes messages into a JSON format
-        messages_data = [
-            {
-                "id": msg.id,
-                "user_sending": msg.user_sending.id,
-                "user_receiving": msg.user_receiving.id,
-                "content": msg.message_content,
-                "date_sent": msg.date_sent,
-                "status":msg.status
-            }
-            for msg in messages
-        ]
+#         #Serializes messages into a JSON format
+#         messages_data = [
+#             {
+#                 "id": msg.id,
+#                 "user_sending": msg.user_sending.id,
+#                 "user_receiving": msg.user_receiving.id,
+#                 "content": msg.message_content,
+#                 "date_sent": msg.date_sent,
+#                 "status":msg.status
+#             }
+#             for msg in messages
+#         ]
 
-        return JsonResponse({'success': True, 'messages': messages_data})
-    else:
-        return JsonResponse({"error":"User does not have messages"})
+#         return JsonResponse({'success': True, 'messages': messages_data})
+#     else:
+#         return JsonResponse({"error":"User does not have messages"})
 
 
 #Retrieve recently watched method
@@ -673,7 +676,9 @@ def retrieve_recently_watched(request):
     data = [
         {
             "movie": movie.movie.id,
+            "title":movie.movie.title,
             "rating": movie.rating,
+            "review": movie.review,
             "date_watched": movie.date_watched.isoformat()
             
         }

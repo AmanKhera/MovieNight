@@ -1,46 +1,82 @@
+// src/App.js
 import React, { useEffect } from 'react';
-import './App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import HomePage from './pages/HomePage';
 import MovieDetailsPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
 import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
 import UserPage from './pages/UserPage';
+import { fetchRecentlyWatched, fetchWatchlistMovies } from './api';
+import FriendsPage from './pages/FriendsPage';
+import RecommendationMoviePage from './pages/RecommendMoviePage';
+import DiscoverPage from './pages/DiscoverPage';
+import ChatGPTGenerator from './components/ChatGPTGenerator';
+import ReviewPage from './pages/ReviewPage';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
+
+// Set up local storage persister for React Query
+const localStoragePersister = createSyncStoragePersister({
+  storage: window.localStorage,
+});
+
+persistQueryClient({
+  queryClient,
+  persister: localStoragePersister,
+});
 
 function App() {
-  // Fetch the CSRF token when the app loads
   useEffect(() => {
-    const fetchCsrfToken = async () => {
+    async function prefetchData() {
       try {
-        const response = await fetch('http://localhost:8000/get-csrf-token/', {
-          credentials: 'include', // Include cookies in the request
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch CSRF token');
-        }
-        console.log('CSRF token cookie has been set.');
+        await Promise.all([
+          queryClient.prefetchQuery({
+            queryKey: ['recentlyWatched'],
+            queryFn: fetchRecentlyWatched,
+          }),
+          queryClient.prefetchQuery({
+            queryKey: ['watchlistMovies'],
+            queryFn: fetchWatchlistMovies,
+          })
+        ]);
+        console.log("Successfully prefetched all data");
       } catch (error) {
-        console.error('Error fetching CSRF token:', error);
+        console.error("Prefetch error:", error.message);
       }
-    };
+    }
 
-    fetchCsrfToken();
-  }, []); // Empty dependency array ensures this runs only once when the app loads
+    prefetchData();
+  }, []);
 
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/movie/:id" element={<MovieDetailsPage />} />
-          <Route path="/groups" element={<GroupPage />} />
-          <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/UserProfile" element={<UserPage />} />
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <div className="App">
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/movie/:id" element={<MovieDetailsPage />} />
+            <Route path="/groups" element={<GroupPage />} />
+            <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/UserProfile" element={<UserPage />} />
+            <Route path="/FriendsPage" element={<FriendsPage />} />
+            <Route path='/DiscoverPage' element={<DiscoverPage/>}/>
+            <Route path='/ReviewedPage' element={<ReviewPage/>}/>
+            <Route path='/Test' element={<ChatGPTGenerator/>}/>
+          </Routes>
+        </BrowserRouter>
+      </div>
+    </QueryClientProvider>
   );
 }
 

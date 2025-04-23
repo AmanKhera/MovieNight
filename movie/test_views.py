@@ -38,6 +38,7 @@ class MovieViewTests(TestCase):
 
     def test_api_movie_search_view(self):
         response = self.client.get(reverse('api_search'), {'title': 'Inception'})
+        print("📥 Response Content:", response.json()) 
         self.assertEqual(response.status_code, 200)
 
     def test_discover_movies_view(self):
@@ -46,7 +47,7 @@ class MovieViewTests(TestCase):
 
     def test_favorite_toggle(self):
         """Test favoriting/unfavoriting a movie"""
-        payload = {"user_id": self.user.id, "movie_id": self.movie.id}
+        payload = {"username": self.user.username, "movie_id": self.movie.id}
         response = self.client.post(reverse('favorite'), json.dumps(payload), content_type="application/json")
         
         print("Response Status Code:", response.status_code)  
@@ -56,8 +57,6 @@ class MovieViewTests(TestCase):
         self.assertIn("Favorite", response.json())
 
     def test_retrieve_favorites(self):
-        payload = {"user_id": self.user.id}
-        
-        response = self.client.get(reverse('retrieve_favorites'))
+        response = self.client.get(reverse('retrieve_favorites'), {"username": self.user.username})
         self.assertEqual(response.status_code, 200)
         self.assertIn("favorite_items", response.json())
