@@ -160,12 +160,13 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                         Movie Details
                       </button>
                     </div>
-                    {/* icons with dark circles */}
+                    {/* icons with .5s delay on next */}
                     <button
                       className="icon-btn dislike"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleReview(movie.title, false);
+                        setTimeout(next, 500);
                       }}
                     >
                       <FaTimes />
@@ -175,6 +176,7 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                       onClick={(e) => {
                         e.stopPropagation();
                         handleReview(movie.title, true);
+                        setTimeout(next, 500);
                       }}
                     >
                       <FaCheck />
@@ -250,16 +252,15 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
           margin-top: auto;
         }
         .icon-btn {
-          position: absolute;
-          bottom: 12px;
-          background: rgba(0, 0, 0, 0.7);  /* dark circle */
-          border: none;
-          padding: 10px;
-          border-radius: 50%;
-          color: #fff;
-          font-size: 1.4rem;
-          cursor: pointer;
-          z-index: 5;
+          position: absolute; bottom: 12px;
+          background: rgba(0, 0, 0, 0.7);
+          border: none; padding: 10px; border-radius: 50%;
+          color: #fff; font-size: 1.4rem; cursor: pointer;
+          z-index: 5; transition: transform 0.1s, background 0.1s;
+        }
+        .icon-btn:active {
+          transform: scale(0.85);
+          background: rgba(255,255,255,0.2);
         }
         .icon-btn.dislike { left: 12px; color: #ff4d4d; }
         .icon-btn.like    { right: 12px; color: #4caf50; }
