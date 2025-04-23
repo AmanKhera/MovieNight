@@ -676,7 +676,9 @@ def retrieve_recently_watched(request):
     data = [
         {
             "movie": movie.movie.id,
+            "title":movie.movie.title,
             "rating": movie.rating,
+            "review": movie.review,
             "date_watched": movie.date_watched.isoformat()
             
         }

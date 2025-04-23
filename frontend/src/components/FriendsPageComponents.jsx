@@ -1,5 +1,5 @@
+// src/components/FriendsPageComponents.jsx
 import React, { useState, useEffect } from "react";
-import Toolbar from "../components/Toolbar";
 
 /** Helper to read a named cookie (for CSRF) */
 const getCookie = (name) => {
@@ -19,22 +19,13 @@ const getCookie = (name) => {
 
 /** ========== FRIENDS SIDEBAR ========== */
 export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
-  // Current user ID (fetched from backend)
   const [currentUserId, setCurrentUserId] = useState(null);
-  // List of mutual friends for the current user.
   const [friendsList, setFriendsList] = useState([]);
-  // For error messages
   const [error, setError] = useState("");
-  // For toggling the "Add Friend" modal
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
-  // The friend username that the current user wants to add/remove
   const [friendUsernameToAdd, setFriendUsernameToAdd] = useState("");
 
-
-    console.log("LOADEDDDDDDDDDDDDDDDDDDDD")
-
-
-  // ====== Styling ======
+  // Styling
   const sidebarStyle = {
     width: "15%",
     padding: "1rem",
@@ -42,14 +33,12 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     color: "white",
     backgroundColor: "#1a0133",
   };
-
   const headerFlexStyle = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: "1rem",
   };
-
   const plusButtonStyle = {
     backgroundColor: "#6a0dad",
     color: "#fff",
@@ -59,15 +48,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     borderRadius: "4px",
     fontSize: "1.2rem",
   };
-
-  const listStyle = {
-    listStyle: "none",
-    margin: 0,
-    padding: 0,
-  };
-
-  // We map the backend response so that the value (originally "name")
-  // is assigned to the property "username".
+  const listStyle = { listStyle: "none", margin: 0, padding: 0 };
   const listItemStyle = (active) => ({
     padding: "1rem",
     marginBottom: "0.5rem",
@@ -78,42 +59,22 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     alignItems: "center",
     justifyContent: "space-between",
   });
-
   const modalOverlayStyle = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
+    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.5)", display: "flex",
+    alignItems: "center", justifyContent: "center", zIndex: 1000,
   };
-
   const modalContentStyle = {
-    backgroundColor: "#fff",
-    padding: "1rem",
-    borderRadius: "4px",
-    width: "300px",
-    maxWidth: "90%",
-    color: "#000",
-    position: "relative",
+    backgroundColor: "#fff", padding: "1rem", borderRadius: "4px",
+    width: "300px", maxWidth: "90%", color: "#000", position: "relative",
     animation: "fadeIn 0.5s ease-out",
   };
-
   const closeButtonStyle = {
-    backgroundColor: "transparent",
-    border: "none",
-    fontSize: "1.2rem",
-    cursor: "pointer",
-    position: "absolute",
-    right: "0.5rem",
-    top: "0.5rem",
+    backgroundColor: "transparent", border: "none", fontSize: "1.2rem",
+    cursor: "pointer", position: "absolute", right: "0.5rem", top: "0.5rem",
   };
 
-  // Insert keyframes for modal fadeIn animation (only once)
+  // Insert keyframes for modal fadeIn animation
   useEffect(() => {
     if (!document.getElementById("modal-keyframes")) {
       const style = document.createElement("style");
@@ -121,29 +82,24 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
       style.innerHTML = `
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `;
       document.head.appendChild(style);
     }
   }, []);
 
-  // 1) Fetch current user info to get the user ID
+  // 1) Fetch current user ID
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
         const response = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
-        if (!response.ok) {
-          throw new Error("Failed to fetch user info");
-        }
+        if (!response.ok) throw new Error("Failed to fetch user info");
         const data = await response.json();
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setCurrentUserId(data.id);
-        }
+        if (data.error) setError(data.error);
+        else setCurrentUserId(data.id);
       } catch (err) {
         setError(err.message);
       }
@@ -151,9 +107,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     fetchUserInfo();
   }, []);
 
-  // 2) Fetch mutual friends for the current user.
-  // The backend returns a dictionary like { "2": "Aman", "3": "johndoe" }.
-  // We remap it so each friend becomes { id: "2", username: "Aman" }.
+  // 2) Fetch mutual friends
   const fetchMutualFriends = async (userId) => {
     if (!userId) return;
     try {
@@ -161,104 +115,102 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
         `http://localhost:8000/get_mutual_friends/?id=${userId}`,
         { credentials: "include" }
       );
-      if (!response.ok) {
-        throw new Error("Failed to fetch mutual friends");
-      }
+      if (!response.ok) throw new Error("Failed to fetch mutual friends");
       const data = await response.json();
       const friendArray = Object.entries(data).map(([id, username]) => ({
         id,
-        username: username, // Assign the returned "name" to the property "username"
+        username,
       }));
-      console.log(friendArray)
       setFriendsList(friendArray);
     } catch (err) {
       setError(err.message);
     }
   };
-
   useEffect(() => {
-    if (currentUserId) {
-      fetchMutualFriends(currentUserId);
-    }
+    if (currentUserId) fetchMutualFriends(currentUserId);
   }, [currentUserId]);
 
-  // 3) Toggle friend relationship using the /create_relationship/ endpoint.
-  // Use the /search/ endpoint to look up a user by username.
+  // 3) Add/Remove friend
   const handleAddFriend = async () => {
     if (!currentUserId || !friendUsernameToAdd) return;
     try {
-      // Look up the friend's user id using /search/ with filter=user.
-      const friendSearchResponse = await fetch(
-        `http://localhost:8000/search/?q=${encodeURIComponent(friendUsernameToAdd)}&filter=user`,
+      const friendSearchResp = await fetch(
+        `http://localhost:8000/search/?q=${encodeURIComponent(
+          friendUsernameToAdd
+        )}&filter=user`,
         { credentials: "include" }
       );
-      const friendData = await friendSearchResponse.json();
-      if (!friendSearchResponse.ok) {
-        throw new Error(friendData.error || "Failed to find user");
+      const friendData = await friendSearchResp.json();
+      if (!friendSearchResp.ok || !friendData.users?.length) {
+        throw new Error(friendData.error || "User not found");
       }
-      if (!friendData.users || friendData.users.length === 0) {
-        throw new Error("No user found with that username");
-      }
-      // Use the first matched user.
       const friendId = friendData.users[0].id;
-      // Now call create_relationship using the found friendId.
       const csrfToken = getCookie("csrftoken");
-      const url = `http://localhost:8000/create_relationship/?follower_id=${currentUserId}&following_id=${friendId}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { "X-CSRFToken": csrfToken },
-        credentials: "include",
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to add/remove friend");
-      }
-      alert(data.message || "Relationship updated");
-      // Refresh the mutual friends list
+      const relResp = await fetch(
+        `http://localhost:8000/create_relationship/?follower_id=${currentUserId}&following_id=${friendId}`,
+        {
+          method: "GET",
+          headers: { "X-CSRFToken": csrfToken },
+          credentials: "include",
+        }
+      );
+      const relJson = await relResp.json();
+      if (!relResp.ok) throw new Error(relJson.error || "Failed to update");
+      alert(relJson.message || "Relationship updated");
       fetchMutualFriends(currentUserId);
       setFriendUsernameToAdd("");
       setShowAddFriendModal(false);
-    } catch (error) {
-      alert(error.message);
+    } catch (err) {
+      alert(err.message);
     }
   };
 
-  // 4) Render the sidebar
   return (
     <div style={sidebarStyle}>
       <div style={headerFlexStyle}>
         <h3 style={{ margin: 0 }}>My Friends</h3>
-        <button onClick={() => setShowAddFriendModal(true)} style={plusButtonStyle}>
+        <button
+          onClick={() => setShowAddFriendModal(true)}
+          style={plusButtonStyle}
+        >
           +
         </button>
       </div>
+
       {error && <p style={{ color: "red" }}>{error}</p>}
+
       <ul style={listStyle}>
         {friendsList.map((friend) => (
           <li
             key={friend.id}
-            style={listItemStyle(selectedFriend && friend.id === selectedFriend.id)}
+            style={listItemStyle(
+              selectedFriend && friend.id === selectedFriend.id
+            )}
             onClick={() => onSelectFriend(friend)}
           >
             <span>{friend.username}</span>
           </li>
         ))}
       </ul>
+
       {showAddFriendModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
-            <button onClick={() => setShowAddFriendModal(false)} style={closeButtonStyle}>
+            <button
+              onClick={() => setShowAddFriendModal(false)}
+              style={closeButtonStyle}
+            >
               ×
             </button>
             <h4>Add (or Remove) Friend</h4>
             <p style={{ fontSize: "0.9rem" }}>
               Enter the friend’s username to toggle friendship.
               <br />
-              (If they are already your friend, this will remove them.)
+              (If they’re already your friend, this will remove them.)
             </p>
             <input
               type="text"
-              placeholder="Friend Username"
+              placeholder="Username"
               value={friendUsernameToAdd}
               onChange={(e) => setFriendUsernameToAdd(e.target.value)}
               style={{ marginBottom: "0.5rem", width: "100%" }}
@@ -271,15 +223,15 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   );
 };
 
-/** ========== 1‑ON‑1 CHAT SECTION ========== */
+/** ========== 1-ON-1 CHAT SECTION ========== */
 export const FriendChatSection = ({ selectedFriend }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  // Store current user info (id and username)
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Changed width to flex:1 so chat fills remaining space
   const chatStyle = {
-    width: "55%",
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     color: "white",
@@ -291,7 +243,6 @@ export const FriendChatSection = ({ selectedFriend }) => {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "0.75rem 1rem",
-    color: "white",
     backgroundColor: "#240046",
   };
 
@@ -309,64 +260,69 @@ export const FriendChatSection = ({ selectedFriend }) => {
     padding: "0.5rem",
   };
 
+  // 1) Fetch current user info
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const response = await fetch("http://localhost:8000/user_info/", {
+        const resp = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
-        const data = await response.json();
-        if (response.ok) {
-          setCurrentUser({ id: data.id, username: data.username });
-        } else {
-          console.error("Error fetching user info:", data.error);
+        const js = await resp.json();
+        if (resp.ok) {
+          setCurrentUser({ id: js.id, username: js.username });
         }
-      } catch (error) {
-        console.error("Error fetching user info:", error);
+      } catch (e) {
+        console.error("Fetch user_info error:", e);
       }
     };
     fetchUserInfo();
   }, []);
 
-  // Fetch messages in both directions and combine them.
+  // Fetch messages from both sides
   const fetchMessages = async () => {
     if (!selectedFriend || !currentUser) return;
     try {
-      const num_messages = 50;
-      const response1 = await fetch(
-        `http://localhost:8000/retrieve_messages/?num_messages=${num_messages}&user_id_1=${currentUser.id}&user_id_2=${selectedFriend.id}`,
-        { credentials: "include" }
-      );
-      const data1 = await response1.json();
-      const response2 = await fetch(
-        `http://localhost:8000/retrieve_messages/?num_messages=${num_messages}&user_id_1=${selectedFriend.id}&user_id_2=${currentUser.id}`,
-        { credentials: "include" }
-      );
-      const data2 = await response2.json();
-      if (response1.ok && response2.ok) {
-        const combined = [...(data1.messages || []), ...(data2.messages || [])];
-        combined.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
+      const num = 50;
+      const [aRes, bRes] = await Promise.all([
+        fetch(
+          `http://localhost:8000/retrieve_messages/?num_messages=${num}&user_id_1=${currentUser.id}&user_id_2=${selectedFriend.id}`,
+          { credentials: "include" }
+        ),
+        fetch(
+          `http://localhost:8000/retrieve_messages/?num_messages=${num}&user_id_1=${selectedFriend.id}&user_id_2=${currentUser.id}`,
+          { credentials: "include" }
+        ),
+      ]);
+      const aJson = await aRes.json();
+      const bJson = await bRes.json();
+      if (aRes.ok && bRes.ok) {
+        const combined = [...(aJson.messages || []), ...(bJson.messages || [])]
+          .sort((x, y) => new Date(x.date_sent) - new Date(y.date_sent));
         setMessages(combined);
-      } else {
-        console.error("Error retrieving messages");
-        setMessages([]);
       }
-    } catch (error) {
-      console.error("Error retrieving messages:", error);
+    } catch (e) {
+      console.error("retrieve_messages error:", e);
       setMessages([]);
     }
   };
 
+  // 2) Poll messages when friend or user changes
+  useEffect(() => {
+    if (selectedFriend && currentUser) {
+      fetchMessages();
+      const iv = setInterval(fetchMessages, 1000);
+      return () => clearInterval(iv);
+    }
+  }, [selectedFriend, currentUser]);
+
+  // 3) Send new message
   const handleSendMessage = async () => {
     if (!selectedFriend || !newMessage || !currentUser) return;
     try {
       const csrfToken = getCookie("csrftoken");
-      const response = await fetch("http://localhost:8000/send_message/", {
+      const resp = await fetch("http://localhost:8000/send_message/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
         credentials: "include",
         body: JSON.stringify({
           user_sending: currentUser.id,
@@ -374,32 +330,21 @@ export const FriendChatSection = ({ selectedFriend }) => {
           message: newMessage,
         }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        console.log("Message sent:", data.Success);
+      const js = await resp.json();
+      if (resp.ok) {
         setNewMessage("");
         fetchMessages();
       } else {
-        console.error("Send error:", data.error);
+        console.error("send_message error:", js.error);
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
+    } catch (e) {
+      console.error("send_message exception:", e);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleSendMessage();
-    }
+    if (e.key === "Enter") handleSendMessage();
   };
-
-  useEffect(() => {
-    if (selectedFriend && currentUser) {
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedFriend, currentUser]);
 
   return (
     <div style={chatStyle}>
@@ -414,9 +359,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
         {messages.map((msg, idx) => (
           <div key={idx} style={{ marginBottom: "0.5rem" }}>
             <strong>
-              {typeof msg.user_sending === "string" &&
-              currentUser &&
-              msg.user_sending === currentUser.username
+              {msg.user_sending === currentUser.username
                 ? currentUser.username
                 : msg.user_sending}
               :
@@ -439,5 +382,3 @@ export const FriendChatSection = ({ selectedFriend }) => {
     </div>
   );
 };
-
-

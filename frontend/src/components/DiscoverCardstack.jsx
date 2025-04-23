@@ -1,54 +1,115 @@
 // src/components/DiscoverCardStack.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { FaTimes, FaCheck } from "react-icons/fa";
 
 const CARD_WIDTH = 400;
 const CARD_HEIGHT = 550;
 const ARROW_GAP = 200;
 
 const DiscoverCardStack = ({ title = "Movie Stack" }) => {
+  const [userId, setUserId] = useState(null);
   const [movies, setMovies] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const navigate = useNavigate();
 
+  // 1) Fetch current user ID
   useEffect(() => {
-    const fetchMovies = async () => {
+    fetch("http://localhost:8000/user_info/", { credentials: "include" })
+      .then((r) => r.json())
+      .then((js) => setUserId(js.id))
+      .catch(console.error);
+  }, []);
+
+  // 2) Generate recommendations and enrich each with search + poster
+  useEffect(() => {
+    if (!userId) return;
+    const fetchRecs = async () => {
       try {
-        const res = await fetch("http://localhost:8000/popular_movie/");
-        if (!res.ok) throw new Error("Failed to fetch movies");
-        const data = await res.json();
-        const filtered = (data.results || []).filter(m => m.backdrop_path);
-        setMovies(filtered);
+        const recResp = await fetch("http://localhost:8000/movie_rec/", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        });
+        const recJson = await recResp.json();
+        if (!recResp.ok) throw new Error(recJson.error || "Rec failed");
+
+        const parsed = JSON.parse(recJson.summary);
+        const titles = parsed.recommendations || [];
+
+        const enriched = await Promise.all(
+          titles.map(async (t) => {
+            let info = {};
+            try {
+              const s = await fetch(
+                `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(t)}`
+              );
+              const sj = await s.json();
+              if (s.ok && sj.movies?.length) info = sj.movies[0];
+            } catch {}
+            let poster_url = "";
+            try {
+              const p = await fetch(
+                `http://localhost:8000/movie_poster/?title=${encodeURIComponent(t)}`
+              );
+              const pj = await p.json();
+              poster_url = pj.poster || "";
+            } catch {}
+            return {
+              id: info.id || t,
+              title: info.title || t,
+              release_date: info.year || "",
+              runtime: info.runtime || "",
+              vote_average: info.rating || "",
+              director: info.director || "",
+              plot: info.plot || "",
+              poster_url,
+            };
+          })
+        );
+        setMovies(enriched);
       } catch (e) {
         console.error(e);
       }
     };
-    fetchMovies();
-  }, []);
+    fetchRecs();
+  }, [userId]);
+
+  // 3) Send like/dislike to backend
+  const handleReview = (movieTitle, liked) => {
+    if (!userId) return;
+    fetch("http://localhost:8000/movie_review/", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        movie_title: movieTitle,
+        review: liked,
+      }),
+    }).catch(console.error);
+  };
 
   const prev = () => {
     setFlipped(false);
-    setCurrentIndex(i => (i === 0 ? movies.length - 1 : i - 1));
+    setCurrentIndex((i) => (i === 0 ? movies.length - 1 : i - 1));
   };
   const next = () => {
     setFlipped(false);
-    setCurrentIndex(i => (i === movies.length - 1 ? 0 : i + 1));
+    setCurrentIndex((i) => (i === movies.length - 1 ? 0 : i + 1));
   };
 
   const goToDetail = (movie, e) => {
     e.stopPropagation();
-    const titleParam = encodeURIComponent(
-      movie.title || movie.original_title
-    );
-    navigate(
-      `/movie/${titleParam}?release_date=${movie.release_date}`
-    );
+    const tp = encodeURIComponent(movie.title);
+    navigate(`/movie/${tp}?release_date=${movie.release_date}`);
   };
 
-  if (!movies.length) return <div>Loading movies…</div>;
+  if (!movies.length) return <div>Loading recommendations…</div>;
 
-  const stack = [0, 1, 2].map(offset =>
+  const stack = [0, 1, 2].map((offset) =>
     movies[(currentIndex + offset) % movies.length]
   );
 
@@ -56,65 +117,76 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
     <div className="card-stack-carousel">
       <div className="carousel-title">{title}</div>
       <div className="stack-container">
-        <button className="arrow left" onClick={prev}>&#10094;</button>
-        <button className="arrow right" onClick={next}>&#10095;</button>
+        <button className="arrow left" onClick={prev}>
+          &#10094;
+        </button>
+        <button className="arrow right" onClick={next}>
+          &#10095;
+        </button>
 
         {stack
           .map((movie, idx) => {
             const z = stack.length - idx;
             const scale = 1 - idx * 0.07;
             const yOff = idx * 30;
+            const style = {
+              zIndex: z,
+              transform: `translate(-50%, ${yOff}px) scale(${scale})`,
+            };
+            const isTop = idx === 0;
 
-            if (idx === 0) {
-              return (
-                <div
-                  key={movie.id}
-                  className="card-container"
-                  style={{ zIndex: z, transform: `translate(-50%, ${yOff}px) scale(${scale})` }}
-                  onClick={() => setFlipped(f => !f)}
-                >
-                  <div className={`card-inner ${flipped ? 'flipped' : ''}`}>
+            return (
+              <div
+                key={movie.id}
+                className={isTop ? "card-container" : "card"}
+                style={style}
+                onClick={isTop ? () => setFlipped((f) => !f) : undefined}
+              >
+                {isTop ? (
+                  <div className={`card-inner ${flipped ? "flipped" : ""}`}>
+                    {/* front */}
                     <div className="card-front">
-                      <img
-                        src={`https://image.tmdb.org/t/p/original${movie.backdrop_path}`}
-                        alt={movie.title || movie.original_title}
-                      />
-                      <div className="info">
-                        <h3>{movie.title || movie.original_title}</h3>
-                      </div>
+                      <img src={movie.poster_url} alt={movie.title} />
                     </div>
+                    {/* back */}
                     <div className="card-back">
-                      <h3>{movie.title || movie.original_title}</h3>
-                      <p className="detail-text"><strong>Release:</strong> {movie.release_date}</p>
-                      <p className="detail-text"><strong>Rating:</strong> {movie.vote_average}/10</p>
-                      <p className="overview">{movie.overview}</p>
-                      <button
-                        className="details-btn"
-                        onClick={e => goToDetail(movie, e)}
-                      >
+                      <h3>{movie.title}</h3>
+                      <p><strong>Year:</strong> {movie.release_date}</p>
+                      <p><strong>Runtime:</strong> {movie.runtime}</p>
+                      <p><strong>Rating:</strong> {movie.vote_average}</p>
+                      <p><strong>Director:</strong> {movie.director}</p>
+                      <p className="overview">{movie.plot}</p>
+                      <button className="details-btn" onClick={(e) => goToDetail(movie, e)}>
                         Movie Details
                       </button>
                     </div>
+                    {/* icons with .5s delay on next */}
+                    <button
+                      className="icon-btn dislike"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReview(movie.title, false);
+                        setTimeout(next, 500);
+                      }}
+                    >
+                      <FaTimes />
+                    </button>
+                    <button
+                      className="icon-btn like"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReview(movie.title, true);
+                        setTimeout(next, 500);
+                      }}
+                    >
+                      <FaCheck />
+                    </button>
                   </div>
-                </div>
-              );
-            } else {
-              return (
-                <div
-                  key={movie.id}
-                  className="card"
-                  style={{ zIndex: z, transform: `translate(-50%, ${yOff}px) scale(${scale})` }}
-                >
-                  <img
-                    src={`https://image.tmdb.org/t/p/original${movie.backdrop_path}`}
-                    alt={movie.title || movie.original_title}
-                  />
-                  <div className="info">
-                    <h3>{movie.title || movie.original_title}</h3>
-                  </div>
-                </div>
-              );
-            }
+                ) : (
+                  <img src={movie.poster_url} alt={movie.title} />
+                )}
+              </div>
+            );
           })
           .reverse()}
       </div>
@@ -140,115 +212,67 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
           height: 600px;
         }
         .card-container, .card {
-          position: absolute;
-          top: 0;
-          left: 50%;
-          width: ${CARD_WIDTH}px;
-          height: ${CARD_HEIGHT}px;
-          border-radius: 12px;
-          overflow: hidden;
+          position: absolute; top: 0; left: 50%;
+          width: ${CARD_WIDTH}px; height: ${CARD_HEIGHT}px;
+          border-radius: 12px; overflow: hidden;
           box-shadow: 0 12px 24px rgba(0,0,0,0.7);
-          background: #111;
-          cursor: pointer;
-          transition: transform 0.4s ease;
+          background: #111; transition: transform 0.4s ease;
         }
         .card-container {
-          perspective: 1200px;
+          perspective: 1200px; cursor: pointer;
         }
         .card-inner {
-          width: 100%;
-          height: 100%;
-          position: relative;
-          transform-style: preserve-3d;
+          width: 100%; height: 100%;
+          position: relative; transform-style: preserve-3d;
           transition: transform 0.6s ease;
         }
         .card-inner.flipped {
           transform: rotateY(180deg);
         }
         .card-front, .card-back {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          position: absolute; top: 0; left: 0;
+          width: 100%; height: 100%;
           backface-visibility: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        .card-front img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .info {
-          position: absolute;
-          bottom: 0;
-          width: 100%;
-          padding: 12px;
-          background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+          display: flex; flex-direction: column;
           color: #fff;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .card-front img, .card img {
+          width: 100%; height: 100%; object-fit: cover;
         }
         .card-back {
-          background: #111;
-          color: #fff;
-          transform: rotateY(180deg);
-          padding: 20px;
-          box-sizing: border-box;
-        }
-        .card-back h3 {
-          margin: 0 0 10px;
-          font-size: 1.4rem;
-        }
-        .detail-text {
-          font-size: 1.1rem;
-          margin: 4px 0;
+          background: #111; padding: 20px; box-sizing: border-box;
+          overflow: auto; transform: rotateY(180deg);
         }
         .overview {
-          flex: 1;
-          font-size: 1rem;
-          overflow: auto;
-          margin: 8px 0;
+          flex: 1; font-size: 0.9rem; margin: 8px 0;
         }
         .details-btn {
-          padding: 10px 16px;
-          background: #7d00ff;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          font-size: 1.1rem;
-          cursor: pointer;
-          align-self: center;
-          margin-top: 12px;
-          transition: background 0.3s;
+          padding: 8px 12px; background: #7d00ff; border: none;
+          color: #fff; border-radius: 6px; cursor: pointer;
+          margin-top: auto;
         }
-        .details-btn:hover {
-          background: #9100ff;
+        .icon-btn {
+          position: absolute; bottom: 12px;
+          background: rgba(0, 0, 0, 0.7);
+          border: none; padding: 10px; border-radius: 50%;
+          color: #fff; font-size: 1.4rem; cursor: pointer;
+          z-index: 5; transition: transform 0.1s, background 0.1s;
         }
+        .icon-btn:active {
+          transform: scale(0.85);
+          background: rgba(255,255,255,0.2);
+        }
+        .icon-btn.dislike { left: 12px; color: #ff4d4d; }
+        .icon-btn.like    { right: 12px; color: #4caf50; }
         .arrow {
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          background: rgba(0,0,0,0.5);
-          border: none;
-          color: #fff;
-          font-size: 2rem;
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          cursor: pointer;
-          z-index: 20;
-          transition: background 0.3s;
+          position: absolute; top: 50%; transform: translateY(-50%);
+          background: rgba(0,0,0,0.5); border: none;
+          color: #fff; font-size: 2rem; width: 50px;
+          height: 50px; border-radius: 50%; cursor: pointer;
+          z-index: 10;
         }
-        .arrow:hover { background: rgba(125,0,255,0.8); }
-        .left {
-          left: ${ARROW_GAP}px;
-          transform: translateY(-50%);
-        }
-        .right {
-          right: ${ARROW_GAP}px;
-          transform: translateY(-50%);
-        }
+        .left  { left: ${ARROW_GAP}px; }
+        .right { right: ${ARROW_GAP}px; }
       `}</style>
     </div>
   );
