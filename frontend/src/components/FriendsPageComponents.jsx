@@ -396,7 +396,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
   useEffect(() => {
     if (selectedFriend && currentUser) {
       fetchMessages();
-      const interval = setInterval(fetchMessages, 5000);
+      const interval = setInterval(fetchMessages, 1000);
       return () => clearInterval(interval);
     }
   }, [selectedFriend, currentUser]);
