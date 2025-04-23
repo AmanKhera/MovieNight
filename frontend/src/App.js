@@ -69,7 +69,7 @@ function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/UserProfile" element={<UserPage />} />
             <Route path="/FriendsPage" element={<FriendsPage />} />
-            <Route path='DiscoverPage' element={<DiscoverPage/>}/>
+            <Route path='/DiscoverPage' element={<DiscoverPage/>}/>
             <Route path='/Test' element={<ChatGPTGenerator/>}/>
           </Routes>
         </BrowserRouter>

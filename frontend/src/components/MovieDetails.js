@@ -27,16 +27,16 @@ const MovieDetailsPage = () => {
   const [loadingPlot, setLoadingPlot] = useState(false);
   const hasEnhancedPlot = useRef(false);
 
-  // 1) Fetch movie info
+  // 1) Fetch OMDB info, then local DB ID
   useEffect(() => {
-    const fetchMovie = async () => {
+    const fetchOMDB = async () => {
       try {
         let url = `http://localhost:8000/api_search/?title=${encodeURIComponent(id)}`;
         if (release_date) url += `&release_date=${encodeURIComponent(release_date)}`;
         const resp = await fetch(url);
         const data = await resp.json();
         if (resp.ok && data.Title) {
-          const m = {
+          const base = {
             id,
             title: data.Title,
             year: data.Year,
@@ -44,9 +44,10 @@ const MovieDetailsPage = () => {
             rating: data.Rated,
             plot: data.Plot,
             director: data.Director,
+            db_id: null,
           };
-          setMovie(m);
-          return m;
+          setMovie(base);
+          return base;
         } else {
           throw new Error(data.error || "Movie not found");
         }
@@ -56,12 +57,30 @@ const MovieDetailsPage = () => {
         setLoading(false);
       }
     };
-    fetchMovie().then(m => {
-      if (m && !hasEnhancedPlot.current) {
-        enhancePlot(m);
-        hasEnhancedPlot.current = true;
+
+    const fetchLocalId = async (title, year) => {
+      try {
+        const resp = await fetch(
+          `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`
+        );
+        const d = await resp.json();
+        if (resp.ok && d.movies?.length) {
+          setMovie(prev => ({ ...prev, db_id: d.movies[0].id }));
+        }
+      } catch {
+        console.warn("Failed to fetch local DB ID");
       }
-      if (m) fetchBackdrop(m.title);
+    };
+
+    fetchOMDB().then(m => {
+      if (m) {
+        fetchLocalId(m.title, m.year);
+        if (!hasEnhancedPlot.current) {
+          enhancePlot(m);
+          hasEnhancedPlot.current = true;
+        }
+        fetchBackdrop(m.title);
+      }
     });
   }, [id, release_date]);
 
@@ -118,8 +137,9 @@ const MovieDetailsPage = () => {
   const addToWatchlist = async () => {
     setLoadingAdd(true);
     try {
+      const idToSend = movie.db_id || movie.id;
       const resp = await fetch(
-        `http://localhost:8000/add_movie/?movie_id=${movie.id}`,
+        `http://localhost:8000/add_movie/?movie_id=${idToSend}`,
         { credentials: "include" }
       );
       const d = await resp.json();
@@ -139,11 +159,12 @@ const MovieDetailsPage = () => {
     if (!watchedRating) return;
     setLoadingAdd(true);
     try {
+      const idToSend = movie.db_id || movie.id;
       const resp = await fetch("http://localhost:8000/add_to_watched/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ user_id: 1, movie_id: movie.id, rating: parseInt(watchedRating, 10), review: watchedReview }),
+        body: JSON.stringify({ user_id: 1, movie_id: idToSend, rating: parseInt(watchedRating, 10), review: watchedReview }),
       });
       const d = await resp.json();
       setMessage({ text: d.message, type: resp.ok ? "success" : "error" });
@@ -166,12 +187,20 @@ const MovieDetailsPage = () => {
   return (
     <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
       <div style={styles.backdropOverlay} />
-      {message && <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>{message.text}</div>}
+      {message && (
+        <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
+          {message.text}
+        </div>
+      )}
       <div style={styles.detailsWrapper}>
         <div style={styles.posterContainer}>
           <img src={posterURL || "https://via.placeholder.com/300x450"} alt={movie.title} style={styles.poster} />
-          <button style={styles.addButton} onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }} disabled={loadingAdd}>
-            {loadingAdd ? '…' : '+'}
+          <button
+            style={styles.addButton}
+            onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }}
+            disabled={loadingAdd}
+          >
+            {loadingAdd ? "…" : "+"}
           </button>
           {showAddMenu && (
             <div className="add-menu">
@@ -193,7 +222,7 @@ const MovieDetailsPage = () => {
                     Review:
                     <textarea value={watchedReview} onChange={e => setWatchedReview(e.target.value)} maxLength={2000} />
                   </label>
-                  <button onClick={addToWatched} disabled={loadingAdd}>{loadingAdd ? '…' : 'Submit'}</button>
+                  <button onClick={addToWatched} disabled={loadingAdd}>{loadingAdd ? "…" : "Submit"}</button>
                   <button onClick={() => { setShowWatchedForm(false); setWatchedRating(''); setWatchedReview(''); }}>Cancel</button>
                 </div>
               )}
@@ -238,11 +267,11 @@ const MovieDetailsPage = () => {
         .add-menu button:hover { background: rgba(125,0,255,0.4); }
         .watched-form { display: flex; flex-direction: column; padding: 12px; }
         .watched-form label { color: #fff; font-size: 1rem; margin-bottom: 8px; }
-        .watched-form select, .watched-form textarea { margin-top:4px; padding:6px; border-radius:4px; border:none; font-size:1rem; width:100%; }
-        .watched-form textarea { resize: vertical; min-height:60px; }
-        .watched-form button { margin-top:8px; padding:8px; border:none; border-radius:6px; cursor:pointer; font-size:1rem; }
-        .watched-form button:first-of-type { background:#7d00ff; color:#fff; }
-        .watched-form button:last-of-type { background:#444; color:#fff; }
+        .watched-form select, .watched-form textarea { margin-top: 4px; padding: 6px; border-radius: 4px; border: none; font-size: 1rem; width: 100%; }
+        .watched-form textarea { resize: vertical; min-height: 60px; }
+        .watched-form button { margin-top: 8px; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+        .watched-form button:first-of-type { background: #7d00ff; color: #fff; }
+        .watched-form button:last-of-type { background: #444; color: #fff; }
       `}</style>
     </div>
   );
