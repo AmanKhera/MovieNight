@@ -73,7 +73,7 @@ const GroupPage = () => {
           setNewMessage={setNewMessage}
           onSendMessage={handleSendMessage}
         />
-        <MoviePoll pollItems={pollItems} onVote={handleVote} />
+        <MoviePoll selectedGroup={selectedGroup} />
       </div>
     </div>
   );
