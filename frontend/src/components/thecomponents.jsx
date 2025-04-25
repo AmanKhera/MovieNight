@@ -21,80 +21,61 @@ const getCookie = (name) => {
 
 export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
   // === State ===
-  const [leaderId, setLeaderId] = useState(null); // from /user_info/ (used for creating groups)
-  const [userGroups, setUserGroups] = useState([]); // from /get_user_groups/
+  const [leaderId, setLeaderId] = useState(null);            // from /user_info/
+  const [username, setUsername] = useState("");              // for get_user_groups
+  const [userGroups, setUserGroups] = useState([]);           // fetched groups
   const [groupName, setGroupName] = useState("");
   const [genre, setGenre] = useState("");
   const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false); // toggle for creating a new group
+  const [showForm, setShowForm] = useState(false);             // toggle modal
 
-  // State for per‑group member management modal
+  // Member management modal state
   const [expandedGroupId, setExpandedGroupId] = useState(null);
   const [addMemberId, setAddMemberId] = useState("");
   const [removeMemberId, setRemoveMemberId] = useState("");
 
-  // Insert keyframes for modal fadeIn animation (only once)
-  useEffect(() => {
-    if (!document.getElementById("modal-keyframes")) {
-      const style = document.createElement("style");
-      style.id = "modal-keyframes";
-      style.innerHTML = `
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-  }, []);
+  // Insert keyframes once
+  
 
-  // 1) Fetch user info (to get leaderId)
+  // 1) Fetch user info
   useEffect(() => {
-    const fetchUserInfo = async () => {
+    (async () => {
       try {
-        const response = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to fetch user info");
-        }
-        const data = await response.json();
-        console.log("User info response:", data);
-        if (data.error) {
-          setError(data.error);
+        const res = await fetch("http://localhost:8000/user_info/", { credentials: "include" });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setError(data.error || "Failed to fetch user info");
         } else {
           setLeaderId(data.id);
+          setUsername(data.username);
         }
-      } catch (err) {
-        setError(err.message);
+      } catch (e) {
+        setError(e.message);
       }
-    };
-    fetchUserInfo();
+    })();
   }, []);
 
-  // 2) Fetch user groups
-  const fetchUserGroups = async () => {
-    try {
-      const response = await fetch("http://localhost:8000/get_user_groups/", {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch user groups");
-      }
-      const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setUserGroups(data.groups || []);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
+  // 2) Fetch user groups when username is set
   useEffect(() => {
-    fetchUserGroups();
-  }, []);
+    if (!username) return;
+    (async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:8000/get_user_groups/?username=${username}`,
+          { credentials: "include" }
+        );
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setError(data.error || "Failed to fetch user groups");
+        } else {
+          setUserGroups(data.groups || []);
+        }
+      } catch (e) {
+        setError(e.message);
+      }
+    })();
+  }, [username]);
+
 
   // 3) Create a new group
   const handleCreateGroup = async () => {
@@ -127,7 +108,7 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
       console.log("Group created:", data.message);
 
       // Refresh group list
-      fetchUserGroups();
+      
       // Reset form and close modal
       setGroupName("");
       setGenre("");
@@ -488,7 +469,7 @@ export const ChatSection = ({ selectedGroup }) => {
     if (!selectedGroup) return;
     try {
       const response = await fetch(
-        `http://localhost:8000/retrieve_messages/?num_messages=50&user_id=${selectedGroup.group_id}`,
+        `http://localhost:8000/group_messages/?group_id=${selectedGroup.group_id}`,
         { credentials: "include" }
       );
       const data = await response.json();
@@ -569,7 +550,7 @@ export const ChatSection = ({ selectedGroup }) => {
                 : msg.user_sending}
               :
             </strong>{" "}
-            {msg.content}
+            {msg.message_content}
           </div>
         ))}
       </div>
