@@ -18,6 +18,8 @@ const SearchPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [currentUserId, setCurrentUserId] = useState(null);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const filter = params.get('filter');
@@ -49,6 +51,27 @@ const SearchPage = () => {
       }, 0);
     }
   }, [location.search]);
+
+  useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/user_info/", {
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.id) {
+          setCurrentUserId(data.id);
+          console.log("Current user ID:", data.id);
+        } else {
+          console.warn("No user ID found in response.");
+        }
+      } catch (error) {
+        console.error("Failed to fetch current user ID:", error);
+      }
+    };
+  
+    fetchCurrentUserId();
+  }, []);
 
   /**
    * toggle to display/hide the filters
@@ -231,6 +254,32 @@ const SearchPage = () => {
         username.textContent = "@" + result[i].username;
       }
       info.appendChild(username);
+
+      //follow/unfollow button
+      const followBtn = document.createElement("button");
+      followBtn.classList.add("follow-button");
+      followBtn.disabled = !currentUserId;
+      if (currentUserId) {
+       const relationshipStatus = await getRelationshipStatus(currentUserId, result[i].id);
+       followBtn.innerText = relationshipStatus;
+     } else {
+       followBtn.innerText = "Follow";
+     }
+     
+     followBtn.onclick = async () => {
+       if (!currentUserId) {
+         alert("Login not detected");
+         return;
+       }
+     
+       await toggleRelationship(currentUserId, result[i].id);
+     
+       // Refresh button text after change
+       const updatedStatus = await getRelationshipStatus(currentUserId, result[i].id);
+       followBtn.innerText = updatedStatus;
+     };
+     
+     info.appendChild(followBtn);
       document.getElementById("search-result-user").appendChild(user);
     }
   };
@@ -286,6 +335,44 @@ const SearchPage = () => {
       navigate(`/movie/${titleParam}`);
     }
   };
+
+  const getRelationshipStatus = async (currentUserId, targetUserId) => {
+    try {
+      const [followersRes, followingRes] = await Promise.all([
+        fetch(`http://localhost:8000/get_followers/?id=${targetUserId}`, { credentials: "include" }),
+        fetch(`http://localhost:8000/get_following/?id=${currentUserId}`, { credentials: "include" })
+      ]);
+  
+      const followersData = await followersRes.json(); // followers of `targetUserId`
+      const followingData = await followingRes.json(); // people `currentUserId` follows
+  
+      const youFollowThem = Object.keys(followingData).includes(targetUserId.toString());
+      const theyFollowYou = Object.keys(followersData).includes(currentUserId.toString());
+  
+      if (youFollowThem && theyFollowYou) return "Friends";
+      if (youFollowThem) return "Unfollow";
+      if (theyFollowYou) return "Follows You";
+      return "Follow";
+    } catch (err) {
+      console.error("Error checking relationship:", err);
+      return "Follow"; // fallback
+    }
+  };
+  
+  const toggleRelationship = async (followerId, followingId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/create_relationship/?follower_id=${followerId}&following_id=${followingId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      alert(data.message);
+    } catch (err) {
+      console.error("Failed to update relationship:", err);
+      alert("Something went wrong.");
+    }
+  };
+  
 
   const ErrorAlert = (error, searchTerm) => {
     return (
