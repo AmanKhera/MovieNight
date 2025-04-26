@@ -459,7 +459,8 @@ export const ChatSection = ({ selectedGroup }) => {
       );
       const data = await response.json();
       if (response.ok) {
-        setMessages(data.messages || []);
+        // Reverse the messages array to show newest at the bottom
+        setMessages(data.messages ? [...data.messages].reverse() : []);
       } else {
         console.error("Retrieve error:", data.error);
         setMessages([]);
@@ -518,10 +519,10 @@ export const ChatSection = ({ selectedGroup }) => {
     <div style={chatStyle}>
       <div style={chatHeaderStyle}>
         <h3>{selectedGroup ? selectedGroup.group_name : "Select a Group"}</h3>
-        <div style={{ display: "flex", gap: "0.5rem" }}></div>
       </div>
 
       <div style={messagesContainerStyle}>
+        {/* Render messages in reversed order */}
         {messages.map((msg, idx) => (
           <div key={idx} style={{ marginBottom: "0.5rem" }}>
             <strong>
