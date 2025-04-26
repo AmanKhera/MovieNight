@@ -1,5 +1,6 @@
 // src/components/thecomponents.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect} from "react";
+import { useNavigate } from "react-router-dom";
 
 /** ========== GROUPS SIDEBAR ========== */
 
@@ -556,74 +557,90 @@ export const ChatSection = ({ selectedGroup }) => {
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 export const MoviePoll = ({ selectedGroup }) => {
+  const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!selectedGroup?.group_id) {
-      setRecommendations([]);
-      return;
+  const fetchMovieDetails = async (title) => {
+    try {
+      // First search for the movie by title
+      const searchResponse = await fetch(
+        `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie`
+      );
+      const searchData = await searchResponse.json();
+      
+      if (!searchData.movies || searchData.movies.length === 0) return null;
+      const movie = searchData.movies[0];
+
+      // Then get the poster
+      const posterResponse = await fetch(
+        `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+      );
+      const posterData = await posterResponse.json();
+
+      return {
+        id: movie.id,
+        title: movie.title,
+        year: movie.year,
+        poster: posterData.poster,
+        plot: movie.plot,
+        director: movie.director,
+        runtime: movie.runtime,
+        rating: movie.rating
+      };
+    } catch (error) {
+      console.error("Error fetching movie details:", error);
+      return null;
     }
+  };
+
+  useEffect(() => {
+    if (!selectedGroup?.group_id) return;
 
     const fetchRecommendations = async () => {
       setLoading(true);
       setError(null);
+      
       try {
         const csrfToken = getCookie("csrftoken");
-        const resp = await fetch(
-          `http://localhost:8000/movie_rec/`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": csrfToken,
-            },
-            body: JSON.stringify({
-              user_id: selectedGroup.group_id
-            }),
-          }
-        );
-
-        if (!resp.ok) {
-          const errorData = await resp.json();
-          throw new Error(errorData.error || "Failed to fetch recommendations");
-        }
-
-        const data = await resp.json();
-        
-        // Handle stringified JSON in summary field
-        let recommendationsData = [];
-        if (data.summary) {
-          try {
-            const parsed = JSON.parse(data.summary);
-            recommendationsData = parsed.recommendations || [];
-          } catch (e) {
-            console.error("Error parsing summary:", e);
-          }
-        } else if (Array.isArray(data.recommendations)) {
-          recommendationsData = data.recommendations;
-        } else if (Array.isArray(data)) {
-          recommendationsData = data;
-        }
-
-        // Normalize data format
-        const normalizedData = recommendationsData.map((item, index) => {
-          if (typeof item === 'string') {
-            return { id: index, title: item };
-          }
-          return {
-            id: item.id || index,
-            title: item.title || `Recommendation ${index + 1}`,
-            description: item.description || item.overview || ""
-          };
+        const resp = await fetch(`http://localhost:8000/movie_rec/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({
+            user_id: selectedGroup.group_id
+          }),
         });
 
-        setRecommendations(normalizedData);
+        if (!resp.ok) throw new Error("Failed to fetch recommendations");
+        
+        const data = await resp.json();
+        const parsedSummary = JSON.parse(data.summary);
+        const movieTitles = parsedSummary.recommendations;
+
+        // Fetch details for all movies in parallel
+        const movieDetails = await Promise.all(
+          movieTitles.map(title => fetchMovieDetails(title))
+        );
+
+        // Filter out null results and format
+        const validMovies = movieDetails.filter(movie => movie !== null).map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          year: movie.year,
+          poster: movie.poster,
+          plot: movie.plot,
+          director: movie.director,
+          runtime: movie.runtime,
+          rating: movie.rating
+        }));
+
+        setRecommendations(validMovies);
 
       } catch (err) {
-        console.error("Error:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -633,51 +650,52 @@ export const MoviePoll = ({ selectedGroup }) => {
     fetchRecommendations();
   }, [selectedGroup?.group_id]);
 
-  const handleVote = (recommendId) => {
-    setRecommendations(prev => 
-      prev.map(rec => 
-        rec.id === recommendId ? { ...rec, votes: (rec.votes || 0) + 1 } : rec
-      )
+  const handleMovieClick = (movie) => {
+    const titleParam = encodeURIComponent(
+      movie.title || movie.original_title
+    );
+    const releaseDate = movie.year;
+    navigate(
+      releaseDate
+        ? `/movie/${titleParam}?release_date=${encodeURIComponent(
+            releaseDate
+          )}`
+        : `/movie/${titleParam}`
     );
   };
 
+
+  // Styling (same as previous)
   const pollStyle = {
     width: "30%",
     color: "white",
     backgroundColor: "#1a0133",
     padding: "1rem",
     overflowY: "auto",
-    boxSizing: "border-box",
-    minHeight: "400px",
-    position: "relative",
-    zIndex: 1,
   };
 
-  const pollItemsStyle = {
-    display: "flex",
-    flexDirection: "column",
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
     gap: "1rem",
+    padding: "0.5rem",
   };
 
-  const pollItemStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    borderRadius: "4px",
-    padding: "1rem",
-    color: "white",
-    backgroundColor: "#240046",
-    margin: "0.5rem 0",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-  };
-
-  const voteButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
-    border: "none",
-    padding: "0.5rem 1rem",
-    borderRadius: "4px",
+  const movieCardStyle = {
     cursor: "pointer",
+    borderRadius: "8px",
+    overflow: "hidden",
+    backgroundColor: "#240046",
+    transition: "transform 0.2s",
+    ":hover": {
+      transform: "scale(1.05)",
+    },
+  };
+
+  const imageStyle = {
+    width: "100%",
+    height: "200px",
+    objectFit: "cover",
   };
 
   return (
@@ -686,26 +704,31 @@ export const MoviePoll = ({ selectedGroup }) => {
       {loading && <p>Loading recommendations...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <div style={pollItemsStyle}>
-        {recommendations.map((rec) => (
-          <div key={rec.id} style={pollItemStyle}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: "bold" }}>
-                {rec.title}
-              </div>
-              {rec.description && (
-                <div style={{ fontSize: "0.9rem", color: "#ddd" }}>
-                  {rec.description}
+      <div style={gridStyle}>
+        {recommendations.map((movie) => (
+          <div 
+            key={movie.id}
+            style={movieCardStyle}
+            onClick={() => handleMovieClick(movie)}
+          >
+            <img
+              src={movie.poster || "https://via.placeholder.com/150x200?text=No+Poster"}
+              alt={movie.title}
+              style={imageStyle}
+            />
+            <div style={{ padding: "0.5rem" }}>
+              <div style={{ fontWeight: "bold" }}>{movie.title}</div>
+              {movie.year && (
+                <div style={{ fontSize: "0.8rem", color: "#ccc" }}>
+                  ({movie.year})
+                </div>
+              )}
+              {movie.rating && (
+                <div style={{ fontSize: "0.8rem", color: "#ccc" }}>
+                  Rating: {movie.rating}
                 </div>
               )}
             </div>
-            <button 
-              style={voteButtonStyle} 
-              onClick={() => handleVote(rec.id)}
-            >
-              Vote
-            </button>
-            <span>{rec.votes || 0} votes</span>
           </div>
         ))}
       </div>
