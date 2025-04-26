@@ -685,9 +685,18 @@ export const MoviePoll = ({ selectedGroup }) => {
     );
   };
 
+  const handleVote = (movieId, isUpvote) => {
+    setRecommendations(prev => prev.map(movie => 
+      movie.id === movieId ? {
+        ...movie,
+        upvotes: isUpvote ? (movie.upvotes || 0) + 1 : movie.upvotes,
+        downvotes: !isUpvote ? (movie.downvotes || 0) + 1 : movie.downvotes
+      } : movie
+    ));
+  };
 
-  // Styling (same as previous)
-  const pollStyle = {
+
+   const pollStyle = {
     width: "30%",
     color: "white",
     backgroundColor: "#1a0133",
@@ -697,58 +706,109 @@ export const MoviePoll = ({ selectedGroup }) => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-    gap: "1rem",
-    padding: "0.5rem",
+    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+    gap: "1.5rem",
+    padding: "1rem",
   };
 
   const movieCardStyle = {
-    cursor: "pointer",
-    borderRadius: "8px",
+    position: "relative",
+    borderRadius: "12px",
     overflow: "hidden",
     backgroundColor: "#240046",
-    transition: "transform 0.2s",
+    transition: "transform 0.3s ease, box-shadow 0.3s ease",
     ":hover": {
-      transform: "scale(1.05)",
+      transform: "translateY(-5px)",
+      boxShadow: "0 8px 16px rgba(0,0,0,0.3)",
     },
   };
 
-  const imageStyle = {
-    width: "100%",
-    height: "200px",
-    objectFit: "cover",
+  const votingControlsStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.75rem",
+    backgroundColor: "#1a0133",
+  };
+
+  const voteButtonStyle = (isUpvote) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    border: "none",
+    backgroundColor: isUpvote ? "#2e7d32" : "#c62828",
+    color: "white",
+    cursor: "pointer",
+    transition: "opacity 0.2s ease",
+    ":hover": {
+      opacity: 0.9,
+    },
+  });
+
+  const badgeStyle = {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    backgroundColor: "#6a0dad",
+    color: "white",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    fontSize: "0.8rem",
   };
 
   return (
     <div style={pollStyle}>
       <h3>Group Recommendations</h3>
-      {loading && <p>Loading recommendations...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
+      
       <div style={gridStyle}>
         {recommendations.map((movie) => (
-          <div 
-            key={movie.id}
-            style={movieCardStyle}
-            onClick={() => handleMovieClick(movie)}
-          >
+          <div key={movie.id} style={movieCardStyle}>
+            <div style={badgeStyle}>
+              {movie.rating}
+            </div>
+            
             <img
-              src={movie.poster || "https://via.placeholder.com/150x200?text=No+Poster"}
+              src={movie.poster}
               alt={movie.title}
-              style={imageStyle}
+              style={{ 
+                width: "100%",
+                height: "300px",
+                objectFit: "cover",
+                borderBottom: "2px solid #6a0dad"
+              }}
             />
-            <div style={{ padding: "0.5rem" }}>
-              <div style={{ fontWeight: "bold" }}>{movie.title}</div>
-              {movie.year && (
-                <div style={{ fontSize: "0.8rem", color: "#ccc" }}>
-                  ({movie.year})
-                </div>
-              )}
-              {movie.rating && (
-                <div style={{ fontSize: "0.8rem", color: "#ccc" }}>
-                  Rating: {movie.rating}
-                </div>
-              )}
+            
+            <div style={{ padding: "1rem" }}>
+              <h4 style={{ margin: "0 0 0.5rem" }}>{movie.title}</h4>
+              <div style={{ 
+                display: "flex",
+                justifyContent: "space-between",
+                color: "#bbb",
+                fontSize: "0.9rem"
+              }}>
+                <span>{movie.year}</span>
+                <span>{movie.runtime} mins</span>
+              </div>
+            </div>
+
+            <div style={votingControlsStyle}>
+              <button 
+                style={voteButtonStyle(true)}
+                onClick={() => handleVote(movie.id, true)}
+              >
+                <span>👍</span>
+                <span>{movie.upvotes || 0}</span>
+              </button>
+              
+              <button
+                style={voteButtonStyle(false)}
+                onClick={() => handleVote(movie.id, false)}
+              >
+                <span>👎</span>
+                <span>{movie.downvotes || 0}</span>
+              </button>
             </div>
           </div>
         ))}
