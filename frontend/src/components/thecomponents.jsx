@@ -37,9 +37,14 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
 
   // 1) Fetch user info
   useEffect(() => {
-    (async () => {
+    const abortController = new AbortController();
+    
+    const fetchUserInfo = async () => {
       try {
-        const res = await fetch("http://localhost:8000/user_info/", { credentials: "include" });
+        const res = await fetch("http://localhost:8000/user_info/", { 
+          credentials: "include",
+          signal: abortController.signal 
+        });
         const data = await res.json();
         if (!res.ok || data.error) {
           setError(data.error || "Failed to fetch user info");
@@ -48,19 +53,30 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
           setUsername(data.username);
         }
       } catch (e) {
-        setError(e.message);
+        if (e.name !== 'AbortError') {
+          setError(e.message);
+        }
       }
-    })();
-  }, []);
+    };
+
+    fetchUserInfo();
+    return () => abortController.abort();
+  }, []); // Empty dependency array ensures this runs once on mount
 
   // 2) Fetch user groups when username is set
   useEffect(() => {
     if (!username) return;
-    (async () => {
+    
+    const abortController = new AbortController();
+    
+    const fetchGroups = async () => {
       try {
         const res = await fetch(
           `http://localhost:8000/get_user_groups/?username=${username}`,
-          { credentials: "include" }
+          { 
+            credentials: "include",
+            signal: abortController.signal 
+          }
         );
         const data = await res.json();
         if (!res.ok || data.error) {
@@ -69,10 +85,15 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
           setUserGroups(data.groups || []);
         }
       } catch (e) {
-        setError(e.message);
+        if (e.name !== 'AbortError') {
+          setError(e.message);
+        }
       }
-    })();
-  }, [username]);
+    };
+
+    fetchGroups();
+    return () => abortController.abort();
+  }, [username]); // Only re-run when username changes
 
   // 3) Create a new group
   const handleCreateGroup = async () => {
