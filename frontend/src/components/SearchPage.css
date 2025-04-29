@@ -77,6 +77,11 @@ after the user has searched for something
   color: #ddd;
 }
 
+.follow-button {
+  margin-right: 10px;
+}
+
+
 #filter-options {
   margin-top: 20px;
   text-align: center;

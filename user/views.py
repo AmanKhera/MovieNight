@@ -712,6 +712,10 @@ def username(request):
 
     return JsonResponse({'username': get_user_username(request.session.get("access_token")).get('username')})
     
+
+#method that allows user to block another user. functions as a toggle 
+#params: blocker_id(id of user who is blocking other user), blocked_id(id of user who is being blocked)
+#returns: "user blocked/unblocked" if user is found, returns, "user not found" if user not found
 @csrf_exempt
 def block_user(request):
     if request.method == 'POST':
@@ -742,13 +746,15 @@ def block_user(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
-
+#allows user to view users that they have blocked.
+#params: user_id, id of current user
+#returns dictionary of users the current user has blocked.
 def view_blocked_users(request):
 
     user_id = request.GET.get('id')
 
     #ids of users that are blocked by user
-    blocked_ids = set(BlockList.objects.filter(following_id=user_id).values_list('blocker_id', flat=True))
+    blocked_ids = set(BlockList.objects.filter(blocker=user_id).values_list('blocker_id', flat=True))
 
     blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
 
@@ -757,6 +763,20 @@ def view_blocked_users(request):
 
     return JsonResponse(response, status=200)
 
+#checks if a viewed profile has the user blocked.
+#params: searcher_id-id of user looking at other profile, profile_id-id of profile being viewed by user
+#returns: true if user is blocked, false if not  
+def check_blocked(request):
+    searcher_id = request.GET.get("searcher_id")
+    profile_id = request.GET.get("profile_id")
+
+    if not searcher_id or not profile_id:
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+
+    # Check if profile has blocked viewer
+    is_blocked = BlockList.objects.filter(blocker_id=profile_id, blocked_id=searcher_id).exists()
+
+    return JsonResponse({'blocked_by_them': is_blocked})
 
 def frontend_username(request):
     user_id = request.GET.get("user_id")

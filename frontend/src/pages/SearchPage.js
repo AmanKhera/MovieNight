@@ -69,7 +69,7 @@ const SearchPage = () => {
         console.error("Failed to fetch current user ID:", error);
       }
     };
-  
+
     fetchCurrentUserId();
   }, []);
 
@@ -255,31 +255,77 @@ const SearchPage = () => {
       }
       info.appendChild(username);
 
-      //follow/unfollow button
-      const followBtn = document.createElement("button");
-      followBtn.classList.add("follow-button");
-      followBtn.disabled = !currentUserId;
-      if (currentUserId) {
-       const relationshipStatus = await getRelationshipStatus(currentUserId, result[i].id);
-       followBtn.innerText = relationshipStatus;
-     } else {
-       followBtn.innerText = "Follow";
-     }
-     
-     followBtn.onclick = async () => {
-       if (!currentUserId) {
-         alert("Login not detected");
-         return;
-       }
-     
-       await toggleRelationship(currentUserId, result[i].id);
-     
-       // Refresh button text after change
-       const updatedStatus = await getRelationshipStatus(currentUserId, result[i].id);
-       followBtn.innerText = updatedStatus;
-     };
-     
-     info.appendChild(followBtn);
+      const isBlockedByThem = await getBlockStatus(currentUserId, result[i].id);
+
+      if (!isBlockedByThem) {
+
+        const buttonContainer = document.createElement("div");
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "row";
+        buttonContainer.style.gap = "10px"; // spacing between buttons
+        buttonContainer.style.marginTop = "10px";
+
+        //follow/unfollow button
+        const followBtn = document.createElement("button");
+        followBtn.classList.add("follow-button");
+        followBtn.disabled = !currentUserId;
+        if (currentUserId) {
+          const relationshipStatus = await getRelationshipStatus(currentUserId, result[i].id);
+          followBtn.innerText = relationshipStatus;
+        } else {
+          followBtn.innerText = "Follow";
+        }
+
+        followBtn.onclick = async () => {
+          if (!currentUserId) {
+            alert("Login not detected");
+            return;
+          }
+
+          await toggleRelationship(currentUserId, result[i].id);
+
+          // Refresh button text after change
+          const updatedStatus = await getRelationshipStatus(currentUserId, result[i].id);
+          followBtn.innerText = updatedStatus;
+        };
+        buttonContainer.appendChild(followBtn);
+
+
+        // --- Block/Unblock button ---
+        const blockBtn = document.createElement("button");
+        blockBtn.innerText = "Block";
+        blockBtn.classList.add("follow-button"); // reusing style
+
+        blockBtn.onclick = async () => {
+          try {
+            toggleBlockUser(currentUserId, result[i].id, blockBtn);
+          } catch (err) {
+            console.error("Block error:", err);
+            alert("Could not update block status.");
+          }
+        };
+        buttonContainer.appendChild(blockBtn);
+
+        // --- Message button ---
+        const messageBtn = document.createElement("button");
+        messageBtn.innerText = "Message";
+        messageBtn.classList.add("follow-button");
+
+        messageBtn.onclick = () => {
+          const username = result[i].username || result[i].name;
+          alert(`Open chat UI with ${username} here!`); // Replace this with real messaging modal or redirect
+        };
+        buttonContainer.appendChild(messageBtn);
+
+        info.appendChild(buttonContainer);
+      }
+      else if (isBlockedByThem) {
+        const msg = document.createElement("div");
+        msg.innerText = "User has blocked you";
+        msg.style.color = "red";
+        info.appendChild(msg);
+        return;
+      }
       document.getElementById("search-result-user").appendChild(user);
     }
   };
@@ -336,19 +382,20 @@ const SearchPage = () => {
     }
   };
 
+  //gets current relationship between two users
   const getRelationshipStatus = async (currentUserId, targetUserId) => {
     try {
       const [followersRes, followingRes] = await Promise.all([
         fetch(`http://localhost:8000/get_followers/?id=${targetUserId}`, { credentials: "include" }),
         fetch(`http://localhost:8000/get_following/?id=${currentUserId}`, { credentials: "include" })
       ]);
-  
+
       const followersData = await followersRes.json(); // followers of `targetUserId`
       const followingData = await followingRes.json(); // people `currentUserId` follows
-  
+
       const youFollowThem = Object.keys(followingData).includes(targetUserId.toString());
       const theyFollowYou = Object.keys(followersData).includes(currentUserId.toString());
-  
+
       if (youFollowThem && theyFollowYou) return "Friends";
       if (youFollowThem) return "Unfollow";
       if (theyFollowYou) return "Follows You";
@@ -358,7 +405,23 @@ const SearchPage = () => {
       return "Follow"; // fallback
     }
   };
-  
+
+  const getBlockStatus = async (viewerId, profileId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/check_blocked/?searcher_id=${viewerId}&profile_id=${profileId}`, {
+        credentials: "include"
+      });
+      const data = await response.json();
+      return data.blocked_by_them || false;
+    } catch (error) {
+      console.error("Failed to check block status:", error);
+      return false;
+    }
+  };
+
+
+
+  //follows or unfollows other user
   const toggleRelationship = async (followerId, followingId) => {
     try {
       const response = await fetch(`http://localhost:8000/create_relationship/?follower_id=${followerId}&following_id=${followingId}`, {
@@ -372,7 +435,34 @@ const SearchPage = () => {
       alert("Something went wrong.");
     }
   };
-  
+
+  //blocks or unblocks other user
+  const toggleBlockUser = async (currentUserId, targetUserId, blockButton) => {
+    try {
+      const response = await fetch("http://localhost:8000/block_user/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          blocker_id: currentUserId,
+          blocked_id: targetUserId,
+        }),
+      });
+      const data = await response.json();
+      if (data.message) {
+        alert(data.message);
+        blockButton.innerText = data.message === "User Unblocked" ? "Block" : "Unblock";//adjusts text of block button to reflect current blocked status
+      } else if (data.error) {
+        alert(data.error);
+      }
+    } catch (err) {
+      console.error("Error blocking/unblocking user:", err);
+      alert("Could not update block status.");
+    }
+  };
+
 
   const ErrorAlert = (error, searchTerm) => {
     return (
@@ -387,19 +477,19 @@ const SearchPage = () => {
       <Toolbar />
       <section>
         <div class="search-container">
-            <input
-              type="text" id="search-input" placeholder="Type your search here..."
-              value={searchInputText}
-              onChange={(e) => setSearchInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter")
-                  searchButtonAction();
-              }}
-            />
+          <input
+            type="text" id="search-input" placeholder="Type your search here..."
+            value={searchInputText}
+            onChange={(e) => setSearchInputText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter")
+                searchButtonAction();
+            }}
+          />
           <button id="search-button-actual" onClick={() => searchButtonAction()}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
           <div>
-            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden"/>
+            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden" />
           </div>
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
