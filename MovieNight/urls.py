@@ -96,7 +96,9 @@ urlpatterns = [
     path('favorite', movie_views.favorite, name = 'favorite'),
     path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
-    path('block/', user_views.block_user, name='block_user'),
+    path('block_user/', user_views.block_user, name='block_user'),
+    path("check_blocked/", user_views.check_blocked, name="check_blocked"),
+
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
     path('frontend_user/', user_views.frontend_username, name = 'frontend_user'),

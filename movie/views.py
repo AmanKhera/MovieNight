@@ -469,7 +469,7 @@ def generate_recommendations(request):
             prompt = (
                 "You are a movie recommendation engine. "
                 "Given the user’s preference data below, return exactly one JSON object "
-                "with a single key `recommendations` whose value is an array of 20 movie titles.\n\n"
+                "with a single key `recommendations` whose value is an array of 21 movie titles.\n\n"
                 "Do not recommend any movie that appears in the given list."
                 f"{json.dumps(prev_prefs)}"
             )          
@@ -508,7 +508,7 @@ def generate_recommendations(request):
                 "You are a movie recommendation engine. "
                 "When given a JSON payload of user preferences, "
                 "you must respond with _only_ valid JSON containing a single key "
-                "`recommendations` whose value is an array of 20 **unique** movie titles. "
+                "`recommendations` whose value is an array of 21 **unique** movie titles. "
                 "Do not repeat any title. "                          # ← extra space at end
                 "Do not recommend any movie that appears in the `seen` list."
             )
