@@ -443,7 +443,7 @@ def recommend_movie(request):
             genres = movie_genre.split(',')
             genres = [genre.strip() for genre in genres]
                 
-            print(genres)
+            #print(genres)
 
             # Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
@@ -491,49 +491,49 @@ def recommend_movie(request):
 #like: True or False
 #returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
 #
-@csrf_exempt
-def update_recommendation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            recommendation_id = data.get("recommendation_id")
-            like = data.get('like')
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+# @csrf_exempt
+# def update_recommendation(request):
+#     if request.method == "POST":
+#         try:
+#             data = json.loads(request.body)
+#             recommendation_id = data.get("recommendation_id")
+#             like = data.get('like')
+#         except json.JSONDecodeError:
+#             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
-        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
-            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-        else:
-            return JsonResponse({"error": "Recommendation does not exist"})
+#         if MemberRecommendation.objects.filter(id = recommendation_id).exists():
+#             recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+#         else:
+#             return JsonResponse({"error": "Recommendation does not exist"})
         
-        #increments voting by 1
-        if like:
-            recommendation.voting = recommendation.voting + 1
-            #updates voting column
-            recommendation.save()
-        else:
-            recommendation.voting = recommendation.voting - 1
-            recommendation.save()
+#         #increments voting by 1
+#         if like:
+#             recommendation.voting = recommendation.voting + 1
+#             #updates voting column
+#             recommendation.save()
+#         else:
+#             recommendation.voting = recommendation.voting - 1
+#             recommendation.save()
 
-        user_rec = recommendation.user_receiving
+#         user_rec = recommendation.user_receiving
 
-        if Group.objects.filter(group_id = user_rec.id).exists():
+#         if Group.objects.filter(group_id = user_rec.id).exists():
 
-            group = Group.objects.get(group_id = user_rec.id)
-            voting_limit = group.voting_limit
-            #convert to decimal and divide by # of group members
-            if recommendation.voting >= voting_limit:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
-        elif User.objects.filter(id = user_rec.id):
-            if recommendation.voting == 1:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
+#             group = Group.objects.get(group_id = user_rec.id)
+#             voting_limit = group.voting_limit
+#             #convert to decimal and divide by # of group members
+#             if recommendation.voting >= voting_limit:
+#                 return JsonResponse({"Recommendation": True})
+#             else:
+#                 return JsonResponse({"Recommendation": False})
+#         # elif User.objects.filter(id = user_rec.id):
+#         #     if recommendation.voting == 1:
+#         #         return JsonResponse({"Recommendation": True})
+#         #     else:
+#         #         return JsonResponse({"Recommendation": False})
 
-        else:
-            return JsonResponse({"error": "Recieving user does not exist "})
+#         else:
+#             return JsonResponse({"error": "Recieving user does not exist "})
         
 
 #Send Messages method
@@ -676,7 +676,9 @@ def retrieve_recently_watched(request):
     data = [
         {
             "movie": movie.movie.id,
+            "title":movie.movie.title,
             "rating": movie.rating,
+            "review": movie.review,
             "date_watched": movie.date_watched.isoformat()
             
         }
@@ -710,6 +712,10 @@ def username(request):
 
     return JsonResponse({'username': get_user_username(request.session.get("access_token")).get('username')})
     
+
+#method that allows user to block another user. functions as a toggle 
+#params: blocker_id(id of user who is blocking other user), blocked_id(id of user who is being blocked)
+#returns: "user blocked/unblocked" if user is found, returns, "user not found" if user not found
 @csrf_exempt
 def block_user(request):
     if request.method == 'POST':
@@ -740,13 +746,15 @@ def block_user(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
-
+#allows user to view users that they have blocked.
+#params: user_id, id of current user
+#returns dictionary of users the current user has blocked.
 def view_blocked_users(request):
 
     user_id = request.GET.get('id')
 
     #ids of users that are blocked by user
-    blocked_ids = set(BlockList.objects.filter(following_id=user_id).values_list('blocker_id', flat=True))
+    blocked_ids = set(BlockList.objects.filter(blocker=user_id).values_list('blocker_id', flat=True))
 
     blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
 
@@ -755,6 +763,20 @@ def view_blocked_users(request):
 
     return JsonResponse(response, status=200)
 
+#checks if a viewed profile has the user blocked.
+#params: searcher_id-id of user looking at other profile, profile_id-id of profile being viewed by user
+#returns: true if user is blocked, false if not  
+def check_blocked(request):
+    searcher_id = request.GET.get("searcher_id")
+    profile_id = request.GET.get("profile_id")
+
+    if not searcher_id or not profile_id:
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+
+    # Check if profile has blocked viewer
+    is_blocked = BlockList.objects.filter(blocker_id=profile_id, blocked_id=searcher_id).exists()
+
+    return JsonResponse({'blocked_by_them': is_blocked})
 
 def frontend_username(request):
     user_id = request.GET.get("user_id")

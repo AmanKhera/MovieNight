@@ -218,3 +218,54 @@ def retrieve_group_messages(request):
             'status': msg.status,
         })
     return JsonResponse({'messages': messages_data})
+
+
+#Update Recommendation
+#params: Requires post request,
+#recommendation_id: row id of the recommendation which can be grabbed via group_recommedation method (universal function not just for groups)
+#like: True or False
+#returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
+#
+@csrf_exempt
+def update_recommendation(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            recommendation_id = data.get("recommendation_id")
+            like = data.get('like')
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
+            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
+        else:
+            return JsonResponse({"error": "Recommendation does not exist"})
+        
+        #increments voting by 1
+        if like:
+            recommendation.voting = recommendation.voting + 1
+            #updates voting column
+            recommendation.save()
+        else:
+            recommendation.voting = recommendation.voting - 1
+            recommendation.save()
+
+        user_rec = recommendation.user_receiving
+
+        if Group.objects.filter(group_id = user_rec.id).exists():
+
+            group = Group.objects.get(group_id = user_rec.id)
+            voting_limit = group.voting_limit
+            #convert to decimal and divide by # of group members
+            if recommendation.voting >= voting_limit:
+                return JsonResponse({"Recommendation": True})
+            else:
+                return JsonResponse({"Recommendation": False})
+#         # elif User.objects.filter(id = user_rec.id):
+#         #     if recommendation.voting == 1:
+#         #         return JsonResponse({"Recommendation": True})
+#         #     else:
+#         #         return JsonResponse({"Recommendation": False})
+
+        else:
+            return JsonResponse({"error": "Recieving user does not exist "})

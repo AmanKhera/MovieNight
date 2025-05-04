@@ -82,7 +82,7 @@ urlpatterns = [
 
     path('api_search/', movie_views.api_movie_search, name='api_search'),
     path('recommend_movie/', user_views.recommend_movie),
-    path('update_recommendation/', user_views.update_recommendation, name='update_recommendation'),
+    path('update_recommendation/', group_views.update_recommendation, name='update_recommendation'),
     path('send_message/', user_views.send_messages),
     path('user_info/', user_views.user_info),
     path('get-csrf-token/', user_views.get_csrf_token, name='get_csrf_token'),
@@ -96,14 +96,17 @@ urlpatterns = [
     path('favorite', movie_views.favorite, name = 'favorite'),
     path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
-    path('block/', user_views.block_user, name='block_user'),
+    path('block_user/', user_views.block_user, name='block_user'),
+    path("check_blocked/", user_views.check_blocked, name="check_blocked"),
+
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
     path('frontend_user/', user_views.frontend_username, name = 'frontend_user'),
     path('leave_group/', group_views.leave_group, name = 'leave_group'),
     path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
     path('group_messages/', group_views.retrieve_group_messages, name='group_messages'),
-
+    path('movie_rec/', movie_views.generate_recommendations, name='group_messages'),
+    path('movie_review/', movie_views.review_recommendations, name='group_messages'),
     ]
 
 

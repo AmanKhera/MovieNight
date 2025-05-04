@@ -23,9 +23,11 @@ function Toolbar() {
     navigate("/search");
   };
   const discoverButtonAction = () => {
-    navigate("/RecommendMoviePage");
+    navigate("/DiscoverPage");
   };
-  const ratingButtonAction = () => alert('Rating button clicked!');
+  const ratingButtonAction = () => {
+    navigate("/ReviewedPage");
+  };
   const messageButtonAction = () => {
     navigate("/groups");
   };
