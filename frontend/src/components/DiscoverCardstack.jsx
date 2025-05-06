@@ -36,8 +36,8 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
         const recJson = await recResp.json();
         if (!recResp.ok) throw new Error(recJson.error || "Rec failed");
 
-        const parsed = JSON.parse(recJson.summary);
-        const titles = parsed.recommendations || [];
+        // recJson.summary is already an object, so no JSON.parse needed
+        const titles = recJson.summary.recommendations || [];
 
         const enriched = await Promise.all(
           titles.map(async (t) => {
@@ -156,7 +156,10 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                       <p><strong>Rating:</strong> {movie.vote_average}</p>
                       <p><strong>Director:</strong> {movie.director}</p>
                       <p className="overview">{movie.plot}</p>
-                      <button className="details-btn" onClick={(e) => goToDetail(movie, e)}>
+                      <button
+                        className="details-btn"
+                        onClick={(e) => goToDetail(movie, e)}
+                      >
                         Movie Details
                       </button>
                     </div>
@@ -279,3 +282,67 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
 };
 
 export default DiscoverCardStack;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
