@@ -1,45 +1,39 @@
 // src/pages/GroupPage.js
 import React, { useState } from "react";
 import Toolbar from "../components/Toolbar";
-import { GroupsSidebar, ChatSection, MoviePoll, UserProfile } from "../components/thecomponents";
-import "./GroupPage.css"; // CSS for overriding toolbar, etc.
+import {
+  GroupsSidebar,
+  ChatSection,
+  MoviePoll,
+  UserProfile
+} from "../components/thecomponents";
+import "./GroupPage.css";
 
 const GroupPage = () => {
-  // Groups
-  const [selectedGroup, setSelectedGroup] = useState("Group 1");
-  const groups = ["Group 1", "Group 2", "Group 3", "Group 4"];
+  const [activeTab, setActiveTab] = useState("groups");    // "groups" or "friends"
+  const [selectedChat, setSelectedChat] = useState(null);
 
-  // Chat: start empty
+  // ChatSection state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
 
-  // Movie Poll
-  const [pollItems, setPollItems] = useState([
-    { id: 1, title: "Inception", votes: 3 },
-    { id: 2, title: "Interstellar", votes: 2 },
-    { id: 3, title: "Tenet", votes: 1 },
-  ]);
-
-  // Handlers
-  const handleSelectGroup = (group) => {
-    setSelectedGroup(group);
+  const handleSelectChat = (chat) => {
+    setSelectedChat(chat);
   };
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return;
-    setMessages([...messages, { sender: "You", text: newMessage.trim() }]);
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: "You",
+        text: newMessage.trim(),
+        timestamp: new Date().toISOString()
+      }
+    ]);
     setNewMessage("");
   };
 
-  const handleVote = (movieId) => {
-    setPollItems((prev) =>
-      prev.map((item) =>
-        item.id === movieId ? { ...item, votes: item.votes + 1 } : item
-      )
-    );
-  };
-
-  // Page layout styles
   const pageStyle = {
     display: "flex",
     flexDirection: "column",
@@ -61,19 +55,26 @@ const GroupPage = () => {
 
       <div style={contentStyle}>
         <GroupsSidebar
-          groups={groups}
-          selectedGroup={selectedGroup}
-          onSelectGroup={handleSelectGroup}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          selectedChat={selectedChat}
+          onSelectChat={handleSelectChat}
         />
 
         <ChatSection
-          selectedGroup={selectedGroup}
+          selectedChat={selectedChat}
           messages={messages}
           newMessage={newMessage}
           setNewMessage={setNewMessage}
           onSendMessage={handleSendMessage}
         />
-        <MoviePoll selectedGroup={selectedGroup} />
+
+        <MoviePoll
+          selectedItem={selectedChat}
+          activeTab={activeTab}
+        />
+
+        {/* <UserProfile user={currentUser} /> */}
       </div>
     </div>
   );
