@@ -11,7 +11,7 @@ import logging
 
 from user.models import User
 from group.models import Group, GroupMember
-from movie.models import Watchlist, WatchlistItem, UserMovieJournal
+from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from user.views import get_user_username, create_watchlist
 from user.models import MemberRecommendation
 # If MemberRecommendation is used, import it:
@@ -197,10 +197,23 @@ def group_recommendation(request):
         #retrives recommendations in the past 7 days
         recommendations = MemberRecommendation.objects.filter(
         user_receiving=group_id,
-        date_suggested_gte=seven_days
+        date_suggested__gte=seven_days
          ).order_by('-voting')
         
+        movie_ids = [recs.movie_id for recs in recommendations]
+        movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
+        title_map = {mid: title for mid, title in movies}
+
+
+        titles = [ title_map.get(r.movie_id) for r in recommendations ]
+
+        
         recommendations_list = list(recommendations.values())
+
+        for idx, rec_dict in enumerate(recommendations_list):
+            rec_dict['movie_title'] = titles[idx]
+
+
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

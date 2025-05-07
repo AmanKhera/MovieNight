@@ -95,7 +95,7 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
         .carousel-slide {
           position: relative;
           width: 100%;
-          height: 600px;
+          height: 900px;
           cursor: pointer;
           border-radius: 8px;
           overflow: hidden;
@@ -112,7 +112,7 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
         }
         .carousel-slide img {
           width: 100%;
-          height: 100%;
+          height: 140%;
           object-fit: cover;
           display: block;
           opacity: 0;

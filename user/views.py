@@ -266,25 +266,28 @@ def get_following(request):
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
 #Example URL 
 #http://127.0.0.1:8000/get_mutual_friends/?id=1
-def get_mutual_friends(request):
 
+def get_mutual_friends(request):
     user_id = request.GET.get('id')
 
-    #ids of users that follow given user
+    # ids of users that follow given user
     followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
-    #ids the user follows
+    # ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
 
-    #Mutual friends are the intersection of following and followers
+    # Mutual friends are the intersection of following and followers
     mutual_friend_ids = set(following_ids).intersection(set(followers_ids))
 
-    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','username')
+    mutual_friends = User.objects.filter(id__in=mutual_friend_ids).values('id', 'username')
+    
+    # Convert to list of dictionaries in the format frontend expects
+    friends_list = [
+        {'id': friend['id'], 'username': friend['username']}
+        for friend in mutual_friends
+    ]
 
-    #returns dictionary where id is the key and name is the value
-    response = {str(user['id']): user['username'] for user in mutual_info}
-
-    return JsonResponse(response, status=200)
+    return JsonResponse({'friends': friends_list}, status=200)
 
 
 
