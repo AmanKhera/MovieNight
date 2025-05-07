@@ -130,6 +130,7 @@ def add_member_to_group(request):
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
+#When MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
 @csrf_exempt
 def remove_member_from_group(request):
     try:
@@ -205,7 +206,7 @@ def group_recommendation(request):
         return JsonResponse({"error": str(e)}, status=500)
     
 
-
+#WHEN MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
 @csrf_exempt
 def leave_group(request):
 

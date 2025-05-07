@@ -240,7 +240,7 @@ def api_movie_search(request):
             defaults={
                 'runtime': runtime,
                 'rating': data.get('Rated', 'N/A'),
-                'plot': data.get('Plot', 'No plot available.'),
+#                'plot': data.get('Plot', 'No plot available.'),
                 'director': data.get('Director', 'Unknown Director'),
             }
         )
@@ -399,23 +399,42 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 @csrf_exempt
+@require_POST
 def generate_movie_summary(request):
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+    data = json.loads(request.body)
+    movie_info = data.get("movie_info", {})
+
+    title = movie_info.get('title')
+    year = movie_info.get('year', '')
+        
+
+    movie = Movie.objects.get(title = title, year = year)
+    director = movie.director
+    plot = movie.plot
+
+    if movie.plot_overwritten:
+        return JsonResponse({'summary': plot})
+
+    return generate_movie_and_store(title, year, director, plot)
+
+
+
+def generate_movie_and_store(title, year, director, plot):
     
     try:
-        data = json.loads(request.body)
-        movie_info = data.get('movie_info', {})
+        #data = json.loads(request.body)
+        #movie_info = data.get('movie_info', {})
         
-        if not movie_info:
-            return JsonResponse({'error': 'Movie information is required'}, status=400)
+        #if not movie_info:
+        #    return JsonResponse({'error': 'Movie information is required'}, status=400)
         
         # Construct prompt from movie info
         prompt = f"""Create an engaging, spoiler-free plot summary for this movie:
-Title: {movie_info.get('title', '')}
-Year: {movie_info.get('year', '')}
-Director: {movie_info.get('director', '')}
-Original Plot: {movie_info.get('plot', '')}
+Title: {title}
+Year: {year}
+Director: {director}
+Original Plot: {plot}
 
 Write a 150-200 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
         
@@ -430,11 +449,10 @@ Write a 150-200 word summary that would appeal to potential viewers, highlightin
         )
         
         summary = response.choices[0].message.content
-        title = movie_info.get('title')
-        year  = movie_info.get('year')
+
         updated = False
         if title and year:
-            updated_count = update_movie_plot(title, year, summary)
+            updated = update_movie_plot(title, year, summary)
         
         return JsonResponse({'summary': summary})
         
@@ -443,7 +461,7 @@ Write a 150-200 word summary that would appeal to potential viewers, highlightin
     
 
 def update_movie_plot(movie_title, movie_year, new_plot):
-    updated = Movie.objects.filter(movie_title=movie_title, movie_year = movie_year,plot = new_plot)
+    updated = Movie.objects.filter(title = movie_title, year=movie_year).update(plot = new_plot, plot_overwritten=True)
     return updated
 
 

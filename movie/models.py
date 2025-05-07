@@ -11,6 +11,7 @@ class Movie(models.Model):
     rating = models.CharField(max_length=10)
     plot = models.TextField(blank=True, null=True)
     director = models.CharField(max_length=100, blank=True, null=True)
+    plot_overwritten = models.BooleanField(default=False)
 
 
     def __str__(self):
