@@ -62,7 +62,7 @@ function Toolbar() {
           <button>
             <img src={ratingImage} alt="rating button" />
           </button>
-          <span className="hover-text">Rating Page</span>
+          <span className="hover-text">User Journal</span>
         </div>
         <div className="button" id="message-button" onClick={messageButtonAction}>
           <button>
@@ -74,7 +74,7 @@ function Toolbar() {
           <button>
             <img src={friendsImage} alt="friends button" />
           </button>
-          <span className="hover-text">Friends Page</span>
+          <span className="hover-text">Watchlists</span>
         </div>
         <div className="button" id="profile-button" onClick={profileButtonAction}>
           <button>

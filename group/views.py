@@ -3,13 +3,15 @@ from user.models import Message
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
+from datetime import timedelta
 import json
 import logging
 
 
 from user.models import User
 from group.models import Group, GroupMember
-from movie.models import Watchlist, WatchlistItem
+from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from user.views import get_user_username, create_watchlist
 from user.models import MemberRecommendation
 # If MemberRecommendation is used, import it:
@@ -29,21 +31,21 @@ def create_group(request):
         leader_id = data.get("leader_id")
         genre = data.get("genre", None)
 
-        # Validate required fields
+        #Validate required fields
         if not group_name or not leader_id:
             return JsonResponse({'error': 'Missing required fields'}, status=400)
 
-        # Fetch the user
+        #Grab User
         try:
             user = User.objects.get(id=leader_id)
         except ObjectDoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=404)
 
-        # Check for duplicate group names
+        #Check for duplicate names
         if Group.objects.filter(leader_id=user, group_name=group_name).exists():
             return JsonResponse({'error': 'Group name already exists'}, status=400)
 
-        # Create the group
+        #Create Group
         New_Group = User.objects.create(
             name=group_name,
             email=f"{group_name.replace(' ', '_').lower()}_{user.id}@group.local"
@@ -64,6 +66,21 @@ def create_group(request):
             role='admin'
         )
 
+        #populates groups user movie journal with movies the user has seen
+        leader_watched_movies = UserMovieJournal.objects.filter(user=user)
+        group_watched = [
+            UserMovieJournal(
+                user = New_Group,
+                movie = entry.movie,
+                #date_watched = entry.date_watched,
+                #rating = entry.rating,
+                #review = entry.review,
+                #favorite = entry.favorite
+            )
+            for entry in leader_watched_movies
+        ]      
+        UserMovieJournal.objects.bulk_create(group_watched)
+
         return JsonResponse({'message': 'Group created successfully'}, status=201)
 
     except json.JSONDecodeError:
@@ -78,8 +95,6 @@ def create_group(request):
 #returns: Status 200 if success
 @csrf_exempt
 def add_member_to_group(request):
-    #if request.method != 'GET':
-    #    return JsonResponse({'error': 'Invalid request method'}, status=405)
     
     try:
         group_id = request.GET.get("group_id")
@@ -92,6 +107,18 @@ def add_member_to_group(request):
             return JsonResponse({'message': 'Member is already a part of this group'}, status=200)
 
         GroupMember.objects.create(group=group, member=member)
+        #Grabs groups watched movies
+        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat =True))
+
+        #grabs new users watched movies
+        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member.id).values_list('movie_id', flat=True))
+
+        #Find intersection of movies watched by group and new user
+        keep_ids = group_movie_ids & new_member_movie_id
+        #removes movies not seen by everyone
+        UserMovieJournal.objects.filter(user=group_id).exclude(movie_id__in=keep_ids).delete()
+
+
         return JsonResponse({'message': 'Member added to group!'})
 
     except json.JSONDecodeError:
@@ -103,6 +130,7 @@ def add_member_to_group(request):
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
+#When MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
 @csrf_exempt
 def remove_member_from_group(request):
     try:
@@ -124,7 +152,6 @@ def remove_member_from_group(request):
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 
 #Get User Groups
@@ -155,18 +182,44 @@ def get_user_groups(request):
         return JsonResponse({"error": "User not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-    
 
+   
+#Group Recommendation
+#Retrieves recent movie recommendations for the group/user within last 7 days
+#params: group_id which can be group or user
+#returns: JsonResponse containing recommendations as a list
 def group_recommendation(request):
     group_id = request.GET.get('group_id')
     try:
-        recommendations = MemberRecommendation.objects.filter(user_receiving=group_id).order_by('-voting')
+
+        seven_days = timezone.now() - timedelta(days=7)
+
+        #retrives recommendations in the past 7 days
+        recommendations = MemberRecommendation.objects.filter(
+        user_receiving=group_id,
+        date_suggested__gte=seven_days
+         ).order_by('-voting')
+        
+        movie_ids = [recs.movie_id for recs in recommendations]
+        movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
+        title_map = {mid: title for mid, title in movies}
+
+
+        titles = [ title_map.get(r.movie_id) for r in recommendations ]
+
+        
         recommendations_list = list(recommendations.values())
+
+        for idx, rec_dict in enumerate(recommendations_list):
+            rec_dict['movie_title'] = titles[idx]
+
+
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
 
+#WHEN MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
 @csrf_exempt
 def leave_group(request):
 
@@ -232,7 +285,6 @@ def update_recommendation(request):
         try:
             data = json.loads(request.body)
             recommendation_id = data.get("recommendation_id")
-            like = data.get('like')
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
@@ -242,13 +294,9 @@ def update_recommendation(request):
             return JsonResponse({"error": "Recommendation does not exist"})
         
         #increments voting by 1
-        if like:
-            recommendation.voting = recommendation.voting + 1
-            #updates voting column
-            recommendation.save()
-        else:
-            recommendation.voting = recommendation.voting - 1
-            recommendation.save()
+        recommendation.voting = (recommendation.voting or 0) + 1
+        recommendation.save()
+
 
         user_rec = recommendation.user_receiving
 
@@ -261,11 +309,8 @@ def update_recommendation(request):
                 return JsonResponse({"Recommendation": True})
             else:
                 return JsonResponse({"Recommendation": False})
-#         # elif User.objects.filter(id = user_rec.id):
-#         #     if recommendation.voting == 1:
-#         #         return JsonResponse({"Recommendation": True})
-#         #     else:
-#         #         return JsonResponse({"Recommendation": False})
 
         else:
             return JsonResponse({"error": "Recieving user does not exist "})
+        
+

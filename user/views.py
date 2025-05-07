@@ -124,7 +124,7 @@ def add_movie(request):
         watchlist = Watchlist.objects.get(user_id=user_id, name=watchlist_name) 
         try:
             watchlist = WatchlistItem.objects.create(watchlist=watchlist, movie_id=movie_id)
-            return JsonResponse({'success': True, 'message': 'Watchlist created successfully.', 'data': {
+            return JsonResponse({'success': True, 'message': 'Movie successfully added to watchlist.', 'data': {
                 'user_id': user_id
             }})
         except Exception as e:
@@ -266,25 +266,28 @@ def get_following(request):
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
 #Example URL 
 #http://127.0.0.1:8000/get_mutual_friends/?id=1
-def get_mutual_friends(request):
 
+def get_mutual_friends(request):
     user_id = request.GET.get('id')
 
-    #ids of users that follow given user
+    # ids of users that follow given user
     followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
-    #ids the user follows
+    # ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
 
-    #Mutual friends are the intersection of following and followers
+    # Mutual friends are the intersection of following and followers
     mutual_friend_ids = set(following_ids).intersection(set(followers_ids))
 
-    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','username')
+    mutual_friends = User.objects.filter(id__in=mutual_friend_ids).values('id', 'username')
+    
+    # Convert to list of dictionaries in the format frontend expects
+    friends_list = [
+        {'id': friend['id'], 'username': friend['username']}
+        for friend in mutual_friends
+    ]
 
-    #returns dictionary where id is the key and name is the value
-    response = {str(user['id']): user['username'] for user in mutual_info}
-
-    return JsonResponse(response, status=200)
+    return JsonResponse({'friends': friends_list}, status=200)
 
 
 
@@ -360,7 +363,7 @@ def add_to_watched(request):
         if not user_id or not movie_id:
             return JsonResponse({'error': 'user_id and movie_id are required.'}, status=400)
 
-        if rating is not None:  # ✅ Ensure rating is not None before processing
+        if rating is not None:  #Ensure rating is not None before processing
             try:
                 rating = int(rating)
                 if rating < 1 or rating > 5:
@@ -371,11 +374,11 @@ def add_to_watched(request):
         if review and len(review) > 2000:
             return JsonResponse({'error': 'Review must not exceed 2000 characters.'}, status=400)
 
-        # Retrieve user and movie instances
+        #retrieve user and movie instances
         user = User.objects.get(id=user_id)
         movie = Movie.objects.get(id=movie_id)
 
-        # Add entry to the UserMovieJournal table
+        #add entry to the UserMovieJournal table
         journal_entry, created = UserMovieJournal.objects.get_or_create(
             user=user,
             movie=movie,

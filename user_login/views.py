@@ -11,7 +11,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from user.models import User
 from user.views import get_user_username, create_watchlist
 import jwt
-
+from django.shortcuts import redirect
 
 
 #Sign up Method
@@ -109,9 +109,71 @@ def hosted_ui_login(request):
 #       Access Token: More secure than an id token and is updated on the spot, same features as id token
 #       but more secure and what we will be using
 #   Tokens can be retrieved via request.session["token_name"]
+# def login_callback(request):
+#     code = request.GET.get('code')
+
+#     if not code:
+#         return JsonResponse({"error": "Authorization code not provided"}, status=400)
+
+#     token_url = f"https://{settings.AWS_COGNITO_DOMAIN}/oauth2/token"
+#     redirect_uri = "http://localhost:8000/Login"
+
+#     try:
+#         #Exchange the authorization code for tokens
+#         response = requests.post(
+#             token_url,
+#             data={
+#                 "grant_type": "authorization_code",
+#                 "client_id": settings.AWS_COGNITO_CLIENT_ID,
+#                 "client_secret": settings.AWS_COGNITO_CLIENT_SECRET,
+#                 "code": code,
+#                 "redirect_uri": redirect_uri,
+#             },
+#             headers={"Content-Type": "application/x-www-form-urlencoded"},
+#         )
+
+#         if response.status_code != 200:
+#             return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
+
+#         tokens = response.json()
+#         request.session["id_token"] = tokens.get("id_token")
+#         request.session["access_token"] = tokens.get("access_token")
+#         request.session["refresh_token"] = tokens.get("refresh_token")
+
+#         #Updates table if the user is new
+#         result = update_or_create_user_from_cognito(request.session.get("access_token"))
+
+#         if "error" in result:
+#             return JsonResponse({"error": result["error"]}, status=500)
+
+#         #Handle existing users without creating new ones
+#         if "message" in result and result["message"] == "User already exists, no update or creation needed.":
+#             is_new_user = False
+#         else:
+#             user = result["user"]
+#             is_new_user = result["is_new"]
+
+#             #If the user is new, create a default Watchlist
+#             if is_new_user:
+#                 create_watchlist(request)
+
+
+       
+#         return JsonResponse({
+#             "message": "Sign up successful" if is_new_user else "Login successful",
+#             "is_new": is_new_user,
+#             "tokens": tokens
+#         }, status=200)
+
+#     except Exception as e:
+#         return JsonResponse({"error": str(e)}, status=500) 
+    
+
+
+
+
 def login_callback(request):
     code = request.GET.get('code')
-
     if not code:
         return JsonResponse({"error": "Authorization code not provided"}, status=400)
 
@@ -119,7 +181,7 @@ def login_callback(request):
     redirect_uri = "http://localhost:8000/Login"
 
     try:
-        #Exchange the authorization code for tokens
+        # Exchange the authorization code for tokens
         response = requests.post(
             token_url,
             data={
@@ -131,43 +193,37 @@ def login_callback(request):
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-
-        if response.status_code != 200:
-            return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
-
+        response.raise_for_status()
         tokens = response.json()
-        request.session["id_token"] = tokens.get("id_token")
-        request.session["access_token"] = tokens.get("access_token")
-        request.session["refresh_token"] = tokens.get("refresh_token")
 
-        #Updates table if the user is new
-        result = update_or_create_user_from_cognito(request.session.get("access_token"))
+        #Save tokens in session
+        request.session["id_token"] = tokens["id_token"]
+        request.session["access_token"] = tokens["access_token"]
+        request.session["refresh_token"] = tokens["refresh_token"]
 
+        #Update or create the user
+        result = update_or_create_user_from_cognito(tokens["access_token"])
         if "error" in result:
             return JsonResponse({"error": result["error"]}, status=500)
 
-        #Handle existing users without creating new ones
-        if "message" in result and result["message"] == "User already exists, no update or creation needed.":
+        is_new_user = False
+        if result.get("message") == "User already exists, no update or creation needed.":
             is_new_user = False
         else:
-            user = result["user"]
-            is_new_user = result["is_new"]
-
-            #If the user is new, create a default Watchlist
+            is_new_user = result.get("is_new", False)
             if is_new_user:
                 create_watchlist(request)
 
 
-       
-        return JsonResponse({
-            "message": "Sign up successful" if is_new_user else "Login successful",
-            "is_new": is_new_user,
-            "tokens": tokens
-        }, status=200)
+        return redirect(f"http://localhost:3000/?new_user={str(is_new_user).lower()}")
 
+    except requests.HTTPError as e:
+        return JsonResponse({"error": "Failed to retrieve tokens", "details": response.json()}, status=500)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500) 
-    
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+
 
 def update_or_create_user_from_cognito(access_token):
     
