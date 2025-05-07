@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import Toolbar from "../components/Toolbar";
 import { GroupsSidebar, ChatSection, MoviePoll, UserProfile } from "../components/thecomponents";
-import "./GroupPage.css"; // CSS for overriding toolbar, etc.
+/*import "./GroupPage.css"; // CSS for overriding toolbar, etc.*/
 
 const GroupPage = () => {
   // Groups

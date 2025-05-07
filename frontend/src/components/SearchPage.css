@@ -3,6 +3,12 @@ Style page for SearchPage.js
 Formats the initial look of the search page as well as the search results
 after the user has searched for something
 */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+
+button {
+  font-family: 'Outfit', sans-serif;
+}
+
 
 .search-container {
   text-align: center;
@@ -20,21 +26,27 @@ after the user has searched for something
   border-radius: 40px;
   background-color: #240046;
   color: #ddd;
+  font-family: 'Outfit', sans-serif;
 }
 
 #search-button-actual {
   padding: 10px 20px;
   margin-left: -82px;
   background-color: #3C096C;
+  background-size: 200% auto;
   color: #ddd;
-  border: 1.5px solid #ddd;
+  border: 1.5px solid #ffffff;
   border-radius: 20px;
-  cursor: pointer;
+  cursor: pointer; 
+
+  margin-right: 10px;
+  background-image: linear-gradient(to right, #000000 0%, #46005c  51%, #48005a  100%)
 }
 
 #search-button-actual:hover, #filter-options button:hover {
-  background-color: #5A189A;
-  color: #ddd;
+  background-position: right center; /* change the direction of the change here */
+  color: #fff;
+  text-decoration: none;
 }
 
 .hidden {
@@ -62,23 +74,39 @@ after the user has searched for something
 }
 
 .follow-button {
-  padding: 10px 20px;
+  margin: 10px;
+  padding: 10px 35px;
+  text-align: center;
+  /*text-transform: uppercase;*/
+  transition: 0.5s;
+  background-size: 200% auto;
+  color: rgb(255, 255, 255);            
+  box-shadow: 0 0 10px #7700ffce;
+  border: 1.5px solid #8400ff;
+  border-radius: 10px;
+  display: block;
+
+  /*padding: 10px 20px;
   margin-top: 10px;
   background-color: #3C096C;
   color: #ddd;
-  border: 1.5px solid #ddd;
+  border: 1.5px solid #7300a8;
   border-radius: 20px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: bold;*/
+          
 }
 
 .follow-button:hover {
-  background-color: #5A189A;
-  color: #ddd;
+  background-position: right center; /* change the direction of the change here */
+            color: #fff;
+            text-decoration: none;
+            border: 1.5px solid #ffffff;
 }
 
 .follow-button {
-  margin-right: 10px;
+  margin-right: 5px;
+  background-image: linear-gradient(to right, #6c0097 0%, #0c0020  51%, #6c0086  100%);
 }
 
 
