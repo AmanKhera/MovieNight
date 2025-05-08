@@ -647,76 +647,138 @@ const fetchMovieDetails = async (title) => {
   }
 };
 
+const UP_VOTE = 1;
+const DOWN_VOTE = -1;
+
 export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
-  // which tab of the poll panel is active: 'auto' AI-based recs or 'fromFriends'
-  const [pollView, setPollView] = useState("auto");
+  // track current logged-in user
+  const [currentUserId, setCurrentUserId] = useState(null);
+  useEffect(() => {
+    fetch("http://localhost:8000/user_info/", { credentials: "include" })
+      .then((r) => r.json())
+      .then((js) => setCurrentUserId(js.id))
+      .catch(console.error);
+  }, []);
 
-  // AI-generated recs
+  // which tab: AI (“auto”) or members (“fromFriends”)
+  const [pollView, setPollView] = useState("auto");
+  const isGroup = activeTab === "groups";
+  const titleText = isGroup ? "Generated Recommendations" : "Friend Recommendations";
+
+  // recommendations state
   const [recommendations, setRecommendations] = useState([]);
-  // recommendations from your friends/group
   const [groupRecs, setGroupRecs] = useState([]);
+
+  // track in-flight vote requests to prevent double-click
+  const [votingAI, setVotingAI] = useState(new Set());
+  const [votingGroup, setVotingGroup] = useState(new Set());
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const isGroup = activeTab === "groups";
-  const titleText = isGroup ? "Generated Recommendations" : "Friend Recommendations";
-
-  // handle thumbs up/down for AI recs
-  const handleVote = (id, like) => {
-    setRecommendations((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...m,
-              upvotes: like ? m.upvotes + 1 : m.upvotes,
-              downvotes: !like ? m.downvotes + 1 : m.downvotes,
-            }
-          : m
-      )
-    );
+  // Helper: POST a vote to your Django endpoint
+  const sendVote = async ({ recommendationId, value }) => {
+    if (!currentUserId) throw new Error("User not loaded");
+    const resp = await fetch("http://localhost:8000/update_recommendation/", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({
+        user_id: currentUserId,
+        recommendation_id: recommendationId,
+        value,
+      }),
+    });
+    if (!resp.ok) {
+      const { error: msg } = await resp.json();
+      throw new Error(msg || "Voting failed");
+    }
+    return resp.json();
   };
 
-  // handle thumbs up/down for group recs
-  const handleGroupVote = (recId, like) => {
-    setGroupRecs((prev) =>
-      prev.map((m) =>
-        m.recId === recId
-          ? {
-              ...m,
-              upvotes: like ? m.upvotes + 1 : m.upvotes,
-              downvotes: !like ? m.downvotes + 1 : m.downvotes,
-            }
-          : m
-      )
-    );
+  // AI rec vote handler
+  const handleVote = async (id, like) => {
+    if (votingAI.has(id)) return;           // already in-flight
+    setVotingAI(prev => new Set(prev).add(id));
+
+    try {
+      await sendVote({ recommendationId: id, value: like ? UP_VOTE : DOWN_VOTE });
+      setRecommendations(prev =>
+        prev.map(m =>
+          m.id === id
+            ? {
+                ...m,
+                upvotes: like ? m.upvotes + 1 : m.upvotes,
+                downvotes: !like ? m.downvotes + 1 : m.downvotes,
+                userVote: like ? "up" : "down",
+              }
+            : m
+        )
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVotingAI(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
+  // Group rec vote handler
+  const handleGroupVote = async (recId, like) => {
+    if (votingGroup.has(recId)) return;
+    setVotingGroup(prev => new Set(prev).add(recId));
+
+    try {
+      await sendVote({ recommendationId: recId, value: like ? UP_VOTE : DOWN_VOTE });
+      setGroupRecs(prev =>
+        prev.map(m =>
+          m.recId === recId
+            ? {
+                ...m,
+                upvotes: like ? m.upvotes + 1 : m.upvotes,
+                downvotes: !like ? m.downvotes + 1 : m.downvotes,
+                userVote: like ? "up" : "down",
+              }
+            : m
+        )
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVotingGroup(prev => {
+        const next = new Set(prev);
+        next.delete(recId);
+        return next;
+      });
+    }
+  };
+
+  // Fetch recommendations whenever selection or view changes
   useEffect(() => {
     setError(null);
     setLoading(true);
 
     if (pollView === "auto") {
-      // --- AI BASED ---
       setRecommendations([]);
-      if (!selectedItem) {
-        setLoading(false);
-        return;
-      }
+      if (!selectedItem) { setLoading(false); return; }
       (async () => {
         try {
-          const csrfToken = getCookie("csrftoken");
-          const userId = isGroup ? selectedItem.group_id : selectedItem.id;
           const resp = await fetch("http://localhost:8000/movie_rec/", {
             method: "POST",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              "X-CSRFToken": csrfToken,
+              "X-CSRFToken": getCookie("csrftoken"),
             },
-            credentials: "include",
-            body: JSON.stringify({ user_id: userId }),
+            body: JSON.stringify({ user_id: isGroup ? selectedItem.group_id : selectedItem.id }),
           });
           if (!resp.ok) throw new Error("Failed to fetch recommendations");
           const data = await resp.json();
@@ -725,7 +787,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           setRecommendations(
             details
               .filter(Boolean)
-              .map((d) => ({ ...d, upvotes: 0, downvotes: 0 }))
+              .map(d => ({ ...d, upvotes: 0, downvotes: 0, userVote: null }))
           );
         } catch (e) {
           setError(e.message);
@@ -734,42 +796,33 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         }
       })();
     } else {
-      // --- FROM FRIENDS/GROUP MEMBERS ---
       setGroupRecs([]);
-      if (!selectedItem) {
-        setLoading(false);
-        return;
-      }
+      if (!selectedItem) { setLoading(false); return; }
       (async () => {
         try {
-          const resp = await fetch(
-            `http://localhost:8000/group_recommendation/?group_id=${encodeURIComponent(
-              isGroup ? selectedItem.group_id : selectedItem.id
-            )}`,
-            { credentials: "include" }
-          );
+          const url = new URL("http://localhost:8000/group_recommendation/");
+          url.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+          const resp = await fetch(url, { credentials: "include" });
           if (!resp.ok) throw new Error("Failed to fetch from members");
           const data = await resp.json();
           const recs = data.Recommendations || [];
-          // fetch full details for each movie_title
-          const details = await Promise.all(
-            recs.map((r) => fetchMovieDetails(r.movie_title))
+          const details = await Promise.all(recs.map(r => fetchMovieDetails(r.movie_title)));
+          setGroupRecs(
+            details
+              .map((d, i) =>
+                d
+                  ? {
+                      ...d,
+                      voting: recs[i].voting,
+                      recId: recs[i].id,
+                      upvotes: 0,
+                      downvotes: 0,
+                      userVote: null,
+                    }
+                  : null
+              )
+              .filter(Boolean)
           );
-          // merge in voting, id and init up/down votes
-          const merged = details
-            .map((d, i) =>
-              d
-                ? {
-                    ...d,
-                    voting: recs[i].voting,
-                    recId: recs[i].id,
-                    upvotes: 0,
-                    downvotes: 0,
-                  }
-                : null
-            )
-            .filter(Boolean);
-          setGroupRecs(merged);
         } catch (e) {
           setError(e.message);
         } finally {
@@ -779,7 +832,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   }, [selectedItem, activeTab, pollView]);
 
-  const handleMovieClick = (movie) => {
+  // When a movie card is clicked
+  const handleMovieClick = movie => {
     const titleParam = encodeURIComponent(movie.title);
     const releaseDate = movie.year;
     navigate(
@@ -789,74 +843,49 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     );
   };
 
-  // styles reused for both grids
+  // Styles (same as before)…
   const pollStyle = {
-    width: "30%",
-    color: "white",
-    backgroundColor: "#1a0133",
-    padding: "1rem",
-    overflowY: "auto",
+    width: "30%", color: "white", backgroundColor: "#1a0133",
+    padding: "1rem", overflowY: "auto",
   };
   const tabButtons = { display: "flex", gap: "0.5rem", marginBottom: "1rem" };
-  const tabButton = (active) => ({
-    flex: 1,
-    padding: "0.5rem",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    backgroundColor: active ? "#6a0dad" : "#240046",
+  const tabButton = active => ({
+    flex: 1, padding: "0.5rem", border: "none", borderRadius: "4px",
+    cursor: "pointer", backgroundColor: active ? "#6a0dad" : "#240046",
     color: "white",
   });
   const gridStyle = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
     gap: "1.5rem",
   };
   const cardStyle = {
-    backgroundColor: "#240046",
-    borderRadius: "8px",
-    overflow: "hidden",
-    position: "relative",
-    cursor: "pointer",
+    backgroundColor: "#240046", borderRadius: "8px", overflow: "hidden",
+    position: "relative", cursor: "pointer",
   };
   const badgeStyle = {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    backgroundColor: "#6a0dad",
-    color: "white",
-    padding: "2px 6px",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
+    position: "absolute", top: "8px", right: "8px",
+    backgroundColor: "#6a0dad", color: "white",
+    padding: "2px 6px", borderRadius: "4px", fontSize: "0.8rem",
   };
   const voteControls = {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "0.5rem",
-    backgroundColor: "#1a0133",
+    display: "flex", justifyContent: "space-between",
+    padding: "0.5rem", backgroundColor: "#1a0133",
   };
-  const voteBtn = (up) => ({
-    border: "none",
-    padding: "0.5rem",
-    borderRadius: "4px",
-    cursor: "pointer",
-    backgroundColor: up ? "#2e7d32" : "#c62828",
+  const voteBtn = up => ({
+    border: "none", padding: "0.5rem", borderRadius: "4px",
+    cursor: "pointer", backgroundColor: up ? "#2e7d32" : "#c62828",
     color: "white",
   });
 
+  // Render
+  const list = pollView === "auto" ? recommendations : groupRecs;
   return (
     <div style={pollStyle}>
       <div style={tabButtons}>
-        <button
-          style={tabButton(pollView === "auto")}
-          onClick={() => setPollView("auto")}
-        >
+        <button style={tabButton(pollView === "auto")} onClick={() => setPollView("auto")}>
           Recommendations
         </button>
-        <button
-          style={tabButton(pollView === "fromFriends")}
-          onClick={() => setPollView("fromFriends")}
-        >
+        <button style={tabButton(pollView === "fromFriends")} onClick={() => setPollView("fromFriends")}>
           From Members
         </button>
       </div>
@@ -865,12 +894,17 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {!loading && list.length === 0 && <p>No recommendations yet.</p>}
 
-      {pollView === "auto" ? (
-        <div style={gridStyle}>
-          {recommendations.map((movie) => (
+      <div style={gridStyle}>
+        {list.map(movie => {
+          const idKey = pollView === "auto" ? movie.id : movie.recId;
+          const isVoting = pollView === "auto"
+            ? votingAI.has(movie.id)
+            : votingGroup.has(movie.recId);
+          return (
             <div
-              key={movie.id}
+              key={idKey}
               style={cardStyle}
               onClick={() => handleMovieClick(movie)}
             >
@@ -889,70 +923,33 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               <div style={voteControls}>
                 <button
                   style={voteBtn(true)}
-                  onClick={(e) => {
+                  disabled={!!movie.userVote || isVoting}
+                  onClick={e => {
                     e.stopPropagation();
-                    handleVote(movie.id, true);
+                    pollView === "auto"
+                      ? handleVote(movie.id, true)
+                      : handleGroupVote(movie.recId, true);
                   }}
                 >
                   👍 {movie.upvotes}
                 </button>
                 <button
                   style={voteBtn(false)}
-                  onClick={(e) => {
+                  disabled={!!movie.userVote || isVoting}
+                  onClick={e => {
                     e.stopPropagation();
-                    handleVote(movie.id, false);
+                    pollView === "auto"
+                      ? handleVote(movie.id, false)
+                      : handleGroupVote(movie.recId, false);
                   }}
                 >
                   👎 {movie.downvotes}
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div style={gridStyle}>
-          {groupRecs.map((movie) => (
-            <div
-              key={movie.recId}
-              style={cardStyle}
-              onClick={() => handleMovieClick(movie)}
-            >
-              <div style={badgeStyle}>{movie.rating}</div>
-              <img
-                src={movie.poster}
-                alt={movie.title}
-                style={{ width: "100%", height: 350, objectFit: "cover" }}
-              />
-              <div style={{ padding: "0.5rem" }}>
-                <strong>{movie.title}</strong>
-                <div style={{ fontSize: "0.8rem", color: "#bbb" }}>
-                  {movie.year} • {movie.runtime} mins
-                </div>
-              </div>
-              <div style={voteControls}>
-                <button
-                  style={voteBtn(true)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGroupVote(movie.recId, true);
-                  }}
-                >
-                  👍 {movie.upvotes}
-                </button>
-                <button
-                  style={voteBtn(false)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGroupVote(movie.recId, false);
-                  }}
-                >
-                  👎 {movie.downvotes}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };

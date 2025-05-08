@@ -7,17 +7,21 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 import logging
-
-
+from django.views.decorators.http import require_POST
 from user.models import User
 from group.models import Group, GroupMember
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from user.views import get_user_username, create_watchlist
-from user.models import MemberRecommendation
-# If MemberRecommendation is used, import it:
-# from user.models import MemberRecommendation  (or wherever it is defined)
+from user.models import MemberRecommendation, RecommendationVote
+from dotenv import load_dotenv
+from openai import OpenAI
+import os
+from django.db.models import Subquery, OuterRef
+from math import ceil
 
 
+load_dotenv()
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 logger = logging.getLogger(__name__)
 
 @csrf_exempt
@@ -107,11 +111,16 @@ def add_member_to_group(request):
             return JsonResponse({'message': 'Member is already a part of this group'}, status=200)
 
         GroupMember.objects.create(group=group, member=member)
+
+        total_members = GroupMember.objects.filter(group=group).count()
+        group.voting_limit = ceil(total_members / 2)
+        group.save(update_field=['voting_limit'])
+
         #Grabs groups watched movies
-        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat =True))
+        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat = True))
 
         #grabs new users watched movies
-        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member.id).values_list('movie_id', flat=True))
+        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member.id).values_list('movie_id', flat = True))
 
         #Find intersection of movies watched by group and new user
         keep_ids = group_movie_ids & new_member_movie_id
@@ -140,14 +149,45 @@ def remove_member_from_group(request):
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
 
+
         # Use get to retrieve a single group instance
         group = Group.objects.get(group_id=group_id)
 
-        if group.leader_id == current_user_id:
-            GroupMember.objects.filter(group=group, member_id=member_to_be_removed_id).delete()
-            return JsonResponse({"Success": "User has been removed from the group"}, status=200)
-        else:
+        if group.leader_id != current_user_id:
             return JsonResponse({"error": "Not authorized to remove member"}, status=403)
+
+        GroupMember.objects.filter(group=group, member_id=member_to_be_removed_id).delete()
+        total_members = GroupMember.objects.filter(group=group).count()
+        group.voting_limit = ceil(total_members / 2)
+        group.save(update_fields=["voting_limit"])
+        
+        #Groups Current journal
+        group_movie_ids = set(
+            UserMovieJournal.objects
+                .filter(user=group_id)
+                .values_list("movie_id", flat=True)
+        )
+
+        #Grabbing current Members
+        remaining_member_ids = GroupMember.objects.filter(group=group) \
+            .values_list("member_id", flat=True)
+
+        #Grab all movies in common
+        for mid in remaining_member_ids:
+            member_movies = set(
+                UserMovieJournal.objects
+                    .filter(user=mid)
+                    .values_list("movie_id", flat=True)
+            )
+            group_movie_ids &= member_movies
+
+        #Delete movies not in intersection
+        UserMovieJournal.objects.filter(user=group_id) \
+            .exclude(movie_id__in=group_movie_ids) \
+            .delete()
+
+        return JsonResponse({"Success": "User has been removed from the group"}, status=200)
+           
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
@@ -219,31 +259,32 @@ def group_recommendation(request):
         return JsonResponse({"error": str(e)}, status=500)
     
 
-#WHEN MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
-@csrf_exempt
-def leave_group(request):
+#Just use removed method
+# #WHEN MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
+# @csrf_exempt
+# def leave_group(request):
 
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            user_id = data.get('user_id')
-            group_id = data.get('group_id')
+#     if request.method == 'POST':
+#         try:
+#             data = json.loads(request.body)
+#             user_id = data.get('user_id')
+#             group_id = data.get('group_id')
 
-            group = Group.objects.get(group_id=group_id)
+#             group = Group.objects.get(group_id=group_id)
 
-            membership = GroupMember.objects.get(group=group, member_id=user_id)
-            membership.delete()
+#             membership = GroupMember.objects.get(group=group, member_id=user_id)
+#             membership.delete()
 
-            return JsonResponse({"message": "User has left the group"}, status=200)
+#             return JsonResponse({"message": "User has left the group"}, status=200)
 
-        except GroupMember.DoesNotExist:
-            return JsonResponse({"error": "User is not in group"}, status=500)
-        except Group.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+#         except GroupMember.DoesNotExist:
+#             return JsonResponse({"error": "User is not in group"}, status=500)
+#         except Group.DoesNotExist:
+#             return JsonResponse({"error": "Group not found"}, status=404)
+#         except Exception as e:
+#             return JsonResponse({"error": str(e)}, status=500)
 
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+#     return JsonResponse({"error": "Invalid request method"}, status=405)
         
         
 def retrieve_group_messages(request):
@@ -273,44 +314,187 @@ def retrieve_group_messages(request):
     return JsonResponse({'messages': messages_data})
 
 
-#Update Recommendation
-#params: Requires post request,
-#recommendation_id: row id of the recommendation which can be grabbed via group_recommedation method (universal function not just for groups)
-#like: True or False
-#returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
-#
+        
 @csrf_exempt
+@require_POST
 def update_recommendation(request):
-    if request.method == "POST":
+    try:
+        data = json.loads(request.body)
+        user_id = data['user_id']
+        recommendation_id = data["recommendation_id"]
+        vote = int(data.get("value"))
+    except:
+        return JsonResponse({"error": "Invalid payload"}, status = 400)
+    
+    user = User.objects.get(id=user_id)
+
+    rec = MemberRecommendation.objects.get(pk=recommendation_id)
+
+    vote, created = RecommendationVote.objects.get_or_create(
+        user = user,
+        recommendation = rec,
+        defaults={"value", vote}
+    )
+
+    #if the user has voted on this rec before
+    if not created:
+        if vote.value == vote:
+            #same vote
+            return JsonResponse({"error": "You've already voted."}, status = 400)
+        #change users vote
+        vote.value = vote
+        vote.save()
+
+    #grabs all upvotes
+    upvote_count = RecommendationVote.objects.filter(
+        recommendation = rec,
+        value = RecommendationVote.UP_VOTE
+    ).count()
+
+    downvotes_count = RecommendationVote.objects.filter(
+        recommendation=rec,
+        value=RecommendationVote.DOWN_VOTE
+    ).count()
+
+    group = Group.objects.get(group_id = rec.user_receiving)
+    limit = group.voting_limit
+
+ 
+    new_state = rec.recommended 
+    if upvote_count >= limit:
+        new_state = 1
+    elif downvotes_count >= limit:
+        new_state = -1
+    else:
+        new_state = 0
+
+    if new_state != rec.recommended:
+        rec.recommended = new_state
+        rec.save(update_fields=["recommended"])
+    
+    return JsonResponse({
+        "recommended": new_state,
+        "upvotes":    upvote_count,
+        "downvotes":  downvotes_count,
+        "threshold":  limit,
+    })
+
+
+
+
+
+@csrf_exempt
+@require_POST
+def generate_group_recommendations(request):
+    # 1) parse input
+
+    payload = json.loads(request.body)
+    group_id = payload.get("group_id")
+    group = User.objects.get(pk=group_id)
+
+    previously_rec = MemberRecommendation.objects.filter(user=group).select_related("movie")
+    liked = [f.movie.title for f in previously_rec if f.liked]
+    disliked = [f.movie.title for f in previously_rec if not f.liked]   
+
+    seen = Movie.objects.filter(user_journals__user=group).distinct()
+    seen_titles = list(seen.values_list("title", flat=True))     
+
+
+        #payload
+    user_payload = {
+        "liked": liked,
+        "disliked": disliked,
+        "seen": seen_titles
+    }
+
+    system_prompt = (
+        "You are a highly intelligent and discerning movie recommendation engine. "
+        "You analyze a user's prior movie preferences to suggest 20 unique movies they haven't seen. "
+        "Use the `liked` list to infer genres or themes the user enjoys. "
+        "Avoid anything from `disliked` or `seen`. "
+        "Respond ONLY with a valid JSON object using this format: "
+        "{\"recommendations\": [\"Movie Title 1\", \"Movie Title 2\", ..., \"Movie Title 21\"]}. "
+        "Do not include any explanations or extra text — just the JSON."
+    )
+
+
+        # Call OpenAI
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload)}
+        ],
+        max_tokens=400,
+        temperature=0.7
+    )
+
+    gpt_content = response.choices[0].message.content
+    parsed = json.loads(gpt_content)
+    titles = parsed.get("recommendations", [])
+
+    # 4) create only the NEW ones
+    created = []
+
+    model_user = User.objects.get(email='chatgpt@gmail.com')
+
+    for title in titles:
+        if title in previously_rec:
+            continue
+        
         try:
-            data = json.loads(request.body)
-            recommendation_id = data.get("recommendation_id")
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+            movie = (
+                Movie.objects
+                    .filter(title=title)
+                    .order_by("year")   # or any ordering you prefer
+                    .first()
+            )
+        except Movie.DoesNotExist:
+            
+            continue
 
-        if MemberRecommendation.objects.filter(id = recommendation_id).exists():
-            recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-        else:
-            return JsonResponse({"error": "Recommendation does not exist"})
-        
-        #increments voting by 1
-        recommendation.voting = (recommendation.voting or 0) + 1
-        recommendation.save()
+        rec = MemberRecommendation.objects.create(
+            movie_id=movie.id,
+            member_suggested=model_user,    #0 == “from ChatGPT”
+            user_receiving=group,
+            recommended=False,
+        )
 
 
-        user_rec = recommendation.user_receiving
+        created.append({
+            "id": rec.id,
+            "movie_title": movie.title,
+            "date_suggested": rec.date_suggested.isoformat(),
+        })
 
-        if Group.objects.filter(group_id = user_rec.id).exists():
+    return JsonResponse({"created": created})
 
-            group = Group.objects.get(group_id = user_rec.id)
-            voting_limit = group.voting_limit
-            #convert to decimal and divide by # of group members
-            if recommendation.voting >= voting_limit:
-                return JsonResponse({"Recommendation": True})
-            else:
-                return JsonResponse({"Recommendation": False})
 
-        else:
-            return JsonResponse({"error": "Recieving user does not exist "})
-        
+def retrieve_model_recommendations(request):
+    group_id = request.GET.get("group_id")
+
+    user = User.objects.get(pk=group_id)
+    print(user.id)
+
+    movie_title_sq = Movie.objects.filter(pk=OuterRef('movie_id')).values('title')[:1]
+
+    rows = (
+        MemberRecommendation.objects
+        .filter(user_receiving=user, recommended=0)
+        .annotate(movie_title=Subquery(movie_title_sq))
+        .order_by('-date_suggested')
+        .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]
+    )
+
+    return JsonResponse({"recommendations": list(rows)})
+
+
+
+
+
+
+
+
+
+
 
