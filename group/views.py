@@ -314,69 +314,65 @@ def retrieve_group_messages(request):
     return JsonResponse({'messages': messages_data})
 
 
-        
+from django.shortcuts import get_object_or_404
 @csrf_exempt
 @require_POST
 def update_recommendation(request):
     try:
-        data = json.loads(request.body)
-        user_id = data['user_id']
+        data            = json.loads(request.body)
+        user_id         = data["user_id"]
         recommendation_id = data["recommendation_id"]
-        vote = int(data.get("value"))
-    except:
-        return JsonResponse({"error": "Invalid payload"}, status = 400)
-    
-    user = User.objects.get(id=user_id)
+        vote_value      = int(data.get("value"))
+    except (KeyError, ValueError, json.JSONDecodeError):
+        return JsonResponse({"error": "Invalid payload"}, status=400)
 
-    rec = MemberRecommendation.objects.get(pk=recommendation_id)
+    user = get_object_or_404(User, id=user_id)
+    rec  = get_object_or_404(MemberRecommendation, pk=recommendation_id)
 
-    vote, created = RecommendationVote.objects.get_or_create(
-        user = user,
-        recommendation = rec,
-        defaults={"value", vote}
+    # get_or_create with correct defaults dict
+    vote_obj, created = RecommendationVote.objects.get_or_create(
+        user=user,
+        recommendation=rec,
+        defaults={"value": vote_value}
     )
 
-    #if the user has voted on this rec before
     if not created:
-        if vote.value == vote:
-            #same vote
-            return JsonResponse({"error": "You've already voted."}, status = 400)
-        #change users vote
-        vote.value = vote
-        vote.save()
+        # user already voted; check if same vote
+        if vote_obj.value == vote_value:
+            return JsonResponse({"error": "You've already voted."}, status=400)
+        # otherwise, update to the new vote
+        vote_obj.value = vote_value
+        vote_obj.save(update_fields=["value"])
 
-    #grabs all upvotes
+    # recompute counts
     upvote_count = RecommendationVote.objects.filter(
-        recommendation = rec,
-        value = RecommendationVote.UP_VOTE
+        recommendation=rec,
+        value=RecommendationVote.UP_VOTE
     ).count()
-
-    downvotes_count = RecommendationVote.objects.filter(
+    downvote_count = RecommendationVote.objects.filter(
         recommendation=rec,
         value=RecommendationVote.DOWN_VOTE
     ).count()
 
-    group = Group.objects.get(group_id = rec.user_receiving)
+    # update rec.recommended based on group threshold
+    group = get_object_or_404(Group, group_id=rec.user_receiving)
     limit = group.voting_limit
 
- 
-    new_state = rec.recommended 
+    new_state = 0
     if upvote_count >= limit:
-        new_state = 1
-    elif downvotes_count >= limit:
-        new_state = -1
-    else:
-        new_state = 0
+        new_state = RecommendationVote.UP_VOTE
+    elif downvote_count >= limit:
+        new_state = RecommendationVote.DOWN_VOTE
 
     if new_state != rec.recommended:
         rec.recommended = new_state
         rec.save(update_fields=["recommended"])
-    
+
     return JsonResponse({
         "recommended": new_state,
-        "upvotes":    upvote_count,
-        "downvotes":  downvotes_count,
-        "threshold":  limit,
+        "upvotes":     upvote_count,
+        "downvotes":   downvote_count,
+        "threshold":   limit,
     })
 
 
@@ -389,10 +385,11 @@ def generate_group_recommendations(request):
     # 1) parse input
 
     payload = json.loads(request.body)
+    num_of_recs = payload.get("num_of_recs")
     group_id = payload.get("group_id")
     group = User.objects.get(pk=group_id)
 
-    previously_rec = MemberRecommendation.objects.filter(user=group).select_related("movie")
+    previously_rec = MemberRecommendation.objects.filter(user_receiving=group)
     liked = [f.movie.title for f in previously_rec if f.liked]
     disliked = [f.movie.title for f in previously_rec if not f.liked]   
 
@@ -409,7 +406,7 @@ def generate_group_recommendations(request):
 
     system_prompt = (
         "You are a highly intelligent and discerning movie recommendation engine. "
-        "You analyze a user's prior movie preferences to suggest 20 unique movies they haven't seen. "
+        f"You analyze a user's prior movie preferences to suggest {num_of_recs} unique movies they haven't seen. "
         "Use the `liked` list to infer genres or themes the user enjoys. "
         "Avoid anything from `disliked` or `seen`. "
         "Respond ONLY with a valid JSON object using this format: "
@@ -469,7 +466,7 @@ def generate_group_recommendations(request):
 
     return JsonResponse({"created": created})
 
-
+@csrf_exempt
 def retrieve_model_recommendations(request):
     group_id = request.GET.get("group_id")
 
