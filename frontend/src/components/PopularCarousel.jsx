@@ -140,7 +140,7 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
         }
         .carousel-overlay h2 {
           margin: 0;
-          font-size: 1.6rem;
+          font-size: 4rem !important;
           font-weight: bold;
         }
         .carousel-button {

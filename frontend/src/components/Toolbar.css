@@ -17,10 +17,13 @@ body {
 
 nav {
   /* Make the toolbar taller to fit a bigger logo/poster */
-  position: relative;
+  position: sticky;
   height: 105px; /* Increase if your logo is taller */
   padding: 0;
+  top:0;
   box-sizing: border-box;
+  z-index:1000;
+  background-color:#10002B;
 }
 
 /* LOGO/POSTER AREA */
