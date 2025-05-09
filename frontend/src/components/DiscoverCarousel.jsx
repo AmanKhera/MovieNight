@@ -374,7 +374,7 @@ const DiscoverCarousel = ({
                 </button>{*/}
               </div>
               <div className="carousel-info">
-                <h3>{movie.title || movie.original_title}</h3>
+                {/*}<h3>{movie.title || movie.original_title}</h3>{*/}
               </div>
             </div>
           ))}
