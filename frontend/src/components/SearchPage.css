@@ -3,7 +3,7 @@ Style page for SearchPage.js
 Formats the initial look of the search page as well as the search results
 after the user has searched for something
 */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300&display=swap');
 
 button {
   font-family: 'Outfit', sans-serif;
@@ -40,12 +40,12 @@ button {
   cursor: pointer; 
 
   margin-right: 10px;
-  background-image: linear-gradient(to right, #000000 0%, #46005c  51%, #48005a  100%)
+  background-image: linear-gradient(to right, #0e0024 0%, #46005c  51%, #48005a  100%)
 }
 
 #search-button-actual:hover, #filter-options button:hover {
-  background-position: right center; /* change the direction of the change here */
-  color: #fff;
+  /*background-position: right center; /* change the direction of the change here */
+  color: #9900ff;
   text-decoration: none;
 }
 

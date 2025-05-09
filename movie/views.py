@@ -150,7 +150,7 @@ def Search(request):
 
 
     elif filter_type == "rating":
-        movies = Movie.objects.filter(Q(rating__iexact=rating)).values(
+        movies = Movie.objects.filter(Q(rating__iexact=query)).values(
             'id', 'title', 'year', 'runtime', 'rating', 'plot', 'director'
         )
         response['movies'] = list(movies)
