@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import Toolbar from "../components/Toolbar";
+import MainLayout from "../components/MainLayout";
 import {
   GroupsSidebar,
   ChatSection,
@@ -59,34 +60,31 @@ const GroupPage = () => {
   };
 
   return (
-    <div className="group-page" style={pageStyle}>
-      <Toolbar />
+      <MainLayout>
+        <div style={contentStyle}>
+          <GroupsSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            selectedChat={selectedChat}
+            onSelectChat={handleSelectChat}
+          />
 
-      <div style={contentStyle}>
-        <GroupsSidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          selectedChat={selectedChat}
-          onSelectChat={handleSelectChat}
-        />
+          <ChatSection
+            selectedChat={selectedChat}
+            messages={messages}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onSendMessage={handleSendMessage}
+          />
 
-        <ChatSection
-          selectedChat={selectedChat}
-          messages={messages}
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          onSendMessage={handleSendMessage}
-        />
+          <MoviePoll
+            selectedItem={selectedChat}
+            activeTab={activeTab}
+          />
+        </div>
+      </MainLayout>
 
-        <MoviePoll
-          selectedItem={selectedChat}
-          activeTab={activeTab}
-        />
-
-        {/* <UserProfile user={currentUser} /> */}
-      </div>
-    </div>
   );
 };
 
-export default GroupPage;
+          export default GroupPage;
