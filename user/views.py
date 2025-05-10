@@ -215,22 +215,11 @@ def get_followers(request):
     #ids of users that follow given user
     followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
-    #ids the user follows
-    following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
+    follower_info = User.objects.filter(id__in=followers_ids).values('id', 'name')
 
-    #creates set with only followers
-    non_mutual_ids = set(followers_ids.difference(set(following_ids)))
-
-    #grabs followers id and name
-    follower_info = User.objects.filter(id__in=non_mutual_ids).values('id','name')
-
-    #returns dictionary where id is the key and name is the value
     response = {str(user['id']): user['name'] for user in follower_info}
 
     return JsonResponse(response, status=200)
-
-
-
 
 
 
@@ -240,17 +229,10 @@ def get_followers(request):
 #Example URL 
 #http://127.0.0.1:8000/get_following/?id=1
 def get_following(request):
-
     user_id = request.GET.get('id')
-   
-    #ids of users that follow given user
-    followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
     #ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
-
-    #creates set with only followers
-    following_only_ids = set(following_ids.difference(set(followers_ids)))
     
     #grabs followers id and name
     following_info = User.objects.filter(id__in=following_ids).values('id','name')
@@ -757,7 +739,7 @@ def view_blocked_users(request):
     user_id = request.GET.get('id')
 
     #ids of users that are blocked by user
-    blocked_ids = set(BlockList.objects.filter(blocker=user_id).values_list('blocker_id', flat=True))
+    blocked_ids = BlockList.objects.filter(blocker_id=user_id).values_list('blocked_id', flat=True)
 
     blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
 

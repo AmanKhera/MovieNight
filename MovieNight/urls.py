@@ -98,6 +98,7 @@ urlpatterns = [
 
     path('block_user/', user_views.block_user, name='block_user'),
     path("check_blocked/", user_views.check_blocked, name="check_blocked"),
+    path('view_blocked_users/', user_views.view_blocked_users, name = "view_blocked_users"),
 
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
