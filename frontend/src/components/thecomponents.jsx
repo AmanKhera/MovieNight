@@ -429,7 +429,7 @@ export const GroupsSidebar = ({
     </div>
   );
 };
-
+//*********************************** */
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -621,7 +621,6 @@ export const ChatSection = ({ selectedChat }) => {
 };
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 
-// Fetch additional movie details for a given title
 const fetchMovieDetails = async (title) => {
   try {
     const searchRes = await fetch(
@@ -641,318 +640,370 @@ const fetchMovieDetails = async (title) => {
       poster,
       runtime: m.runtime,
       rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
     };
   } catch {
     return null;
   }
 };
 
+const UP_VOTE = 1;
+const DOWN_VOTE = -1;
+
 export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
-  // which tab of the poll panel is active: 'auto' AI-based recs or 'fromFriends'
-  const [pollView, setPollView] = useState("auto");
+  // === user & view state ===
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [pollView, setPollView] = useState("auto"); // "auto" or "fromFriends"
+  const isGroup = activeTab === "groups";
 
-  // AI-generated recs
-  const [recommendations, setRecommendations] = useState([]);
-  // recommendations from your friends/group
-  const [groupRecs, setGroupRecs] = useState([]);
-
+  // === data state ===
+  const [recommendations, setRecommendations] = useState([]); // for Recommendations tab
+  const [groupRecs, setGroupRecs] = useState([]);           // for From Members tab
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const isGroup = activeTab === "groups";
-  const titleText = isGroup ? "Generated Recommendations" : "Friend Recommendations";
+  // track which recIds the user has already voted on
+  const [votedRecIds, setVotedRecIds] = useState(new Set());
 
-  // handle thumbs up/down for AI recs
-  const handleVote = (id, like) => {
-    setRecommendations((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...m,
-              upvotes: like ? m.upvotes + 1 : m.upvotes,
-              downvotes: !like ? m.downvotes + 1 : m.downvotes,
-            }
-          : m
-      )
-    );
-  };
-
-  // handle thumbs up/down for group recs
-  const handleGroupVote = (recId, like) => {
-    setGroupRecs((prev) =>
-      prev.map((m) =>
-        m.recId === recId
-          ? {
-              ...m,
-              upvotes: like ? m.upvotes + 1 : m.upvotes,
-              downvotes: !like ? m.downvotes + 1 : m.downvotes,
-            }
-          : m
-      )
-    );
-  };
-
+  // load current user ID
   useEffect(() => {
+    fetch("http://localhost:8000/user_info/", { credentials: "include" })
+      .then((r) => r.json())
+      .then((js) => setCurrentUserId(js.id))
+      .catch(console.error);
+  }, []);
+
+  // send a vote and update counts from backend response
+  const sendVoteAndUpdate = async (recId, value, listSetter) => {
+    if (!currentUserId) return;
+    try {
+      const resp = await fetch("http://localhost:8000/update_recommendation/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          recommendation_id: recId,
+          value,
+        }),
+      });
+      if (!resp.ok) throw new Error("Vote failed");
+      const { upvotes, downvotes } = await resp.json();
+
+      // update the appropriate list (recommendations or groupRecs)
+      listSetter((prev) =>
+        prev.map((m) =>
+          (pollView === "auto" ? m.id : m.recId) === recId
+            ? { ...m, upvotes, downvotes }
+            : m
+        )
+      );
+
+      // disable further votes on this rec
+      setVotedRecIds((s) => new Set(s).add(recId));
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    }
+  };
+
+  // main fetch effect
+  useEffect(() => {
+    if (!selectedItem) return;
     setError(null);
     setLoading(true);
 
-    if (pollView === "auto") {
-      // --- AI BASED ---
-      setRecommendations([]);
-      if (!selectedItem) {
-        setLoading(false);
-        return;
-      }
-      (async () => {
-        try {
-          const csrfToken = getCookie("csrftoken");
-          const userId = isGroup ? selectedItem.group_id : selectedItem.id;
-          const resp = await fetch("http://localhost:8000/movie_rec/", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": csrfToken,
-            },
-            credentials: "include",
-            body: JSON.stringify({ user_id: userId }),
-          });
-          if (!resp.ok) throw new Error("Failed to fetch recommendations");
-          const data = await resp.json();
-          const titles = data.summary.recommendations || [];
-          const details = await Promise.all(titles.map(fetchMovieDetails));
-          setRecommendations(
-            details
-              .filter(Boolean)
-              .map((d) => ({ ...d, upvotes: 0, downvotes: 0 }))
+    // === Recommendations tab logic (updated) ===
+    const loadRecommendations = async () => {
+      try {
+        // 1) GET existing group-based recs
+        const url = new URL("http://localhost:8000/group_recs/");
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
+        );
+        let resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("Failed to fetch group_recs");
+        let data = await resp.json();
+        let existing = data.recommendations || [];
+
+        // 2) enrich existing
+        const enrichedExisting = (
+          await Promise.all(
+            existing.map((r) => fetchMovieDetails(r.movie_title))
+          )
+        )
+          .map((d, i) => d && { ...d, id: existing[i].id })
+          .filter(Boolean);
+
+        // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+        let finalList = [...enrichedExisting];
+        if (finalList.length < 20) {
+          const needed = 20 - finalList.length;
+          const genResp = await fetch(
+            "http://localhost:8000/generate_group_recommendations/",
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                group_id: isGroup
+                  ? selectedItem.group_id
+                  : selectedItem.id,
+                num_of_recs: needed,
+              }),
+            }
           );
-        } catch (e) {
-          setError(e.message);
-        } finally {
-          setLoading(false);
+          if (genResp.ok) {
+            const { created = [] } = await genResp.json();
+            // enrich the newly created ones
+            const enrichedNew = (
+              await Promise.all(
+                created.map((c) => fetchMovieDetails(c.movie_title))
+              )
+            )
+              .map((d, i) => d && { ...d, id: created[i].id })
+              .filter(Boolean);
+            finalList = finalList.concat(enrichedNew);
+          }
         }
-      })();
-    } else {
-      // --- FROM FRIENDS/GROUP MEMBERS ---
-      setGroupRecs([]);
-      if (!selectedItem) {
+
+        setRecommendations(finalList);
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
+      } finally {
         setLoading(false);
-        return;
       }
-      (async () => {
-        try {
-          const resp = await fetch(
-            `http://localhost:8000/group_recommendation/?group_id=${encodeURIComponent(
-              isGroup ? selectedItem.group_id : selectedItem.id
-            )}`,
-            { credentials: "include" }
-          );
-          if (!resp.ok) throw new Error("Failed to fetch from members");
-          const data = await resp.json();
-          const recs = data.Recommendations || [];
-          // fetch full details for each movie_title
-          const details = await Promise.all(
-            recs.map((r) => fetchMovieDetails(r.movie_title))
-          );
-          // merge in voting, id and init up/down votes
-          const merged = details
+    };
+
+    // === From Members tab logic (unchanged) ===
+    const loadGroupMembers = async () => {
+      setGroupRecs([]); // clear
+      try {
+        const url = new URL(
+          "http://localhost:8000/group_recommendation/"
+        );
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
+        );
+        const resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("Failed to fetch from members");
+        const data = await resp.json();
+        const recs = data.Recommendations || [];
+        const details = await Promise.all(
+          recs.map((r) => fetchMovieDetails(r.movie_title))
+        );
+        setGroupRecs(
+          details
             .map((d, i) =>
               d
                 ? {
                     ...d,
-                    voting: recs[i].voting,
                     recId: recs[i].id,
                     upvotes: 0,
                     downvotes: 0,
                   }
                 : null
             )
-            .filter(Boolean);
-          setGroupRecs(merged);
-        } catch (e) {
-          setError(e.message);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }
+            .filter(Boolean)
+        );
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    pollView === "auto"
+      ? loadRecommendations()
+      : loadGroupMembers();
   }, [selectedItem, activeTab, pollView]);
 
-  const handleMovieClick = (movie) => {
-    const titleParam = encodeURIComponent(movie.title);
-    const releaseDate = movie.year;
-    navigate(
-      releaseDate
-        ? `/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`
-        : `/movie/${titleParam}`
-    );
-  };
-
-  // styles reused for both grids
-  const pollStyle = {
-    width: "30%",
-    color: "white",
-    backgroundColor: "#1a0133",
-    padding: "1rem",
-    overflowY: "auto",
-  };
-  const tabButtons = { display: "flex", gap: "0.5rem", marginBottom: "1rem" };
-  const tabButton = (active) => ({
-    flex: 1,
-    padding: "0.5rem",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    backgroundColor: active ? "#6a0dad" : "#240046",
-    color: "white",
-  });
-  const gridStyle = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-    gap: "1.5rem",
-  };
-  const cardStyle = {
-    backgroundColor: "#240046",
-    borderRadius: "8px",
-    overflow: "hidden",
-    position: "relative",
-    cursor: "pointer",
-  };
-  const badgeStyle = {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    backgroundColor: "#6a0dad",
-    color: "white",
-    padding: "2px 6px",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
-  };
-  const voteControls = {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "0.5rem",
-    backgroundColor: "#1a0133",
-  };
-  const voteBtn = (up) => ({
-    border: "none",
-    padding: "0.5rem",
-    borderRadius: "4px",
-    cursor: "pointer",
-    backgroundColor: up ? "#2e7d32" : "#c62828",
-    color: "white",
-  });
+  // --- render ---
+  const list = pollView === "auto" ? recommendations : groupRecs;
+  const titleText =
+    pollView === "auto"
+      ? isGroup
+        ? "Generated Recommendations"
+        : "Friend Recommendations"
+      : "From Members";
 
   return (
-    <div style={pollStyle}>
-      <div style={tabButtons}>
+    <div
+      style={{
+        width: "30%",
+        color: "white",
+        backgroundColor: "#1a0133",
+        padding: "1rem",
+        overflowY: "auto",
+      }}
+    >
+      <div
+        style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}
+      >
         <button
-          style={tabButton(pollView === "auto")}
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "auto" ? "#6a0dad" : "#240046",
+            color: "white",
+          }}
           onClick={() => setPollView("auto")}
         >
           Recommendations
         </button>
         <button
-          style={tabButton(pollView === "fromFriends")}
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "fromFriends"
+                ? "#6a0dad"
+                : "#240046",
+            color: "white",
+          }}
           onClick={() => setPollView("fromFriends")}
         >
           From Members
         </button>
       </div>
 
-      <h3>{pollView === "auto" ? titleText : "From Members"}</h3>
-
+      <h3>{titleText}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {!loading && list.length === 0 && <p>No recommendations yet.</p>}
 
-      {pollView === "auto" ? (
-        <div style={gridStyle}>
-          {recommendations.map((movie) => (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fill, minmax(250px, 1fr))",
+          gap: "1.5rem",
+        }}
+      >
+        {list.map((movie) => {
+          const idKey =
+            pollView === "auto" ? movie.id : movie.recId;
+          const hasVoted = votedRecIds.has(idKey);
+          return (
             <div
-              key={movie.id}
-              style={cardStyle}
-              onClick={() => handleMovieClick(movie)}
+              key={idKey}
+              style={{
+                backgroundColor: "#240046",
+                borderRadius: "8px",
+                overflow: "hidden",
+                position: "relative",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                navigate(
+                  `/movie/${encodeURIComponent(
+                    movie.title
+                  )}?release_date=${encodeURIComponent(
+                    movie.year
+                  )}`
+                )
+              }
             >
-              <div style={badgeStyle}>{movie.rating}</div>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "#6a0dad",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: "0.8rem",
+                }}
+              >
+                {movie.rating}
+              </div>
               <img
                 src={movie.poster}
                 alt={movie.title}
-                style={{ width: "100%", height: 350, objectFit: "cover" }}
+                style={{
+                  width: "100%",
+                  height: 350,
+                  objectFit: "cover",
+                }}
               />
               <div style={{ padding: "0.5rem" }}>
                 <strong>{movie.title}</strong>
-                <div style={{ fontSize: "0.8rem", color: "#bbb" }}>
+                <div
+                  style={{ fontSize: "0.8rem", color: "#bbb" }}
+                >
                   {movie.year} • {movie.runtime} mins
                 </div>
               </div>
-              <div style={voteControls}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "0.5rem",
+                  backgroundColor: "#1a0133",
+                }}
+              >
                 <button
-                  style={voteBtn(true)}
+                  style={{
+                    border: "none",
+                    padding: "0.5rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#2e7d32",
+                    color: "white",
+                  }}
+                  disabled={hasVoted}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleVote(movie.id, true);
+                    sendVoteAndUpdate(
+                      idKey,
+                      UP_VOTE,
+                      setRecommendations
+                    );
                   }}
                 >
                   👍 {movie.upvotes}
                 </button>
                 <button
-                  style={voteBtn(false)}
+                  style={{
+                    border: "none",
+                    padding: "0.5rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#c62828",
+                    color: "white",
+                  }}
+                  disabled={hasVoted}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleVote(movie.id, false);
+                    sendVoteAndUpdate(
+                      idKey,
+                      DOWN_VOTE,
+                      setRecommendations
+                    );
                   }}
                 >
                   👎 {movie.downvotes}
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div style={gridStyle}>
-          {groupRecs.map((movie) => (
-            <div
-              key={movie.recId}
-              style={cardStyle}
-              onClick={() => handleMovieClick(movie)}
-            >
-              <div style={badgeStyle}>{movie.rating}</div>
-              <img
-                src={movie.poster}
-                alt={movie.title}
-                style={{ width: "100%", height: 350, objectFit: "cover" }}
-              />
-              <div style={{ padding: "0.5rem" }}>
-                <strong>{movie.title}</strong>
-                <div style={{ fontSize: "0.8rem", color: "#bbb" }}>
-                  {movie.year} • {movie.runtime} mins
-                </div>
-              </div>
-              <div style={voteControls}>
-                <button
-                  style={voteBtn(true)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGroupVote(movie.recId, true);
-                  }}
-                >
-                  👍 {movie.upvotes}
-                </button>
-                <button
-                  style={voteBtn(false)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGroupVote(movie.recId, false);
-                  }}
-                >
-                  👎 {movie.downvotes}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };
