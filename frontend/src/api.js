@@ -1,4 +1,5 @@
 // src/api.js
+
 export const fetchUserInfo = async () => {
     const response = await fetch("http://localhost:8000/user_info/", {
       credentials: "include",
@@ -10,6 +11,28 @@ export const fetchUserInfo = async () => {
     return data;
   };
   
+  export const fetchMovieRecommendations = async (userId) => {
+    const response = await fetch("http://localhost:8000/movie_rec/", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Recommendation failed");
+    return data;
+  };
+  
+  export const fetchMovieDetailsByTitle = async (title) => {
+    const response = await fetch(
+      `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}`,
+      { credentials: "include" }
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error("Search failed");
+    return data.movies?.[0] || null;
+  };
+
   export const fetchWatchlistItems = async () => {
     const response = await fetch("http://localhost:8000/watchlist_items/", {
       credentials: "include",
@@ -31,6 +54,8 @@ export const fetchUserInfo = async () => {
     }
     return data.movies?.[0] || null;
   };
+
+  
   
   export const fetchMoviePoster = async (title) => {
     const response = await fetch(

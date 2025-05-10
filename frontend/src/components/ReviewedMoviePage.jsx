@@ -1,100 +1,95 @@
 // src/pages/ReviewedMoviesPage.jsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchUserInfo, fetchRecentlyWatched, fetchMoviePoster } from "../api";
 
 const ReviewedMoviesPage = () => {
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
+  // 1) get user info
+  const {
+    data: userInfo,
+    isLoading: userLoading,
+    isError: userError,
+    error: userErrorMsg,
+  } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: fetchUserInfo,
+    staleTime: Infinity,
+  });
+
+  // 2) get reviewed movies once we know the user ID
+  const {
+    data: reviews,
+    isLoading: reviewsLoading,
+    isError: reviewsError,
+    error: reviewsErrorMsg,
+  } = useQuery({
+    queryKey: ['reviewedMovies', userInfo?.id],
+    queryFn: () => fetchRecentlyWatched(userInfo.id),
+    enabled: Boolean(userInfo?.id),
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+
+  // 3) as soon as reviews arrive, prefetch each movie's poster
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1) get current user ID
-        const userResp = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        if (!userResp.ok) throw new Error("Failed to get user info");
-        const userJson = await userResp.json();
-        const userId = userJson.id;
+    if (!reviews) return;
+    reviews.forEach((r) => {
+      queryClient.prefetchQuery({
+        queryKey: ['moviePoster', r.title],
+        queryFn: () => fetchMoviePoster(r.title),
+        staleTime: Infinity,
+      });
+    });
+  }, [reviews, queryClient]);
 
-        // 2) fetch watched list for that user
-        const resp = await fetch(
-          `http://localhost:8000/recently_watched/?user_id=${userId}`,
-          { credentials: "include" }
-        );
-        if (!resp.ok) throw new Error("Could not load watched movies");
-        const data = await resp.json();
-
-        // 3) enrich each entry with poster_url
-        const enriched = await Promise.all(
-          data.map(async (r) => {
-            try {
-              const p = await fetch(
-                `http://localhost:8000/movie_poster/?title=${encodeURIComponent(
-                  r.title
-                )}`
-              );
-              const pj = await p.json();
-              return { ...r, poster_url: pj.poster || null };
-            } catch {
-              return { ...r, poster_url: null };
-            }
-          })
-        );
-
-        setReviews(enriched);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  if (loading) return <div style={styles.loading}>Loading your reviews…</div>;
-  if (error)   return <div style={styles.error}>Error: {error}</div>;
+  if (userLoading || reviewsLoading) {
+    return <div style={styles.loading}>Loading your reviews…</div>;
+  }
+  if (userError) {
+    return <div style={styles.error}>Error: {userErrorMsg.message}</div>;
+  }
+  if (reviewsError) {
+    return <div style={styles.error}>Error: {reviewsErrorMsg.message}</div>;
+  }
 
   return (
     <div style={styles.container}>
       <h1 style={styles.pageTitle}>My Rated Movies</h1>
-      <div style={styles.list}>
+      <div style={styles.grid}>
         {reviews.map((r) => (
           <div
-            key={`${r.movie}-${r.date_watched}`}
-            className="review-row"
-            style={styles.row}
+            key={`${r.title}-${r.date_watched}`}
+            style={styles.card}
+            className="movie-card"
             onClick={() =>
               navigate(`/movie/${encodeURIComponent(r.title)}`)
             }
           >
             <img
-              src={r.poster_url || "https://via.placeholder.com/150x225"}
+              src={r.poster || "https://via.placeholder.com/150x225"}
               alt={r.title}
               style={styles.poster}
             />
             <div style={styles.info}>
               <h2 style={styles.title}>{r.title}</h2>
               <div style={styles.stars}>
-                {[...Array(5)].map((_, i) =>
-                  i < r.rating ? "★" : "☆"
-                )}
+                {[...Array(5)].map((_, i) => (i < r.rating ? "★" : "☆"))}
               </div>
               <p style={styles.reviewText}>{r.review}</p>
               <p style={styles.dateText}>
-                Watched on {new Date(r.date_watched).toLocaleDateString()}
+                Watched on {" "}
+                {new Date(r.date_watched).toLocaleDateString()}
               </p>
             </div>
           </div>
         ))}
       </div>
-      {/* small reset for links, if any */}
       <style>{`
-        a { text-decoration: none; color: inherit }
-        .review-row:hover { transform: scale(1.02); }
+        a { text-decoration: none; color: inherit; }
+        .movie-card:hover { transform: scale(1.02); }
       `}</style>
     </div>
   );
@@ -112,16 +107,14 @@ const styles = {
     marginBottom: "40px",
     textAlign: "center",
   },
-  list: {
-    width: "100%",
-    margin: 0,
-    display: "flex",
-    flexDirection: "column",
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
     gap: "30px",
   },
-  row: {
-    width: "100%",
+  card: {
     display: "flex",
+    flexDirection: "column",
     backgroundColor: "rgba(36,0,70,0.95)",
     borderRadius: "12px",
     overflow: "hidden",
@@ -130,24 +123,24 @@ const styles = {
     transition: "transform 0.2s",
   },
   poster: {
-    width: "150px",
-    height: "225px",
+    width: "100%",
+    height: "auto",
     objectFit: "cover",
-    flexShrink: 0,
+    aspectRatio: "2/3",
   },
   info: {
-    padding: "20px 30px",
+    padding: "20px",
     display: "flex",
     flexDirection: "column",
     flex: 1,
   },
   title: {
     margin: 0,
-    fontSize: "2rem",
+    fontSize: "1.5rem",
   },
   stars: {
-    margin: "12px 0",
-    fontSize: "1.6rem",
+    margin: "8px 0",
+    fontSize: "1.2rem",
     color: "#ffcc00",
     lineHeight: 1,
   },
@@ -155,11 +148,11 @@ const styles = {
     flexGrow: 1,
     color: "#e0e0e0",
     marginBottom: "12px",
-    fontSize: "1.1rem",
-    lineHeight: 1.5,
+    fontSize: "1rem",
+    lineHeight: 1.4,
   },
   dateText: {
-    fontSize: "1rem",
+    fontSize: "0.9rem",
     color: "#aaa",
   },
   loading: {

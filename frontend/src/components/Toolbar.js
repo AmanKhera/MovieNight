@@ -32,7 +32,7 @@ function Toolbar() {
     navigate("/groups");
   };
   const friendsButtonAction = () => {
-    navigate("/FriendsPage");
+    navigate("/UserWatchlists");
   };
   const profileButtonAction = () => {
     navigate("/UserProfile");

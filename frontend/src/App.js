@@ -10,22 +10,28 @@ import GroupPage from './pages/GroupPage';
 import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
 import UserPage from './pages/UserPage';
-import { fetchRecentlyWatched, fetchWatchlistMovies } from './api';
 import FriendsPage from './pages/FriendsPage';
-import RecommendationMoviePage from './pages/RecommendMoviePage';
 import DiscoverPage from './pages/DiscoverPage';
-import ChatGPTGenerator from './components/ChatGPTGenerator';
 import ReviewPage from './pages/ReviewPage';
+import {
+  fetchUserInfo,
+  fetchRecentlyWatched,
+  fetchWatchlistMovies,
+  fetchMovieRecommendations,
+  fetchMovieDetailsByTitle,
+  fetchMoviePoster,
+
+} from './api';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 10, // 10 minutes
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
     },
   },
 });
 
-// Set up local storage persister for React Query
 const localStoragePersister = createSyncStoragePersister({
   storage: window.localStorage,
 });
@@ -37,9 +43,18 @@ persistQueryClient({
 
 function App() {
   useEffect(() => {
-    async function prefetchData() {
+    async function prefetchCriticalData() {
       try {
+        // Prefetch user info first
+        const userInfo = await queryClient.fetchQuery({
+          queryKey: ['userInfo'],
+          queryFn: fetchUserInfo,
+          staleTime: Infinity
+        });
+
+        // Parallel prefetch of all essential data
         await Promise.all([
+          // Core user data
           queryClient.prefetchQuery({
             queryKey: ['recentlyWatched'],
             queryFn: fetchRecentlyWatched,
@@ -47,15 +62,49 @@ function App() {
           queryClient.prefetchQuery({
             queryKey: ['watchlistMovies'],
             queryFn: fetchWatchlistMovies,
+          }),
+          queryClient.prefetchQuery({
+            queryKey: ['reviewedMovies', userInfo.id],
+            queryFn: () => fetchRecentlyWatched(userInfo.id),
+          }),
+          
+          
+          
+          // Recommendations pipeline
+          queryClient.prefetchQuery({
+            queryKey: ['recommendations', userInfo.id],
+            queryFn: () => fetchMovieRecommendations(userInfo.id),
+          }).then(async () => {
+            const recommendations = queryClient.getQueryData(['recommendations', userInfo.id]);
+            if (recommendations?.summary?.recommendations) {
+              await Promise.all(
+                recommendations.summary.recommendations.map(async (title) => {
+                  await queryClient.prefetchQuery({
+                    queryKey: ['movieDetails', title],
+                    queryFn: () => fetchMovieDetailsByTitle(title),
+                    staleTime: Infinity
+                  });
+                  await queryClient.prefetchQuery({
+                    queryKey: ['moviePoster', title],
+                    queryFn: () => fetchMoviePoster(title),
+                    staleTime: Infinity
+                  });
+                })
+              );
+            }
           })
         ]);
-        console.log("Successfully prefetched all data");
+        
+        console.log("Critical data prefetched successfully");
       } catch (error) {
-        console.error("Prefetch error:", error.message);
+        console.error("Critical prefetch error:", error.message);
       }
     }
 
-    prefetchData();
+    prefetchCriticalData();
+    
+    // Background prefetch for less critical data
+    
   }, []);
 
   return (
@@ -70,9 +119,8 @@ function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/UserProfile" element={<UserPage />} />
             <Route path="/FriendsPage" element={<FriendsPage />} />
-            <Route path='/DiscoverPage' element={<DiscoverPage/>}/>
-            <Route path='/ReviewedPage' element={<ReviewPage/>}/>
-            <Route path='/Test' element={<ChatGPTGenerator/>}/>
+            <Route path="/DiscoverPage" element={<DiscoverPage />} />
+            <Route path="/ReviewedPage" element={<ReviewPage />} />
           </Routes>
         </BrowserRouter>
       </div>

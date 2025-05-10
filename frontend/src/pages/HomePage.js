@@ -7,6 +7,7 @@ import DiscoverCarousel from '../components/DiscoverCarousel';
 import PopularCarousel from '../components/PopularCarousel';
 import MainLayout from "../components/MainLayout";
 import { fetchRecentlyWatched } from '../api';
+import Footbar from '../components/Footbar'
 
 const HomePage = () => {
   const queryClient = useQueryClient();
@@ -31,13 +32,13 @@ const HomePage = () => {
     //<HomePage>
     <div>
       <Toolbar />
-      <main>
-        <PopularCarousel title="Top Popular Movies" />
-        <DiscoverCarousel id="war" />
-        <DiscoverCarousel id="comedy" />
-        <DiscoverCarousel id="history" />
-        <DiscoverCarousel id="thriller" />
-      </main>
+      <PopularCarousel title="Top Popular Movies" />
+      <DiscoverCarousel id="war" />
+      <DiscoverCarousel id="comedy" />
+      <DiscoverCarousel id="history" />
+      <DiscoverCarousel id="thriller" />
+      <Footbar/>
+
     </div>
     //</HomePage>
   );
