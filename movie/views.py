@@ -419,7 +419,10 @@ def generate_movie_summary(request):
     return generate_movie_and_store(title, year, director, plot)
 
 
-
+#Generate Movie and Store
+#Def: Function uses OpenAI to grab plots for movies that have not been updated in our DB
+#Params: title = movie title, year = year released, director = director of movie, plot = current plot of movie
+#Returns: JSON Dictionary with movie summary 
 def generate_movie_and_store(title, year, director, plot):
     
     try:
@@ -524,7 +527,6 @@ def generate_recommendations(request):
         gpt_content = response.choices[0].message.content
         try:
             parsed = json.loads(gpt_content)
-            print(parsed)
             return JsonResponse({'summary': parsed})
             
         except json.JSONDecodeError:

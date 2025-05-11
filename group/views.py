@@ -16,6 +16,7 @@ from user.models import MemberRecommendation, RecommendationVote
 from dotenv import load_dotenv
 from openai import OpenAI
 import os
+from django.db.models import Max, OuterRef, Subquery
 from django.db.models import Subquery, OuterRef
 from math import ceil
 
@@ -382,40 +383,54 @@ def update_recommendation(request):
 @csrf_exempt
 @require_POST
 def generate_group_recommendations(request):
-    # 1) parse input
 
     payload = json.loads(request.body)
     num_of_recs = payload.get("num_of_recs")
     group_id = payload.get("group_id")
     group = User.objects.get(pk=group_id)
 
-    previously_rec = MemberRecommendation.objects.filter(user_receiving=group)
-    liked = [f.movie.title for f in previously_rec if f.liked]
-    disliked = [f.movie.title for f in previously_rec if not f.liked]   
 
     seen = Movie.objects.filter(user_journals__user=group).distinct()
     seen_titles = list(seen.values_list("title", flat=True))     
 
+    if MemberRecommendation.objects.filter(user_receiving=group).count() < 20:
+            
+        previously_watched = UserMovieJournal.objects.filter(user_id=group.id)
 
-        #payload
-    user_payload = {
-        "liked": liked,
-        "disliked": disliked,
-        "seen": seen_titles
-    }
+        liked = [f.movie.title for f in previously_watched if f.rating >= 3]
+        disliked = [f.movie.title for f in previously_watched if not f.rating <= 2]   
+
+        user_payload = {
+        "liked_recommendations": liked,
+        "disliked_recommendations": disliked,
+        "seen": seen_titles,
+        }
+    else:
+        previous_liked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=1).values_list("movie_id", flat=True)
+        previous_liked_recs = Movie.objects.filter(id__in=previous_liked_recs)
+
+        previous_disliked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=-1).values_list("movie_id", flat=True)
+        previous_disliked_recs = Movie.objects.filter(id__in=previous_disliked_recs)
+
+
+        user_payload = {
+        "liked_recommendations": list(previous_liked_recs.values_list("title", flat=True)),
+        "disliked_recommendations": list(previous_disliked_recs.values_list("title", flat=True)),
+        "seen": seen_titles,
+        }        
+
 
     system_prompt = (
         "You are a highly intelligent and discerning movie recommendation engine. "
         f"You analyze a user's prior movie preferences to suggest {num_of_recs} unique movies they haven't seen. "
-        "Use the `liked` list to infer genres or themes the user enjoys. "
-        "Avoid anything from `disliked` or `seen`. "
+        "Use the `liked_recommendations` list to infer genres or themes the user enjoys. "
+        "Avoid anything from `disliked_recommendations` or `seen`. "
         "Respond ONLY with a valid JSON object using this format: "
         "{\"recommendations\": [\"Movie Title 1\", \"Movie Title 2\", ..., \"Movie Title 21\"]}. "
         "Do not include any explanations or extra text — just the JSON."
     )
 
 
-        # Call OpenAI
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -430,29 +445,29 @@ def generate_group_recommendations(request):
     parsed = json.loads(gpt_content)
     titles = parsed.get("recommendations", [])
 
-    # 4) create only the NEW ones
+    #create only the NEW ones
     created = []
 
     model_user = User.objects.get(email='chatgpt@gmail.com')
 
     for title in titles:
-        if title in previously_rec:
+        #if movies seen before not added
+        if title in seen_titles:
             continue
         
-        try:
-            movie = (
-                Movie.objects
-                    .filter(title=title)
-                    .order_by("year")   # or any ordering you prefer
-                    .first()
-            )
-        except Movie.DoesNotExist:
-            
+
+        movie = (
+            Movie.objects
+                .filter(title=title)
+                .order_by("year")   
+                .first()
+        )
+        if movie is None:    
             continue
 
         rec = MemberRecommendation.objects.create(
             movie_id=movie.id,
-            member_suggested=model_user,    #0 == “from ChatGPT”
+            member_suggested=model_user,    
             user_receiving=group,
             recommended=False,
         )
@@ -466,18 +481,26 @@ def generate_group_recommendations(request):
 
     return JsonResponse({"created": created})
 
+
+
 @csrf_exempt
 def retrieve_model_recommendations(request):
     group_id = request.GET.get("group_id")
-
     user = User.objects.get(pk=group_id)
-    print(user.id)
+
+    latest_ids = (
+        MemberRecommendation.objects
+        .filter(user_receiving=user, recommended=0)
+        .values('movie_id')
+        .annotate(latest_id=Max('id'))
+        .values_list('latest_id', flat=True)
+    )
 
     movie_title_sq = Movie.objects.filter(pk=OuterRef('movie_id')).values('title')[:1]
 
     rows = (
         MemberRecommendation.objects
-        .filter(user_receiving=user, recommended=0)
+        .filter(id__in=latest_ids)
         .annotate(movie_title=Subquery(movie_title_sq))
         .order_by('-date_suggested')
         .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]

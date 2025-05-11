@@ -18,7 +18,7 @@ class Movie(models.Model):
         return self.title
     
     class Meta:
-        managed = False
+        #managed = False
         db_table = 'movie_movie'
 
 
