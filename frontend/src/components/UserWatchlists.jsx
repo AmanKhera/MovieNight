@@ -98,7 +98,8 @@ const UserWatchlists = () => {
     .watchlist-container {
       width: 100vw;
       margin: 0 auto;
-      background-color: #240046;
+      background-image: radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43));
+
       color: #fff;
       padding: 20px;
       box-sizing: border-box;

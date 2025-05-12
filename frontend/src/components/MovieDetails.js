@@ -316,7 +316,7 @@ const MovieDetailsPage = () => {
 };
 
 const styles = {
-  container: { position: "relative", padding: "40px 20px", color: "#fff", backgroundColor: "#240046", backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", minHeight: "100vh" },
+  container: { position: "relative", padding: "40px 20px", color: "#fff", backgroundColor: "#240046" ,backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", minHeight: "100vh" },
   backdropOverlay: { position: "absolute", inset: 0, background: "rgba(36,0,70,0.85)", zIndex: 0 },
   loading: { color: "#fff", textAlign: "center", padding: "40px", fontSize: "1.2rem" },
   error: { color: "#ff6b6b", textAlign: "center", padding: "40px", fontSize: "1.2rem" },

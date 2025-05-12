@@ -97,9 +97,10 @@ const ReviewedMoviesPage = () => {
 
 const styles = {
   container: {
-    backgroundColor: "#240046",
+    backgroundColor: "#1D0037",
+    backgroundImage: "radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43))",
     minHeight: "100vh",
-    padding: "60px 40px",
+    padding: "80px 80px",
     color: "#fff",
   },
   pageTitle: {

@@ -530,9 +530,10 @@ const SearchPage = () => {
   }
 
   return (
+
     <div>
       <Toolbar />
-      <section style={{ paddingTop: '105px' }}>
+      <section>
         <div class="search-container">
           <input
             type="text" id="search-input" placeholder="Type your search here..."
@@ -600,6 +601,7 @@ const SearchPage = () => {
         </div>
       </section>
     </div>
+
   );
 };
 
