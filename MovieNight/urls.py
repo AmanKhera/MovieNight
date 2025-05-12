@@ -110,6 +110,8 @@ urlpatterns = [
     path('movie_review/', movie_views.review_recommendations, name='group_messages'),
     path('group_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
     path('generate_group_recommendations/', group_views.generate_group_recommendations, name='group_messages'),
+    path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
+
     ]
 
 
