@@ -739,8 +739,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           .map((d, i) => d && { ...d, id: existing[i].id })
           .filter(Boolean);
 
-        // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
-        let finalList = [...enrichedExisting];
+       // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+        let finalList = [...enrichedExisting];/*
         if (finalList.length < 20) {
           const needed = 20 - finalList.length;
           const genResp = await fetch(
@@ -769,7 +769,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               .filter(Boolean);
             finalList = finalList.concat(enrichedNew);
           }
-        }
+        }*/
 
         setRecommendations(finalList);
       } catch (e) {
