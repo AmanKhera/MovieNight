@@ -100,46 +100,56 @@ export const fetchUserInfo = async () => {
     return moviesWithPosters.slice(0, 7);
   };
   
-  export const fetchRecentlyWatched = async () => {
-    const userInfo = await fetchUserInfo();
-    if (!userInfo.id) {
-      throw new Error("User ID not found");
-    }
-  
-    const response = await fetch(
-      `http://localhost:8000/recently_watched/?user_id=${userInfo.id}`,
-      { credentials: "include" }
-    );
-    const watchedData = await response.json();
-  
-    if (!response.ok) {
-      throw new Error(watchedData.message || "Failed to fetch recently watched.");
-    }
-  
-    const moviePromises = watchedData.map((item) =>
-      fetchMovieDetails(item.movie)
-    );
-    const detailedMovies = await Promise.all(moviePromises);
-    const validMovies = detailedMovies.filter(Boolean);
-  
-    const moviesWithPosters = await Promise.all(
-      validMovies.map(async (movie) => {
-        if (!movie.poster_path || movie.poster_path === "N/A") {
-          try {
-            const poster = await fetchMoviePoster(movie.title || movie.original_title);
-            return { ...movie, poster };
-          } catch (err) {
-            console.error("Error fetching poster:", err);
-            return movie;
+export const fetchRecentlyWatched = async () => {
+  const userInfo = await fetchUserInfo();
+  if (!userInfo.id) {
+    throw new Error("User ID not found");
+  }
+
+  const response = await fetch(
+    `http://localhost:8000/recently_watched/?user_id=${userInfo.id}`,
+    { credentials: "include" }
+  );
+  const watchedData = await response.json();
+
+  if (!response.ok) {
+    throw new Error(watchedData.message || "Failed to fetch recently watched.");
+  }
+
+  // Get movie details while preserving the original journal data
+  const enhancedMovies = await Promise.all(
+    watchedData.map(async (journalEntry) => {
+      try {
+        const movieDetails = await fetchMovieDetails(journalEntry.movie);
+        
+        // Create the base enhanced movie object
+        const enhancedMovie = {
+          ...journalEntry,  // Keep the original rating/review/date
+          ...movieDetails,  // Add movie details
+        };
+
+        // Handle poster separately
+        const posterPath = movieDetails.poster_path;
+        if (posterPath && posterPath !== "N/A") {
+          enhancedMovie.poster = `https://image.tmdb.org/t/p/w500${posterPath}`;
+        } else {
+          const fallbackPoster = await fetchMoviePoster(journalEntry.title).catch(() => null);
+          if (fallbackPoster !== null) {
+            enhancedMovie.poster = fallbackPoster;
           }
         }
-        return movie;
-      })
-    );
-  
-    return moviesWithPosters.slice(0, 7);
-  };
 
+        return enhancedMovie;
+      } catch (error) {
+        console.error("Error enhancing movie:", error);
+        // Return the journal entry without any poster field if there was an error
+        return { ...journalEntry };
+      }
+    })
+  );
+
+  return enhancedMovies;
+};
   export const addToWatchlistAPI = async (movie) => {
     const titleParam = movie.title || movie.original_title;
     if (!titleParam) {

@@ -6,7 +6,7 @@ const MainLayout = ({ children }) => {
   return (
     <>
       <Toolbar />
-      <div style={{ paddingTop: "105px" }}>
+      <div style={{ paddingTop: "0" }}>
         {children}
       </div>
     </>

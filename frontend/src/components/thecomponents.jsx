@@ -1,5 +1,5 @@
 // src/components/thecomponents.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const getCookie = (name) => {
@@ -158,7 +158,7 @@ export const GroupsSidebar = ({
     padding: "1.5rem",
     backgroundColor: "#1a0133",
     color: "white",
-    overflowY: "auto",
+    overflowY: "hidden",
   };
 
   const tabContainerStyle = {
@@ -434,11 +434,13 @@ export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   // === Styling ===
   const chatStyle = {
     width: "75%",
-    height: "100%",
+    height: "100vh",
     display: "flex",
     flexDirection: "column",
     backgroundColor: "#2a0252",
@@ -488,7 +490,23 @@ export const ChatSection = ({ selectedChat }) => {
     cursor: "pointer",
     fontWeight: "bold",
     transition: "background-color 0.2s",
+    '&:hover': {
+      backgroundColor: "#7b1fa2",
+    },
+    '&:disabled': {
+      backgroundColor: "#3a1f5c",
+      cursor: "not-allowed",
+    }
   };
+
+  // Function to scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -519,7 +537,9 @@ export const ChatSection = ({ selectedChat }) => {
           credentials: "include",
         });
         const data = await res.json();
-        if (res.ok) setMessages(data.messages || []);
+        if (res.ok) {
+          setMessages(data.messages || []);
+        }
       } catch (error) {
         console.error("Error fetching messages:", error);
       }
@@ -571,19 +591,22 @@ export const ChatSection = ({ selectedChat }) => {
         </h2>
       </div>
 
-      <div style={messagesStyle}>
+      <div style={messagesStyle} ref={messagesContainerRef}>
         {messages.length > 0 ? (
-          messages.slice().reverse().map((message, index) => (
-            <div key={index} style={{ marginBottom: "1rem" }}>
-              <strong>
-                {message.sender_id === currentUser?.id
-                  ? "You"
-                  : message.user_sending || `User ${message.sender_id}`}
-                :
-              </strong>{" "}
-              {message.message_content}
-            </div>
-          ))
+          <>
+            {messages.slice().reverse().map((message, index) => (
+              <div key={index} style={{ marginBottom: "1rem" }}>
+                <strong>
+                  {message.sender_id === currentUser?.id
+                    ? "You"
+                    : message.user_sending || `User ${message.sender_id}`}
+                  :
+                </strong>{" "}
+                {message.message_content}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
         ) : (
           <div
             style={{

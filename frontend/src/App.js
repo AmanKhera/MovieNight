@@ -26,7 +26,7 @@ import {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 10, // 10 minutes
+      staleTime: 1000 * 60 * 1, // 1 minutes
       gcTime: 1000 * 60 * 60 * 24, // 24 hours
     },
   },
@@ -45,6 +45,9 @@ function App() {
   useEffect(() => {
     async function prefetchCriticalData() {
       try {
+
+        //queryClient.clear();
+        
         // Prefetch user info first
         const userInfo = await queryClient.fetchQuery({
           queryKey: ['userInfo'],
