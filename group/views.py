@@ -393,6 +393,8 @@ def generate_group_recommendations(request):
     seen = Movie.objects.filter(user_journals__user=group).distinct()
     seen_titles = list(seen.values_list("title", flat=True))     
 
+
+    #If user has not voted on recommendations before we use more tokens to create an accurate recommendation
     if MemberRecommendation.objects.filter(user_receiving=group).count() < 20:
             
         previously_watched = UserMovieJournal.objects.filter(user_id=group.id)
@@ -400,11 +402,15 @@ def generate_group_recommendations(request):
         liked = [f.movie.title for f in previously_watched if f.rating >= 3]
         disliked = [f.movie.title for f in previously_watched if not f.rating <= 2]   
 
+        #Use seen and split seen into liked an disliked recommendations
         user_payload = {
         "liked_recommendations": liked,
         "disliked_recommendations": disliked,
         "seen": seen_titles,
         }
+
+    #If user has voted on recommendations before we use less tokens
+    #need to reduce MemberRecommendations to the last 50 recs
     else:
         previous_liked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=1).values_list("movie_id", flat=True)
         previous_liked_recs = Movie.objects.filter(id__in=previous_liked_recs)
@@ -412,7 +418,7 @@ def generate_group_recommendations(request):
         previous_disliked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=-1).values_list("movie_id", flat=True)
         previous_disliked_recs = Movie.objects.filter(id__in=previous_disliked_recs)
 
-
+        #only use seen and previous recommendations
         user_payload = {
         "liked_recommendations": list(previous_liked_recs.values_list("title", flat=True)),
         "disliked_recommendations": list(previous_disliked_recs.values_list("title", flat=True)),

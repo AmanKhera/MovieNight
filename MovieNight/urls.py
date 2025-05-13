@@ -111,7 +111,8 @@ urlpatterns = [
     path('group_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
     path('generate_group_recommendations/', group_views.generate_group_recommendations, name='group_messages'),
     path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
-
+    path('retrieve_feed/', user_views.retrieve_feed, name='group_messages'),
+    path('get_following_watch_status/', user_views.get_following_watch_status, name='group_messages'),
     ]
 
 
