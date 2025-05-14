@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
-import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear, fetchMoviesByContentRating, fetchMoviesByRuntime } from '../components/fetchMovies';
+import { fetchMovies, fetchMoviesByDirector, fetchMoviesByYear, fetchMoviesByContentRating, fetchMoviesByRuntime, fetchMoviesByGenre } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
 import defaultPoster from '../images/default-poster.jpg';
@@ -115,30 +115,25 @@ const SearchPage = () => {
   const filterGenreButtonAction = () => {
     toggleFilterOptions("genre-filter-options");
     toggleButtonClicked("filter-genre-button");
+    if (!document.getElementById("filter-genre-button").classList.contains("clicked")) {
+      document.getElementById("genre-filter-action-button").classList.remove("clicked");
+      document.getElementById("genre-filter-adventure-button").classList.remove("clicked");
+      document.getElementById("genre-filter-animation-button").classList.remove("clicked");
+      document.getElementById("genre-filter-comedy-button").classList.remove("clicked");
+      document.getElementById("genre-filter-crime-button").classList.remove("clicked");
+      document.getElementById("genre-filter-documentary-button").classList.remove("clicked");
+      document.getElementById("genre-filter-drama-button").classList.remove("clicked");
+      document.getElementById("genre-filter-family-button").classList.remove("clicked");
+      document.getElementById("genre-filter-fantasy-button").classList.remove("clicked");
+      document.getElementById("genre-filter-history-button").classList.remove("clicked");
+      document.getElementById("genre-filter-horror-button").classList.remove("clicked");
+      document.getElementById("genre-filter-mystery-button").classList.remove("clicked");
+      document.getElementById("genre-filter-romance-button").classList.remove("clicked");
+      document.getElementById("genre-filter-science-fiction-button").classList.remove("clicked");
+      document.getElementById("genre-filter-thriller-button").classList.remove("clicked");
+      document.getElementById("genre-filter-war-button").classList.remove("clicked");
+    }
   };
-
-
-  // -------------Attempt with Genre------------------------
-  // const fetchMoviesByGenre = async () => {
-  //   try {
-  //     const response = await fetch("http://localhost:8000/search", {
-  //       credentials: "include",
-  //     });
-  //     if (!response.ok) {
-  //       throw new Error("Failed to fetch movies by genre");
-  //     }
-  //     const data = await response.json();
-  //     console.log("discover_movies response:", data);
-  //     if (data.error) {
-  //       setError(data.error);
-  //     } else {
-  //       // setLeaderId(data.id);
-  //       console.log("in else");
-  //     }
-  //   } catch (err) {
-  //     setError(err.message);
-  //   }
-  // };
 
   const genreFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
@@ -217,7 +212,8 @@ const SearchPage = () => {
   const searchButtonAction = async (query) => {
 
     if (document.getElementById("filter-content-rating-button").classList.contains("clicked") ||
-        document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+        document.getElementById("filter-runtime-button").classList.contains("clicked") ||
+        document.getElementById("filter-genre-button").classList.contains("clicked")) {
       query = {
         Rated: {
           G: (document.getElementById("g-rated-button").classList.contains("clicked")),
@@ -229,6 +225,24 @@ const SearchPage = () => {
           Ninety: (document.getElementById("90-min-button").classList.contains("clicked")),
           OneTwenty: (document.getElementById("120-min-button").classList.contains("clicked")),
           OneEighty: (document.getElementById("180-min-button").classList.contains("clicked"))
+        },
+        Genre: {
+          Action: (document.getElementById("genre-filter-action-button").classList.contains("clicked")),
+          Adventure: (document.getElementById("genre-filter-adventure-button").classList.contains("clicked")),
+          Animation: (document.getElementById("genre-filter-animation-button").classList.contains("clicked")),
+          Comedy: (document.getElementById("genre-filter-comedy-button").classList.contains("clicked")),
+          Crime: (document.getElementById("genre-filter-crime-button").classList.contains("clicked")),
+          Documentary: (document.getElementById("genre-filter-documentary-button").classList.contains("clicked")),
+          Drama: (document.getElementById("genre-filter-drama-button").classList.contains("clicked")),
+          Family: (document.getElementById("genre-filter-family-button").classList.contains("clicked")),
+          Fantasy: (document.getElementById("genre-filter-fantasy-button").classList.contains("clicked")),
+          History: (document.getElementById("genre-filter-history-button").classList.contains("clicked")),
+          Horror: (document.getElementById("genre-filter-horror-button").classList.contains("clicked")),
+          Mystery: (document.getElementById("genre-filter-mystery-button").classList.contains("clicked")),
+          Romance: (document.getElementById("genre-filter-romance-button").classList.contains("clicked")),
+          ScienceFiction: (document.getElementById("genre-filter-science-fiction-button").classList.contains("clicked")),
+          Thriller: (document.getElementById("genre-filter-thriller-button").classList.contains("clicked")),
+          War: (document.getElementById("genre-filter-war-button").classList.contains("clicked"))
         }
       };
     }
@@ -256,61 +270,158 @@ const SearchPage = () => {
       let yearResult = await fetchMoviesByYear(finalQuery, setMovies, setError);
       await displayMovieSearchResult(yearResult);
     } else if (document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
-      let index = 10;
+      let batchSize = 10;
       if (query.Rated.G) {
-        while (index !== 200) {
-          let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, index);
+        while (batchSize !== 50) {
+          let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
-          index += 10;
+          batchSize += 10;
         }
       }
       if (query.Rated.PG) {
-        while (index !== 200) {
-          let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, index);
+        while (batchSize !== 50) {
+          let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
-          index += 10;
+          batchSize += 10;
         }
       }
       if (query.Rated.PG13) {
-        while (index !== 200) {
-          let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, index);
+        while (batchSize !== 50) {
+          let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
-          index += 10;
+          batchSize += 10;
         }
       }
       if (query.Rated.R) {
-        while (index !== 200) {
-          let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, index);
+        while (batchSize !== 50) {
+          let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
-          index += 10;
+          batchSize += 10;
         }
       }
     } else if (document.getElementById("filter-runtime-button").classList.contains("clicked")) {
-      let index = 10;
+      let batchSize = 10;
       if (query.Runtime.Ninety) {
-        while (index !== 200) {
-          let runtimeResult = await fetchMoviesByRuntime("90", setMovies, setError, index);
+        while (batchSize !== 20) {
+          let runtimeResult = await fetchMoviesByRuntime("90", setMovies, setError, batchSize);
           await displayMovieSearchResult(runtimeResult);
-          index += 10;
+          batchSize += 10;
         }
       }
       if (query.Runtime.OneTwenty) {
-        while (index !== 200) {
-          let runtimeResult = await fetchMoviesByRuntime("120", setMovies, setError, index);
+        while (batchSize !== 20) {
+          let runtimeResult = await fetchMoviesByRuntime("120", setMovies, setError, batchSize);
           await displayMovieSearchResult(runtimeResult);
-          index += 10;
+          batchSize += 10;
         }
       }
       if (query.Runtime.OneEighty) {
-        while (index !== 200) {
-          let runtimeResult = await fetchMoviesByRuntime("180", setMovies, setError, index);
+        while (batchSize !== 20) {
+          let runtimeResult = await fetchMoviesByRuntime("180", setMovies, setError, batchSize);
           await displayMovieSearchResult(runtimeResult);
-          index += 10;
+          batchSize += 10;
+        }
+      }
+    } else if (document.getElementById("filter-genre-button").classList.contains("clicked")) {
+      if (query.Genre.Action) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("action", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Adventure) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("adventure", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Animation) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("animation", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Comedy) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("comedy", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Crime) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("crime", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Documentary) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("documentary", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Drama) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("drama", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Family) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("family", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Fantasy) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("fantasy", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.History) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("history", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Horror) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("horror", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Mystery) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("mystery", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Romance) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("romance", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.ScienceFiction) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("science fiction", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.Thriller) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("thriller", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
+        }
+      }
+      if (query.Genre.War) {
+        for (let i = 1; i < 6; i++) {
+          let genreResult = await fetchMoviesByGenre("war", setMovies, setError, i);
+          await displayMovieSearchResult(genreResult);
         }
       }
     } else {
       let userResult = await fetchUser(finalQuery, setUsers, setError);
-      if (userResult.length === 0) { //################# == to ===
+      if (userResult.length === 0) {
         document.getElementById("search-result-user").innerHTML = "No users found by that search term";
       } else {
         await displayUserSearchResult(userResult);
@@ -606,6 +717,7 @@ const SearchPage = () => {
             <button id="genre-filter-documentary-button" onClick={genreFilterButtonAction}>Documentary</button>
             <button id="genre-filter-drama-button" onClick={genreFilterButtonAction}>Drama</button>
             <button id="genre-filter-family-button" onClick={genreFilterButtonAction}>Family</button>
+            <button id="genre-filter-fantasy-button" onClick={genreFilterButtonAction}>Fantasy</button>
             <button id="genre-filter-history-button" onClick={genreFilterButtonAction}>History</button>
             <button id="genre-filter-horror-button" onClick={genreFilterButtonAction}>Horror</button>
             <button id="genre-filter-mystery-button" onClick={genreFilterButtonAction}>Mystery</button>
