@@ -15,7 +15,7 @@ button {
   margin-left: 20%;
   margin-right: 20%;
   padding: 10px;
-  padding-top: 50px;
+  padding-top: 120px;
 }
 
 #search-input {
@@ -32,7 +32,7 @@ button {
 
 #search-button-actual {
   padding: 10px 20px;
-  margin-left: -101px;
+  margin-left: -94px;
   background-color: #3C096C;
   background-size: 200% auto;
   color: #ddd;
@@ -40,7 +40,7 @@ button {
   border: 2px solid #ddd;
   border-radius: 20px;
   cursor: pointer;
-  font-size: large;
+  font-size: medium;
 }
 
 #search-button-actual:hover, #filter-options button:hover {
@@ -81,7 +81,7 @@ button {
   /*text-transform: uppercase;*/
   transition: 0.5s;
   background-size: 200% auto;
-  color: rgb(255, 255, 255);            
+  color: rgb(255, 255, 255);
   box-shadow: 0 0 10px #7700ffce;
   border: 1.5px solid #8400ff;
   border-radius: 10px;
@@ -95,7 +95,7 @@ button {
   border-radius: 20px;
   cursor: pointer;
   font-weight: bold;*/
-          
+
 }
 
 .follow-button:hover {
