@@ -46,6 +46,7 @@ export const GroupsSidebar = ({
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
 
+  // Fetch user info on component mount
   useEffect(() => {
     const ac = new AbortController();
     fetch("http://localhost:8000/user_info/", {
@@ -63,11 +64,30 @@ export const GroupsSidebar = ({
     return () => ac.abort();
   }, []);
 
+  // Reusable function to fetch friends list
+  const fetchFriends = async (signal = null) => {
+    try {
+      const friendsRes = await fetch(
+        `http://localhost:8000/get_mutual_friends/?id=${leaderId}`,
+        { credentials: "include", signal }
+      );
+      if (friendsRes.ok) {
+        const { friends = [] } = await friendsRes.json();
+        setUserFriends(friends);
+      }
+      setError("");
+    } catch {
+      setError("");
+    }
+  };
+
+  // Fetch groups and friends when username or leaderId changes
   useEffect(() => {
     if (!username) return;
     const ac = new AbortController();
     const fetchLists = async () => {
       try {
+        // Fetch groups
         const groupsRes = await fetch(
           `http://localhost:8000/get_user_groups/?username=${username}`,
           { credentials: "include", signal: ac.signal }
@@ -76,6 +96,7 @@ export const GroupsSidebar = ({
         const { groups = [] } = await groupsRes.json();
         setUserGroups(groups);
 
+        // Fetch group members
         const membersPromises = groups.map(group => 
           fetch(`http://localhost:8000/get_group_members/?group_id=${group.group_id}`, {
             credentials: "include",
@@ -89,15 +110,8 @@ export const GroupsSidebar = ({
         });
         setGroupMembers(membersData);
 
-        const friendsRes = await fetch(
-          `http://localhost:8000/get_mutual_friends/?id=${leaderId}`,
-          { credentials: "include", signal: ac.signal }
-        );
-        if (friendsRes.ok) {
-          const { friends = [] } = await friendsRes.json();
-          setUserFriends(friends);
-        }
-        setError("");
+        // Fetch friends
+        await fetchFriends(ac.signal);
       } catch {
         setError("");
       }
@@ -147,12 +161,7 @@ export const GroupsSidebar = ({
         body: JSON.stringify({ friend_id: newFriendId }),
       });
       if (res.ok) {
-        const refreshed = await fetch(
-          `http://localhost:8000/get_mutual_friends/?user_id=${leaderId}`,
-          { credentials: "include" }
-        );
-        const { friends = [] } = await refreshed.json();
-        setUserFriends(friends);
+        await fetchFriends(); // Refresh friends list
         setShowFriendForm(false);
         setNewFriendId("");
       }
@@ -304,7 +313,10 @@ export const GroupsSidebar = ({
           </button>
           <button
             style={tabButtonStyle(activeTab === "friends")}
-            onClick={() => onTabChange("friends")}
+            onClick={() => {
+              onTabChange("friends");
+              fetchFriends(); // Refresh friends when tab is clicked
+            }}
           >
             Friends
           </button>
