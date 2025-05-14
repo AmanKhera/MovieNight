@@ -144,7 +144,6 @@ const SearchPage = () => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let genre = tokens[2];
       console.log("genre: " + genre);
@@ -166,7 +165,6 @@ const SearchPage = () => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let contentRating = tokens[0];
       console.log("content rating: " + contentRating);
@@ -187,7 +185,6 @@ const SearchPage = () => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let runtime = tokens[0];
       console.log("runtime: " + runtime);

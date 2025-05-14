@@ -69,7 +69,7 @@ export const fetchMoviesByDirector = async (searchText, moviesCallback, errorCal
         const title = data.directors[i].title;
         const year = data.directors[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Director == data.directors[i].director) {
+        if (movie != null && movie.Director === data.directors[i].director) {
           moviesArray.push(movie);
         }
       }
@@ -106,7 +106,7 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Year == year) {
+        if (movie != null && movie.Year == data.movies[i].year) { //needs to be == not === in order to work
           moviesArray.push(movie);
         }
       }
@@ -146,7 +146,7 @@ export const fetchMoviesByContentRating = async (searchFilterValue, moviesCallba
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Rated == data.movies[i].rating) {
+        if (movie != null && movie.Rated === data.movies[i].rating) {
           moviesArray.push(movie);
         }
       }
@@ -185,7 +185,7 @@ export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, er
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Title == title) {
+        if (movie != null && movie.Title === title) {
           moviesArray.push(movie);
         }
       }
