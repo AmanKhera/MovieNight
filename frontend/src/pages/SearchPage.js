@@ -272,28 +272,28 @@ const SearchPage = () => {
     } else if (document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
       let batchSize = 10;
       if (query.Rated.G) {
-        while (batchSize !== 50) {
+        while (batchSize !== 30) {
           let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
           batchSize += 10;
         }
       }
       if (query.Rated.PG) {
-        while (batchSize !== 50) {
+        while (batchSize !== 30) {
           let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
           batchSize += 10;
         }
       }
       if (query.Rated.PG13) {
-        while (batchSize !== 50) {
+        while (batchSize !== 30) {
           let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
           batchSize += 10;
         }
       }
       if (query.Rated.R) {
-        while (batchSize !== 50) {
+        while (batchSize !== 30) {
           let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, batchSize);
           await displayMovieSearchResult(ratedResult);
           batchSize += 10;
@@ -324,97 +324,97 @@ const SearchPage = () => {
       }
     } else if (document.getElementById("filter-genre-button").classList.contains("clicked")) {
       if (query.Genre.Action) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("action", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Adventure) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("adventure", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Animation) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("animation", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Comedy) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("comedy", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Crime) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("crime", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Documentary) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("documentary", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Drama) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("drama", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Family) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("family", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Fantasy) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("fantasy", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.History) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("history", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Horror) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("horror", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Mystery) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("mystery", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Romance) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("romance", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.ScienceFiction) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("science fiction", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.Thriller) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("thriller", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
       }
       if (query.Genre.War) {
-        for (let i = 1; i < 6; i++) {
+        for (let i = 1; i < 2; i++) {
           let genreResult = await fetchMoviesByGenre("war", setMovies, setError, i);
           await displayMovieSearchResult(genreResult);
         }
@@ -756,7 +756,7 @@ const SearchPage = () => {
           <button id="search-button-actual" onClick={() => searchButtonAction()}>Search</button>
           <button id="toggle-filters-button" onClick={toggleFilters}>+</button>
           <div>
-            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden" />
+            <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C092C" class="hidden" />
           </div>
           <p id="no-search-error" class="hidden">Please type your search in the search bar</p>
           <div id="filter-options" class="hidden">
