@@ -216,7 +216,7 @@ export const GroupsSidebar = ({
     width: "25%",
     display: "flex",
     flexDirection: "column",
-    height: "100vh",
+    height: "90vh",
     backgroundColor: "#1a0133",
     color: "white",
     overflow: "hidden",
@@ -750,10 +750,9 @@ export const ChatSection = ({ selectedChat }) => {
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // === Styling ===
   const chatStyle = {
     width: "75%",
-    height: "100vh",
+    height: "90vh",
     display: "flex",
     flexDirection: "column",
     backgroundColor: "#2a0252",
@@ -772,7 +771,7 @@ export const ChatSection = ({ selectedChat }) => {
     flex: 1,
     overflowY: "auto",
     padding: "1.5rem",
-    minHeight: 0, // Allows proper scrolling
+    minHeight: 0,
   };
 
   const inputContainerStyle = {
@@ -802,24 +801,11 @@ export const ChatSection = ({ selectedChat }) => {
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
-    transition: "background-color 0.2s",
-    '&:hover': {
-      backgroundColor: "#7b1fa2",
-    },
-    '&:disabled': {
-      backgroundColor: "#3a1f5c",
-      cursor: "not-allowed",
-    }
   };
 
-  // Function to scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -888,7 +874,9 @@ export const ChatSection = ({ selectedChat }) => {
           message: newMessage.trim(),
         }),
       });
+
       setNewMessage("");
+      scrollToBottom(); // Only scroll after sending
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -928,7 +916,9 @@ export const ChatSection = ({ selectedChat }) => {
               color: "#aaa",
             }}
           >
-            {selectedChat ? "No messages yet" : "Select a chat to start messaging"}
+            {selectedChat
+              ? "No messages yet"
+              : "Select a chat to start messaging"}
           </div>
         )}
       </div>
@@ -1174,7 +1164,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     <div
       style={{
         width: "30%",
-        height: "100vh",
+        height: "86.6vh",
         color: "white",
         backgroundColor: "#1a0133",
         padding: "1rem",
