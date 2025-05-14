@@ -4,32 +4,34 @@ Formats the initial look of the search page as well as the search results
 after the user has searched for something
 */
 
-.search-container {
+#search-container {
   text-align: center;
   margin-left: 20%;
   margin-right: 20%;
   padding: 10px;
-  padding-top: 20px;
+  padding-top: 50px;
 }
 
 #search-input {
-  width: 80%;
+  width: 90%;
   padding: 10px;
   margin-bottom: 10px;
-  border: 1.5px solid #ddd;
+  border: 2px solid #ddd;
   border-radius: 40px;
   background-color: #240046;
   color: #ddd;
+  font-size: large;
 }
 
 #search-button-actual {
   padding: 10px 20px;
-  margin-left: -82px;
+  margin-left: -101px;
   background-color: #3C096C;
   color: #ddd;
-  border: 1.5px solid #ddd;
+  border: 2px solid #ddd;
   border-radius: 20px;
   cursor: pointer;
+  font-size: large;
 }
 
 #search-button-actual:hover, #filter-options button:hover {
@@ -55,6 +57,7 @@ after the user has searched for something
   border-color: transparent;
   background-color: ddd;
   cursor: pointer;
+  margin-left: 5px;
 }
 
 #toggle-filters-button:hover {
@@ -122,6 +125,7 @@ li img {
   width: 20%;
   display: block;
   margin: 20px;
+  border-radius: 8px;
 }
 
 li h1 {
@@ -149,4 +153,8 @@ li h2 {
 
 #spinner {
   margin-top: 20px;
+}
+
+#no-search-error {
+  color: white;
 }

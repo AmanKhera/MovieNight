@@ -10,13 +10,15 @@ export const fetchMovies = async (searchText, moviesCallback, errorCallback) => 
   try {
     const response = await fetch(`http://www.omdbapi.com/?s=${searchText}&apikey=3d39d278&type=movie`);
     const data = await response.json();
+
     if (data.Response === 'True') {
       const movieDetailsPromises = data.Search.map((movie) => fetchMovieDetails(movie.imdbID, errorCallback));
       const movieDetails = await Promise.all(movieDetailsPromises);
 
       moviesCallback(movieDetails);
       errorCallback(null);
-      return data;
+      // console.log("movieDetails==>>" + JSON.stringify(movieDetails)); //delete
+      return movieDetails;
     } else {
       moviesCallback([]);
       errorCallback(data.Error);
@@ -38,7 +40,7 @@ export const fetchMovieDetails = async (id, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?i=${id}&plot=full&apikey=3d39d278`);
     const data = await response.json();
-
+    // console.log("data==>>" + JSON.stringify(data)); //delete
     if (data.Response === 'True') {
       return data;
     } else {
@@ -69,19 +71,15 @@ export const fetchMoviesByDirector = async (searchText, moviesCallback, errorCal
         const title = data.directors[i].title;
         const year = data.directors[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Director === data.directors[i].director) {
+        if (movie != null && movie.Director == data.directors[i].director) {
           moviesArray.push(movie);
         }
 
       }
 
-      const movieDetails = {
-        "Search": moviesArray
-      };
-
-      moviesCallback(movieDetails);
+      moviesCallback(moviesArray);
       errorCallback(null);
-      return movieDetails;
+      return moviesArray;
     } else {
       moviesCallback([]);
       errorCallback(data.Error);
@@ -111,18 +109,14 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Year === year) { //### == to ===
+        if (movie != null && movie.Year == year) { //### == to ===  <-- no
           moviesArray.push(movie);
         }
       }
 
-      const movieDetails = {
-        "Search": moviesArray
-      };
-
-      moviesCallback(movieDetails);
+      moviesCallback(moviesArray);
       errorCallback(null);
-      return movieDetails;
+      return moviesArray;
     } else {
       moviesCallback([]);
       errorCallback(data.Error);
@@ -130,6 +124,89 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
   } catch (error) {
     moviesCallback([]);
     errorCallback('An error occured while fetching movie director data.');
+  }
+};
+
+/**
+ * uses the given searchText that is assumed to be the content rating of a movie (G, PG, PG-13, R)
+ * to call two endpoints and return the search results
+ * @param {String} searchText - user's search input that is assumed to be the content rating of a
+ *                              movie (G, PG, PG-13, R)
+ * @param {Function} moviesCallback -
+ * @param {Function} errorCallback -
+ * @param {Number} index -
+ * @return {JSON <object>} - search results
+ */
+export const fetchMoviesByContentRating = async (searchText, moviesCallback, errorCallback, index) => {
+  try {
+    console.log("in fetchMoviesByContentRating");
+    const response = await fetch(`http://localhost:8000/search/?filter=rating&q=${searchText}`);
+    const data = await response.json();
+    if (response.ok) {
+
+      const moviesArray = [];
+
+      for (let i = (-10 + index); i < index; i++) {
+        const title = data.movies[i].title;
+        console.log(title); //delete
+        const year = data.movies[i].year;
+        const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
+        if (movie != null && movie.Rated == data.movies[i].rating) {
+          moviesArray.push(movie);
+        }
+      }
+
+      moviesCallback(moviesArray);
+      errorCallback(null);
+      return moviesArray;
+    } else {
+      moviesCallback([]);
+      errorCallback(data.Error);
+    }
+  } catch (error) {
+    moviesCallback([]);
+    errorCallback('An error occured while fetching movie content rating data.');
+  }
+};
+
+/**
+ * uses the given searchText that is assumed to be the runtime of a movie (in minutes)
+ * to call two endpoints and return the search results
+ * @param {String} searchText - user's search input that is assumed to be the runtime of a
+ *                              movie (in minutes)
+ * @param {Function} moviesCallback -
+ * @param {Function} errorCallback -
+ * @param {Number} index -
+ * @return {JSON <object>} - search results
+ */
+export const fetchMoviesByRuntime = async (searchText, moviesCallback, errorCallback, index) => {
+  try {
+    const response = await fetch(`http://localhost:8000/search/?filter=runtime&q=${searchText}`);
+    const data = await response.json();
+    if (response.ok) {
+      const moviesArray = [];
+
+      for (let i = (index - 10); i < index; i++) {
+        const title = data.movies[i].title;
+        console.log(title);
+        const year = data.movies[i].year;
+        const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
+        console.log("omdb movie==>>" + JSON.stringify(movie));
+        if (movie != null && movie.Title == title) {
+          moviesArray.push(movie);
+        }
+      }
+
+      moviesCallback(moviesArray);
+      errorCallback(null);
+      return moviesArray;
+    } else {
+      moviesCallback([]);
+      errorCallback(data.Error);
+    }
+  } catch (error) {
+    moviesCallback([]);
+    errorCallback('An error occured while fetching movie runtime data.');
   }
 };
 
