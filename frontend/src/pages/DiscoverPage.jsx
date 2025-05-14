@@ -6,10 +6,10 @@ import MovieDetails from '../components/MovieDetails';
 import CardStackCarousel from '../components/DiscoverCardstack';
 const DiscoverPage = () => {
   return (
-    <div>
-      <Toolbar/>
-      <CardStackCarousel/>
-    </div>
+      <div>
+        <Toolbar />
+        <CardStackCarousel />
+      </div>
   );
 };
 

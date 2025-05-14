@@ -1,10 +1,19 @@
 // src/components/thecomponents.jsx
-import React, { useState, useEffect} from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-/** ========== GROUPS SIDEBAR ========== */
+import { 
+  fetchUserInfo,
+  fetchUserGroups,
+  fetchGroupMembers,
+  fetchMutualFriends,
+  createGroup,
+  addFriend,
+  addGroupMember,
+  removeGroupMember
+} from '../api';
 
-// Helper to read a named cookie (e.g., "csrftoken").
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -20,395 +29,704 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
-export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
-  // === State ===
-  const [leaderId, setLeaderId] = useState(null);            // from /user_info/
-  const [username, setUsername] = useState("");              // for get_user_groups
-  const [userGroups, setUserGroups] = useState([]);           // fetched groups
-  const [groupName, setGroupName] = useState("");
-  const [genre, setGenre] = useState("");
-  const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false);             // toggle modal
 
-  // Member management modal state
-  const [expandedGroupId, setExpandedGroupId] = useState(null);
-  const [addMemberId, setAddMemberId] = useState("");
-  const [removeMemberId, setRemoveMemberId] = useState("");
 
-  // 1) Fetch user info
-  useEffect(() => {
-    const abortController = new AbortController();
-    
-    const fetchUserInfo = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/user_info/", { 
-          credentials: "include",
-          signal: abortController.signal 
-        });
-        const data = await res.json();
-        if (!res.ok || data.error) {
-          setError(data.error || "Failed to fetch user info");
-        } else {
-          setLeaderId(data.id);
-          setUsername(data.username);
-        }
-      } catch (e) {
-        if (e.name !== 'AbortError') {
-          setError(e.message);
-        }
-      }
-    };
 
-    fetchUserInfo();
-    return () => abortController.abort();
-  }, []); // Empty dependency array ensures this runs once on mount
 
-  // 2) Fetch user groups when username is set
-  useEffect(() => {
-    if (!username) return;
-    
-    const abortController = new AbortController();
-    
-    const fetchGroups = async () => {
-      try {
-        const res = await fetch(
-          `http://localhost:8000/get_user_groups/?username=${username}`,
-          { 
-            credentials: "include",
-            signal: abortController.signal 
-          }
-        );
-        const data = await res.json();
-        if (!res.ok || data.error) {
-          setError(data.error || "Failed to fetch user groups");
-        } else {
-          setUserGroups(data.groups || []);
-        }
-      } catch (e) {
-        if (e.name !== 'AbortError') {
-          setError(e.message);
-        }
-      }
-    };
 
-    fetchGroups();
-    return () => abortController.abort();
-  }, [username]); // Only re-run when username changes
 
-  // 3) Create a new group
-  const handleCreateGroup = async () => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      const response = await fetch("http://localhost:8000/create_group/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_name: groupName,
-          leader_id: leaderId,
-          genre: genre,
-        }),
-      });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create group");
-      }
+//Group Sidebar
+export const GroupsSidebar = ({
+  activeTab,
+  onTabChange,
+  selectedChat,
+  onSelectChat
+}) => {
+  const queryClient = useQueryClient();
+  const { data: userInfo } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: fetchUserInfo,
+    staleTime: Infinity
+  });
+  const leaderId = userInfo?.id;
+  const username = userInfo?.username;
 
-      const data = await response.json();
-      console.log("Group created:", data.message);
-
-      // Refresh group list
-      const res = await fetch(
-        `http://localhost:8000/get_user_groups/?username=${username}`,
-        { credentials: "include" }
-      );
-      const newData = await res.json();
-      setUserGroups(newData.groups || []);
-
-      // Reset form and close modal
-      setGroupName("");
-      setGenre("");
-      setShowForm(false);
-    } catch (error) {
-      console.error("Error creating group:", error);
-    }
-  };
-
-  // 4) Add a member to a group
-  const handleAddMember = async (group_id) => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      const response = await fetch("http://localhost:8000/add_members/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_id: group_id,
-          member_id: addMemberId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to add member");
-      }
-      console.log("Member added:", data.message);
-      alert(data.message);
-      setAddMemberId("");
-    } catch (error) {
-      console.error("Error adding member:", error);
-      alert(error);
-    }
-  };
-
-  // 5) Remove a member from a group
-  const handleRemoveMember = async (group_id) => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      const response = await fetch("http://localhost:8000/remove_member/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_id: group_id,
-          remove_id: removeMemberId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to remove member");
-      }
-      console.log("Member removed:", data);
-      alert("User has been removed from the group");
-      setRemoveMemberId("");
-    } catch (error) {
-      console.error("Error removing member:", error);
-      alert(error);
-    }
-  };
-
-  // === Styling ===
-  const sidebarStyle = {
-    width: "15%",
-    padding: "1rem",
-    boxSizing: "border-box",
-    color: "white",
-    backgroundColor: "#1a0133",
-  };
-
-  const headerFlexStyle = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "1rem",
-  };
-
-  const plusButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
-    border: "none",
-    padding: "0.5rem 0.75rem",
-    cursor: "pointer",
-    borderRadius: "4px",
-    fontSize: "1.2rem",
-  };
-
-  const memberButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
-    border: "none",
-    padding: "0.35rem 0.5rem",
-    cursor: "pointer",
-    borderRadius: "50%",
-    marginLeft: "0.5rem",
-    fontSize: "0.9rem",
-  };
-
-  const listStyle = {
-    listStyle: "none",
-    margin: 0,
-    padding: 0,
-  };
-
-  const listItemStyle = (active) => ({
-    padding: "1rem",
-    marginBottom: "0.5rem",
-    backgroundColor: active ? "#240046" : "transparent",
-    cursor: "pointer",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['userGroups', username],
+    queryFn: () => fetchUserGroups(username),
+    enabled: !!username
   });
 
-  const modalOverlayStyle = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
+  const { data: userFriends = [] } = useQuery({
+    queryKey: ['mutualFriends', leaderId],
+    queryFn: () => fetchMutualFriends(leaderId),
+    enabled: !!leaderId
+  });
+
+  const [loadedMembers, setLoadedMembers] = useState({});
+  const [groupName, setGroupName] = useState("");
+  const [genre, setGenre] = useState("");
+  const [newFriendId, setNewFriendId] = useState("");
+  const [error, setError] = useState("");
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showFriendForm, setShowFriendForm] = useState(false);
+  const [showGroupMenu, setShowGroupMenu] = useState(null);
+  const [actionType, setActionType] = useState(null);
+  const [selectedMember, setSelectedMember] = useState("");
+
+  const createGroupMutation = useMutation({
+    mutationFn: ({ groupName, leaderId, genre }) => 
+      createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
+    onMutate: async (newGroup) => {
+      await queryClient.cancelQueries(['userGroups', username]);
+      const previousGroups = queryClient.getQueryData(['userGroups', username]);
+      queryClient.setQueryData(['userGroups', username], (old) => [
+        ...(old || []),
+        {
+          group_id: Date.now(),
+          group_name: newGroup.groupName,
+          leader_id: newGroup.leaderId,
+          genre: newGroup.genre,
+          role: 'leader'
+        }
+      ]);
+      return { previousGroups };
+    },
+    onError: (err, newGroup, context) => {
+      queryClient.setQueryData(['userGroups', username], context.previousGroups);
+      setError("");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['userGroups', username]);
+    }
+  });
+
+  const addFriendMutation = useMutation({
+    mutationFn: (friendId) => 
+      addFriend(getCookie("csrftoken"), { friend_id: friendId }),
+    onMutate: async (friendId) => {
+      await queryClient.cancelQueries(['mutualFriends', leaderId]);
+      const previousFriends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      queryClient.setQueryData(['mutualFriends', leaderId], (old) => [
+        ...(old || []),
+        {
+          id: Date.now(),
+          username: `user_${friendId}`,
+          friend_id: friendId
+        }
+      ]);
+      return { previousFriends };
+    },
+    onError: (err, friendId, context) => {
+      queryClient.setQueryData(['mutualFriends', leaderId], context.previousFriends);
+      setError("");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['mutualFriends', leaderId]);
+    }
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      const friends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      const newMember = friends?.find(f => f.id === userId);
+      if (newMember) {
+        queryClient.setQueryData(['groupMembers', groupId], (old) => [
+          ...(old || []),
+          {
+            id: userId,
+            username: newMember.username
+          }
+        ]);
+      }
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
+    }
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      queryClient.setQueryData(['groupMembers', groupId], (old) => 
+        old?.filter(member => member.id !== userId) || []
+      );
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
+    }
+  });
+
+  const handleCreateGroup = () => {
+    if (!groupName || !leaderId) return;
+    createGroupMutation.mutate({ groupName, leaderId, genre });
   };
 
-  const modalContentStyle = {
-    backgroundColor: "#fff",
-    padding: "1rem",
-    borderRadius: "4px",
-    width: "300px",
-    maxWidth: "90%",
-    color: "#000",
+  const handleAddFriend = () => {
+    if (!newFriendId) return;
+    addFriendMutation.mutate(newFriendId);
+  };
+
+  const handleAddMember = (groupId) => {
+    if (!selectedMember) return;
+    addMemberMutation.mutate({ groupId, userId: selectedMember });
+  };
+
+  const handleRemoveMember = (groupId) => {
+    if (!selectedMember) return;
+    removeMemberMutation.mutate({ groupId, userId: selectedMember });
+  };
+
+  const handleGroupClick = async (group) => {
+    onSelectChat(group);
+    await fetchMembersForGroup(group.group_id);
+  };
+
+  const fetchMembersForGroup = async (groupId) => {
+    if (!loadedMembers[groupId]) {
+      const members = await queryClient.fetchQuery({
+        queryKey: ['groupMembers', groupId],
+        queryFn: () => fetchGroupMembers(groupId)
+      });
+      setLoadedMembers(prev => ({ ...prev, [groupId]: members }));
+      return members;
+    }
+    return loadedMembers[groupId];
+  };
+
+  const sidebarStyle = {
+    width: "25%",
+    display: "flex",
+    flexDirection: "column",
+    height: "90vh",
+    backgroundColor: "#1a0133",
+    color: "white",
+    overflow: "hidden",
     position: "relative",
   };
 
-  const closeButtonStyle = {
-    backgroundColor: "transparent",
+  const tabContainerStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1.5rem",
+    borderBottom: "1px solid #3a1f5c",
+  };
+
+  const tabButtonStyle = (isActive) => ({
+    padding: "0.8rem 1.2rem",
+    fontSize: "1rem",
+    backgroundColor: isActive ? "#6a0dad" : "transparent",
     border: "none",
-    fontSize: "1.2rem",
+    color: "white",
     cursor: "pointer",
-    position: "absolute",
-    right: "0.5rem",
-    top: "0.5rem",
+    borderRadius: "4px",
+  });
+
+  const listItemStyle = (active) => ({
+    padding: "1rem",
+    margin: "0.5rem 0",
+    backgroundColor: active ? "#240046" : "transparent",
+    borderRadius: "6px",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    position: "relative",
+  });
+
+  const listContainerStyle = {
+    flex: 1,
+    overflowY: "auto",
+    padding: "0 1.5rem",
   };
 
-  const memberModalOverlayStyle = {
-    ...modalOverlayStyle,
-    zIndex: 1100,
+  const menuButtonStyle = {
+    background: "none",
+    border: "none",
+    color: "white",
+    cursor: "pointer",
+    fontSize: "1.2rem",
+    padding: "0 0.5rem",
   };
 
-  const memberModalContentStyle = {
-    ...modalContentStyle,
-    width: "300px",
-    maxWidth: "90%",
+  const dropdownStyle = {
+    backgroundColor: "#240046",
+    color: "white",
+    border: "1px solid #6a0dad",
+    borderRadius: "4px",
+  };
+
+  const actionButtonStyle = {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
   };
 
   return (
     <div style={sidebarStyle}>
-      <div style={headerFlexStyle}>
-        <h3 style={{ margin: 0 }}>My Groups</h3>
-        <button onClick={() => setShowForm(true)} style={plusButtonStyle}>
-          +
-        </button>
+      <div style={tabContainerStyle}>
+        <div>
+          <button
+            style={tabButtonStyle(activeTab === "groups")}
+            onClick={() => onTabChange("groups")}
+          >
+            Groups
+          </button>
+          <button
+            style={tabButtonStyle(activeTab === "friends")}
+            onClick={() => onTabChange("friends")}
+          >
+            Friends
+          </button>
+        </div>
+        {activeTab === "groups" && (
+          <button
+            style={{
+              backgroundColor: "#6a0dad",
+              color: "white",
+              border: "none",
+              padding: "0.6rem 1rem",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+            onClick={() => setShowGroupForm(true)}
+          >
+            + Group
+          </button>
+        )}
       </div>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && (
+        <div style={{ color: "#ff6666", margin: "1rem 1.5rem 0" }}>
+          {error}
+        </div>
+      )}
 
-      <ul style={listStyle}>
-        {userGroups.map((grp) => (
-          <li
-            key={grp.group_id}
-            style={listItemStyle(
-              selectedGroup && grp.group_name === selectedGroup.group_name
-            )}
-            onClick={() => onSelectGroup(grp)}
+      <div style={listContainerStyle}>
+        {activeTab === "groups"
+          ? userGroups.map((group) => (
+              <div
+                key={group.group_id}
+                style={listItemStyle(selectedChat?.group_id === group.group_id)}
+                onClick={() => handleGroupClick(group)}
+              >
+                <span>{group.group_name}</span>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <span style={{ color: "#888", marginRight: "0.5rem" }}>
+                    {group.role}
+                  </span>
+                  <button
+                    style={menuButtonStyle}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
+                      setActionType(null);
+                    }}
+                  >
+                    ⋯
+                  </button>
+                </div>
+              </div>
+            ))
+          : userFriends.map((friend) => (
+              <div
+                key={friend.id}
+                style={listItemStyle(selectedChat?.id === friend.id)}
+                onClick={() => onSelectChat(friend)}
+              >
+                {friend.username}
+              </div>
+            ))}
+      </div>
+
+      {showGroupMenu && (
+        <div 
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowGroupMenu(null);
+            setActionType(null);
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: "#3a1f5c",
+              padding: "1.5rem",
+              borderRadius: "8px",
+              width: "350px",
+              color: "white",
+              zIndex: 1001,
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <span>{grp.group_name}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpandedGroupId(grp.group_id);
-              }}
-              style={memberButtonStyle}
-            >
-              ...
-            </button>
-          </li>
-        ))}
-      </ul>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+            }}>
+              <h3 style={{ margin: 0 }}>
+                {!actionType 
+                  ? "Manage Group Members" 
+                  : actionType === "add" 
+                    ? "Add Member" 
+                    : "Remove Member"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowGroupMenu(null);
+                  setActionType(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  padding: "0.5rem",
+                }}
+              >
+                ×
+              </button>
+            </div>
 
-      {expandedGroupId && (
-        <div style={memberModalOverlayStyle}>
-          <div style={memberModalContentStyle}>
-            <button onClick={() => setExpandedGroupId(null)} style={closeButtonStyle}>
-              ×
-            </button>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>
-              Manage Members for{" "}
-              {userGroups.find((g) => g.group_id === expandedGroupId)?.group_name ||
-                "Group"}
-            </h4>
-            <div style={{ marginBottom: "0.5rem" }}>
-              <strong>Add Member:</strong>
-              <input
-                type="text"
-                placeholder="Member ID"
-                value={addMemberId}
-                onChange={(e) => setAddMemberId(e.target.value)}
-                style={{ marginLeft: "0.5rem", width: "60%" }}
-              />
-              <button
-                onClick={() => handleAddMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
-                Add
-              </button>
-            </div>
-            <div>
-              <strong>Remove Member:</strong>
-              <input
-                type="text"
-                placeholder="Member ID"
-                value={removeMemberId}
-                onChange={(e) => setRemoveMemberId(e.target.value)}
-                style={{ marginLeft: "0.5rem", width: "60%" }}
-              />
-              <button
-                onClick={() => handleRemoveMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
-                Remove
-              </button>
-            </div>
+            {!actionType ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                  }}
+                  onClick={() => setActionType("add")}
+                >
+                  Add Member
+                </button>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                  }}
+                  onClick={() => setActionType("remove")}
+                >
+                  Remove Member
+                </button>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                    backgroundColor: "#333",
+                  }}
+                  onClick={() => setShowGroupMenu(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : actionType === "add" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <select
+                  style={{
+                    ...dropdownStyle,
+                    width: "100%",
+                    padding: "0.8rem",
+                  }}
+                  value={selectedMember}
+                  onChange={(e) => setSelectedMember(e.target.value)}
+                >
+                  <option value="">Select a friend to add</option>
+                  {userFriends
+                    .filter(
+                      (friend) =>
+                        !loadedMembers[showGroupMenu]?.some(
+                          (member) => member.id === friend.id
+                        )
+                    )
+                    .map((friend) => (
+                      <option key={friend.id} value={friend.id}>
+                        {friend.username}
+                      </option>
+                    ))}
+                </select>
+                <div style={{ display: "flex", gap: "0.8rem" }}>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                    }}
+                    onClick={() => handleAddMember(showGroupMenu)}
+                    disabled={!selectedMember || addMemberMutation.isPending}
+                  >
+                    {addMemberMutation.isPending ? "Adding..." : "Add"}
+                  </button>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                      backgroundColor: "#333",
+                    }}
+                    onClick={() => setActionType(null)}
+                    >
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <select
+                  style={{
+                    ...dropdownStyle,
+                    width: "100%",
+                    padding: "0.8rem",
+                  }}
+                  value={selectedMember}
+                  onChange={(e) => setSelectedMember(e.target.value)}
+                >
+                  <option value="">Select a member to remove</option>
+                  {loadedMembers[showGroupMenu]
+                    ?.filter((member) => member.id !== leaderId)
+                    .map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.username}
+                      </option>
+                    ))}
+                </select>
+                <div style={{ display: "flex", gap: "0.8rem" }}>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                    }}
+                    onClick={() => handleRemoveMember(showGroupMenu)}
+                    disabled={!selectedMember || removeMemberMutation.isPending}
+                  >
+                    {removeMemberMutation.isPending ? "Removing..." : "Remove"}
+                  </button>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                      backgroundColor: "#333",
+                    }}
+                    onClick={() => setActionType(null)}
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {showForm && (
-        <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <button onClick={() => setShowForm(false)} style={closeButtonStyle}>
-              ×
-            </button>
-            <h4>Create New Group</h4>
+      {showGroupForm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#1a0133",
+              padding: "2rem",
+              borderRadius: "8px",
+              width: "400px",
+              color: "white",
+              zIndex: 1001,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3>Create New Group</h3>
+              <button
+                onClick={() => setShowGroupForm(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
             <input
               type="text"
               placeholder="Group Name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              style={{ marginBottom: "0.5rem", width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
             />
             <input
               type="text"
               placeholder="Genre (optional)"
               value={genre}
               onChange={(e) => setGenre(e.target.value)}
-              style={{ marginBottom: "0.5rem", width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1.5rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
             />
-            <button onClick={handleCreateGroup}>Create Group</button>
+            <button
+              onClick={handleCreateGroup}
+              disabled={createGroupMutation.isPending}
+              style={{
+                backgroundColor: "#6a0dad",
+                color: "white",
+                border: "none",
+                padding: "1rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                width: "100%",
+                opacity: createGroupMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showFriendForm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#1a0133",
+              padding: "2rem",
+              borderRadius: "8px",
+              width: "400px",
+              color: "white",
+              zIndex: 1001,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3>Add New Friend</h3>
+              <button
+                onClick={() => setShowFriendForm(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Friend ID"
+              value={newFriendId}
+              onChange={(e) => setNewFriendId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1.5rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
+            />
+            <button
+              onClick={handleAddFriend}
+              disabled={addFriendMutation.isPending}
+              style={{
+                backgroundColor: "#6a0dad",
+                color: "white",
+                border: "none",
+                padding: "1rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                width: "100%",
+                opacity: addFriendMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              {addFriendMutation.isPending ? "Adding..." : "Add Friend"}
+            </button>
           </div>
         </div>
       )}
@@ -416,55 +734,87 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
   );
 };
 
-/** ========== CHAT SECTION ========== */
-export const ChatSection = ({ selectedGroup }) => {
+
+
+
+
+
+
+
+
+//*********************************** */
+export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const chatStyle = {
-    width: "55%",
+    width: "75%",
+    height: "90vh",
     display: "flex",
     flexDirection: "column",
-    color: "white",
     backgroundColor: "#2a0252",
-  };
-
-  const chatHeaderStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem 1rem",
     color: "white",
-    backgroundColor: "#240046",
+    position: "relative",
   };
 
-  const messagesContainerStyle = {
+  const headerStyle = {
+    padding: "1.5rem",
+    backgroundColor: "#240046",
+    borderBottom: "2px solid #3a1f5c",
+    flexShrink: 0,
+  };
+
+  const messagesStyle = {
     flex: 1,
     overflowY: "auto",
-    padding: "1rem",
+    padding: "1.5rem",
+    minHeight: 0,
   };
 
-  const chatInputAreaStyle = {
+  const inputContainerStyle = {
+    padding: "1.5rem",
+    borderTop: "2px solid #3a1f5c",
     display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    borderTop: "1px solid #ccc",
-    padding: "0.5rem",
+    gap: "1rem",
+    backgroundColor: "#2a0252",
+    flexShrink: 0,
+  };
+
+  const inputStyle = {
+    flex: 1,
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid #6a0dad",
+    backgroundColor: "#1a0133",
+    color: "white",
+    outline: "none",
+  };
+
+  const buttonStyle = {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    padding: "1rem 1.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const response = await fetch("http://localhost:8000/user_info/", {
+        const res = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
-        const data = await response.json();
-        if (response.ok) {
-          setCurrentUser({ id: data.id, username: data.username });
-        } else {
-          console.error("Error fetching user info:", data.error);
-        }
+        const data = await res.json();
+        if (res.ok) setCurrentUser(data);
       } catch (error) {
         console.error("Error fetching user info:", error);
       }
@@ -472,32 +822,39 @@ export const ChatSection = ({ selectedGroup }) => {
     fetchUserInfo();
   }, []);
 
-  const fetchMessages = async () => {
-    if (!selectedGroup) return;
-    try {
-      const response = await fetch(
-        `http://localhost:8000/group_messages/?group_id=${selectedGroup.group_id}`,
-        { credentials: "include" }
-      );
-      const data = await response.json();
-      if (response.ok) {
-        // Reverse the messages array to show newest at the bottom
-        setMessages(data.messages ? [...data.messages].reverse() : []);
-      } else {
-        console.error("Retrieve error:", data.error);
-        setMessages([]);
+  useEffect(() => {
+    setMessages([]);
+
+    const fetchMessages = async () => {
+      if (!selectedChat) return;
+      try {
+        const endpoint = selectedChat.group_id
+          ? `group_messages/?group_id=${selectedChat.group_id}`
+          : `group_messages/?group_id=${selectedChat.id}`;
+
+        const res = await fetch(`http://localhost:8000/${endpoint}`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMessages(data.messages || []);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
       }
-    } catch (error) {
-      console.error("Error retrieving messages:", error);
-      setMessages([]);
-    }
-  };
+    };
+
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 5000);
+    return () => clearInterval(interval);
+  }, [selectedChat]);
 
   const handleSendMessage = async () => {
-    if (!selectedGroup || !newMessage || !currentUser) return;
+    if (!selectedChat || !newMessage.trim() || !currentUser) return;
+
     try {
       const csrfToken = getCookie("csrftoken");
-      const response = await fetch("http://localhost:8000/send_message/", {
+      await fetch("http://localhost:8000/send_message/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -505,317 +862,514 @@ export const ChatSection = ({ selectedGroup }) => {
         },
         credentials: "include",
         body: JSON.stringify({
-          user_sending: currentUser.id,
-          user_recieving: selectedGroup.group_id,
-          message: newMessage,
+          ...(selectedChat.group_id
+            ? {
+                user_sending: currentUser.id,
+                user_recieving: selectedChat.group_id,
+              }
+            : {
+                sender_id: currentUser.id,
+                receiver_id: selectedChat.id,
+              }),
+          message: newMessage.trim(),
         }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        console.log("Message sent:", data.Success);
-        setNewMessage("");
-        fetchMessages();
-      } else {
-        console.error("Send error:", data.error);
-      }
+
+      setNewMessage("");
+      scrollToBottom(); // Only scroll after sending
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleSendMessage();
-    }
-  };
-
-  useEffect(() => {
-    if (selectedGroup) {
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedGroup]);
-
   return (
     <div style={chatStyle}>
-      <div style={chatHeaderStyle}>
-        <h3>{selectedGroup ? selectedGroup.group_name : "Select a Group"}</h3>
+      <div style={headerStyle}>
+        <h2>
+          {selectedChat?.group_name ||
+            selectedChat?.username ||
+            "Select a chat"}
+        </h2>
       </div>
 
-      <div style={messagesContainerStyle}>
-        {/* Render messages in reversed order */}
-        {messages.map((msg, idx) => (
-          <div key={idx} style={{ marginBottom: "0.5rem" }}>
-            <strong>
-              {typeof msg.user_sending === "number" &&
-              currentUser &&
-              msg.user_sending === currentUser.id
-                ? currentUser.username
-                : msg.user_sending}
-              :
-            </strong>{" "}
-            {msg.message_content}
+      <div style={messagesStyle} ref={messagesContainerRef}>
+        {messages.length > 0 ? (
+          <>
+            {messages.slice().reverse().map((message, index) => (
+              <div key={index} style={{ marginBottom: "1rem" }}>
+                <strong>
+                  {message.sender_id === currentUser?.id
+                    ? "You"
+                    : message.user_sending || `User ${message.sender_id}`}
+                  :
+                </strong>{" "}
+                {message.message_content}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        ) : (
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "2rem",
+              color: "#aaa",
+            }}
+          >
+            {selectedChat
+              ? "No messages yet"
+              : "Select a chat to start messaging"}
           </div>
-        ))}
+        )}
       </div>
 
-      <div style={chatInputAreaStyle}>
-        <input
-          style={{ flex: 1, padding: "0.5rem" }}
-          type="text"
-          placeholder="Type message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button onClick={handleSendMessage}>➤</button>
-      </div>
+      {selectedChat && (
+        <div style={inputContainerStyle}>
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type your message..."
+            style={inputStyle}
+            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+          />
+          <button
+            onClick={handleSendMessage}
+            style={buttonStyle}
+            disabled={!newMessage.trim()}
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-/** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-export const MoviePoll = ({ selectedGroup }) => {
+
+const fetchMovieDetails = async (title,year) => {
+  try {
+    const searchRes = await fetch(
+      `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie&year=${encodeURIComponent(year)}`
+    );
+    const { movies = [] } = await searchRes.json();
+    if (!movies.length) return null;
+    const m = movies[0];
+    const posterRes = await fetch(
+      `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+    );
+    const { poster } = await posterRes.json();
+    return {
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      poster,
+      runtime: m.runtime,
+      rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const fetchMovieDetailsWithoutYear = async (title) => {
+  try {
+    const searchRes = await fetch(
+      `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie`
+    );
+    const { movies = [] } = await searchRes.json();
+    if (!movies.length) return null;
+    const m = movies[0];
+    const posterRes = await fetch(
+      `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+    );
+    const { poster } = await posterRes.json();
+    return {
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      poster,
+      runtime: m.runtime,
+      rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
+    };
+  } catch {
+    return null;
+  }
+};
+
+
+
+const UP_VOTE = 1;
+const DOWN_VOTE = -1;
+
+export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [pollView, setPollView] = useState("auto");
+  const isGroup = activeTab === "groups";
+
   const [recommendations, setRecommendations] = useState([]);
-  const [error, setError] = useState(null);
+  const [groupRecs, setGroupRecs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const fetchMovieDetails = async (title) => {
+  const [votedRecIds, setVotedRecIds] = useState(new Set());
+
+  useEffect(() => {
+    fetch("http://localhost:8000/user_info/", { credentials: "include" })
+      .then((r) => r.json())
+      .then((js) => setCurrentUserId(js.id))
+      .catch(console.error);
+  }, []);
+
+  const sendVoteAndUpdate = async (recId, value, listSetter) => {
+    if (!currentUserId) return;
     try {
-      // First search for the movie by title
-      const searchResponse = await fetch(
-        `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie`
-      );
-      const searchData = await searchResponse.json();
-      
-      if (!searchData.movies || searchData.movies.length === 0) return null;
-      const movie = searchData.movies[0];
+      const resp = await fetch("http://localhost:8000/update_recommendation/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          recommendation_id: recId,
+          value,
+        }),
+      });
+      if (!resp.ok) {
+        throw new Error("Vote failed");
+      } else {
 
-      // Then get the poster
-      const posterResponse = await fetch(
-        `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
-      );
-      const posterData = await posterResponse.json();
+        const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
+        
+      }
+      const { upvotes, downvotes } = await resp.json();
 
-      return {
-        id: movie.id,
-        title: movie.title,
-        year: movie.year,
-        poster: posterData.poster,
-        plot: movie.plot,
-        director: movie.director,
-        runtime: movie.runtime,
-        rating: movie.rating
-      };
-    } catch (error) {
-      console.error("Error fetching movie details:", error);
-      return null;
+      listSetter((prev) =>
+        prev.map((m) =>
+          (pollView === "auto" ? m.id : m.recId) === recId
+            ? { ...m, upvotes, downvotes }
+            : m
+        )
+      );
+
+      setVotedRecIds((s) => new Set(s).add(recId));
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
     }
   };
 
   useEffect(() => {
-    if (!selectedGroup?.group_id) return;
+    if (!selectedItem) return;
+    setError(null);
+    setLoading(true);
 
-    const fetchRecommendations = async () => {
-      setLoading(true);
-      setError(null);
-      
+    const loadRecommendations = async () => {
       try {
-        const csrfToken = getCookie("csrftoken");
-        const resp = await fetch(`http://localhost:8000/movie_rec/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfToken,
-          },
-          body: JSON.stringify({
-            user_id: selectedGroup.group_id
-          }),
-        });
-
-        if (!resp.ok) throw new Error("Failed to fetch recommendations");
-        
-        const data = await resp.json();
-        const parsedSummary = JSON.parse(data.summary);
-        const movieTitles = parsedSummary.recommendations;
-
-        // Fetch details for all movies in parallel
-        const movieDetails = await Promise.all(
-          movieTitles.map(title => fetchMovieDetails(title))
+        const url = new URL("http://localhost:8000/group_recs/");
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
         );
+        let resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("");
+        let data = await resp.json();
+        let existing = data.recommendations || [];
 
-        // Filter out null results and format
-        const validMovies = movieDetails.filter(movie => movie !== null).map(movie => ({
-          id: movie.id,
-          title: movie.title,
-          year: movie.year,
-          poster: movie.poster,
-          plot: movie.plot,
-          director: movie.director,
-          runtime: movie.runtime,
-          rating: movie.rating
-        }));
+        const enrichedExisting = (
+          await Promise.all(
+            existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
+          )
+        )
+          .map((d, i) => d && { ...d, id: existing[i].id })
+          .filter(Boolean);
 
-        setRecommendations(validMovies);
 
-      } catch (err) {
-        setError(err.message);
+        let finalList = [...enrichedExisting];
+
+       // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+
+        if (finalList.length < 20) {
+          const needed = 20 - finalList.length;
+          const genResp = await fetch(
+            "http://localhost:8000/generate_group_recommendations/",
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                group_id: isGroup
+                  ? selectedItem.group_id
+                  : selectedItem.id,
+                num_of_recs: needed,
+              }),
+            }
+          );
+          if (genResp.ok) {
+            const { created = [] } = await genResp.json();
+            const enrichedNew = (
+              await Promise.all(
+                created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
+              )
+            )
+              .map((d, i) => d && { ...d, id: created[i].id })
+              .filter(Boolean);
+            finalList = finalList.concat(enrichedNew);
+          }
+        }
+
+        setRecommendations(finalList);
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRecommendations();
-  }, [selectedGroup?.group_id]);
+    const loadGroupMembers = async () => {
+      setGroupRecs([]);
+      try {
+        const url = new URL("http://localhost:8000/group_recommendation/");
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
+        );
+        const resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("");
+        const data = await resp.json();
+        const recs = data.Recommendations || [];
+        const details = await Promise.all(
+          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
+        );
+        setGroupRecs(
+          details
+            .map((d, i) =>
+              d
+                ? {
+                    ...d,
+                    recId: recs[i].id,
+                    upvotes: 0,
+                    downvotes: 0,
+                  }
+                : null
+            )
+            .filter(Boolean)
+        );
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleMovieClick = (movie) => {
-    const titleParam = encodeURIComponent(
-      movie.title || movie.original_title
-    );
-    const releaseDate = movie.year;
-    navigate(
-      releaseDate
-        ? `/movie/${titleParam}?release_date=${encodeURIComponent(
-            releaseDate
-          )}`
-        : `/movie/${titleParam}`
-    );
-  };
+    pollView === "auto" ? loadRecommendations() : loadGroupMembers();
+  }, [selectedItem, activeTab, pollView]);
 
-  const handleVote = (movieId, isUpvote) => {
-    setRecommendations(prev => prev.map(movie => 
-      movie.id === movieId ? {
-        ...movie,
-        upvotes: isUpvote ? (movie.upvotes || 0) + 1 : movie.upvotes,
-        downvotes: !isUpvote ? (movie.downvotes || 0) + 1 : movie.downvotes
-      } : movie
-    ));
-  };
-
-
-   const pollStyle = {
-    width: "30%",
-    color: "white",
-    backgroundColor: "#1a0133",
-    padding: "1rem",
-    overflowY: "auto",
-  };
-
-  const gridStyle = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-    gap: "1.5rem",
-    padding: "1rem",
-  };
-
-  const movieCardStyle = {
-    position: "relative",
-    borderRadius: "12px",
-    overflow: "hidden",
-    backgroundColor: "#240046",
-    transition: "transform 0.3s ease, box-shadow 0.3s ease",
-    ":hover": {
-      transform: "translateY(-5px)",
-      boxShadow: "0 8px 16px rgba(0,0,0,0.3)",
-    },
-  };
-
-  const votingControlsStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem",
-    backgroundColor: "#1a0133",
-  };
-
-  const voteButtonStyle = (isUpvote) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "0.5rem 1rem",
-    borderRadius: "20px",
-    border: "none",
-    backgroundColor: isUpvote ? "#2e7d32" : "#c62828",
-    color: "white",
-    cursor: "pointer",
-    transition: "opacity 0.2s ease",
-    ":hover": {
-      opacity: 0.9,
-    },
-  });
-
-  const badgeStyle = {
-    position: "absolute",
-    top: "10px",
-    right: "10px",
-    backgroundColor: "#6a0dad",
-    color: "white",
-    padding: "4px 8px",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
-  };
+  const list = pollView === "auto" ? recommendations : groupRecs;
+  const titleText =
+    pollView === "auto"
+      ? isGroup
+        ? "Generated Recommendations"
+        : "Friend Recommendations"
+      : "From Members";
 
   return (
-    <div style={pollStyle}>
-      <h3>Group Recommendations</h3>
-      
-      <div style={gridStyle}>
-        {recommendations.map((movie) => (
-          <div key={movie.id} style={movieCardStyle}>
-            <div style={badgeStyle}>
-              {movie.rating}
-            </div>
-            
-            <img
-              src={movie.poster}
-              alt={movie.title}
-              style={{ 
-                width: "100%",
-                height: "300px",
-                objectFit: "cover",
-                borderBottom: "2px solid #6a0dad"
+    <div
+      style={{
+        width: "30%",
+        height: "86.6vh",
+        color: "white",
+        backgroundColor: "#1a0133",
+        padding: "1rem",
+        overflowY: "auto",
+      }}
+    >
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "auto" ? "#6a0dad" : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("auto")}
+        >
+          Recommendations
+        </button>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "fromFriends"
+                ? "#6a0dad"
+                : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("fromFriends")}
+        >
+          From Members
+        </button>
+      </div>
+
+      <h3>{titleText}</h3>
+      {loading && <p>Loading…</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {!loading && list.length === 0 && <p>No recommendations yet.</p>}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "1rem",
+        }}
+      >
+        {list.map((movie) => {
+          const idKey =
+            pollView === "auto" ? movie.id : movie.recId;
+          const hasVoted = votedRecIds.has(idKey);
+          return (
+            <div
+              key={idKey}
+              style={{
+                backgroundColor: "#240046",
+                borderRadius: "8px",
+                overflow: "hidden",
+                position: "relative",
+                cursor: "pointer",
               }}
-            />
-            
-            <div style={{ padding: "1rem" }}>
-              <h4 style={{ margin: "0 0 0.5rem" }}>{movie.title}</h4>
-              <div style={{ 
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#bbb",
-                fontSize: "0.9rem"
-              }}>
-                <span>{movie.year}</span>
-                <span>{movie.runtime} mins</span>
+              onClick={() =>
+                navigate(
+                  `/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(
+                    movie.year
+                  )}`
+                )
+              }
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "#6a0dad",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: "0.8rem",
+                }}
+              >
+                {movie.rating}
+              </div>
+              <img
+                src={movie.poster}
+                alt={movie.title}
+                style={{
+                  width: "100%",
+                  height: 200,
+                  objectFit: "cover",
+                }}
+              />
+              <div style={{ padding: "0.5rem" }}>
+                <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
+                <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
+                  {movie.year} • {movie.runtime} mins
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "0.3rem 0.5rem",
+                  backgroundColor: "#1a0133",
+                }}
+              >
+                <button
+                  style={{
+                    border: "none",
+                    padding: "0.4rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#2e7d32",
+                    color: "white",
+                    fontSize: "0.8rem"
+                  }}
+                  disabled={hasVoted}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendVoteAndUpdate(idKey, UP_VOTE, setRecommendations);
+                  }}
+                >
+                  👍 {movie.upvotes}
+                </button>
+                <button
+                  style={{
+                    border: "none",
+                    padding: "0.4rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#c62828",
+                    color: "white",
+                    fontSize: "0.8rem"
+                  }}
+                  disabled={hasVoted}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendVoteAndUpdate(idKey, DOWN_VOTE, setRecommendations);
+                  }}
+                >
+                  👎 {movie.downvotes}
+                </button>
               </div>
             </div>
-
-            <div style={votingControlsStyle}>
-              <button 
-                style={voteButtonStyle(true)}
-                onClick={() => handleVote(movie.id, true)}
-              >
-                <span>👍</span>
-                <span>{movie.upvotes || 0}</span>
-              </button>
-              
-              <button
-                style={voteButtonStyle(false)}
-                onClick={() => handleVote(movie.id, false)}
-              >
-                <span>👎</span>
-                <span>{movie.downvotes || 0}</span>
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** ========== USER PROFILE ========== */
 export const UserProfile = () => {
   const [userInfo, setUserInfo] = useState(null);
@@ -908,7 +1462,7 @@ export const UserUsername = () => {
         if (response.ok) {
           setUserId(data.id);
         } else {
-          setError(data.error || "Failed to fetch user info");
+          setError(data.error || "");
         }
       } catch (err) {
         setError(err.message);
@@ -930,7 +1484,7 @@ export const UserUsername = () => {
           if (response.ok) {
             setUsername(data.Username);
           } else {
-            setError(data.Failure || "Failed to fetch username");
+            setError(data.Failure || "");
           }
         } catch (err) {
           setError(err.message);

@@ -1,91 +1,69 @@
 // src/components/DiscoverCardStack.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaTimes, FaCheck } from "react-icons/fa";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { fetchUserInfo, fetchMovieRecommendations, fetchMovieDetailsByTitle, fetchMoviePoster } from "../api";
 
 const CARD_WIDTH = 400;
 const CARD_HEIGHT = 550;
 const ARROW_GAP = 200;
 
 const DiscoverCardStack = ({ title = "Movie Stack" }) => {
-  const [userId, setUserId] = useState(null);
-  const [movies, setMovies] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const navigate = useNavigate();
 
-  // 1) Fetch current user ID
-  useEffect(() => {
-    fetch("http://localhost:8000/user_info/", { credentials: "include" })
-      .then((r) => r.json())
-      .then((js) => setUserId(js.id))
-      .catch(console.error);
-  }, []);
+  // Fetch user info
+  const { data: userInfo, isLoading: userLoading } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: fetchUserInfo,
+    staleTime: Infinity
+  });
 
-  // 2) Generate recommendations and enrich each with search + poster
-  useEffect(() => {
-    if (!userId) return;
-    const fetchRecs = async () => {
-      try {
-        const recResp = await fetch("http://localhost:8000/movie_rec/", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
-        const recJson = await recResp.json();
-        if (!recResp.ok) throw new Error(recJson.error || "Rec failed");
+  // Fetch recommendations
+  const { data: recommendations, isLoading: recLoading } = useQuery({
+    queryKey: ['recommendations', userInfo?.id],
+    queryFn: () => fetchMovieRecommendations(userInfo?.id),
+    enabled: !!userInfo?.id,
+    staleTime: 1000 * 60 * 10 // 10 minutes
+  });
 
-        // recJson.summary is already an object, so no JSON.parse needed
-        const titles = recJson.summary.recommendations || [];
+  // Fetch details for all recommended movies
+  const movieDetailsQueries = useQueries({
+    queries: (recommendations?.summary.recommendations || []).map(title => ({
+      queryKey: ['movieDetails', title],
+      queryFn: () => fetchMovieDetailsByTitle(title),
+      staleTime: Infinity
+    }))
+  });
 
-        const enriched = await Promise.all(
-          titles.map(async (t) => {
-            let info = {};
-            try {
-              const s = await fetch(
-                `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(t)}`
-              );
-              const sj = await s.json();
-              if (s.ok && sj.movies?.length) info = sj.movies[0];
-            } catch {}
-            let poster_url = "";
-            try {
-              const p = await fetch(
-                `http://localhost:8000/movie_poster/?title=${encodeURIComponent(t)}`
-              );
-              const pj = await p.json();
-              poster_url = pj.poster || "";
-            } catch {}
-            return {
-              id: info.id || t,
-              title: info.title || t,
-              release_date: info.year || "",
-              runtime: info.runtime || "",
-              vote_average: info.rating || "",
-              director: info.director || "",
-              plot: info.plot || "",
-              poster_url,
-            };
-          })
-        );
-        setMovies(enriched);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchRecs();
-  }, [userId]);
+  // Fetch posters for all recommended movies
+  const moviePosterQueries = useQueries({
+    queries: (recommendations?.summary.recommendations || []).map(title => ({
+      queryKey: ['moviePoster', title],
+      queryFn: () => fetchMoviePoster(title),
+      staleTime: Infinity
+    }))
+  });
 
-  // 3) Send like/dislike to backend
+  // Combine all data into movies array
+  const movies = recommendations?.summary.recommendations?.map((title, index) => ({
+    id: title,
+    title,
+    ...(movieDetailsQueries[index]?.data || {}),
+    poster_url: moviePosterQueries[index]?.data || "",
+  })) || [];
+
+  // Send like/dislike to backend
   const handleReview = (movieTitle, liked) => {
-    if (!userId) return;
+    if (!userInfo?.id) return;
     fetch("http://localhost:8000/movie_review/", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        user_id: userId,
+        user_id: userInfo.id,
         movie_title: movieTitle,
         review: liked,
       }),
@@ -96,6 +74,7 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
     setFlipped(false);
     setCurrentIndex((i) => (i === 0 ? movies.length - 1 : i - 1));
   };
+
   const next = () => {
     setFlipped(false);
     setCurrentIndex((i) => (i === movies.length - 1 ? 0 : i + 1));
@@ -107,7 +86,13 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
     navigate(`/movie/${tp}?release_date=${movie.release_date}`);
   };
 
-  if (!movies.length) return <div>Loading recommendations…</div>;
+  if (userLoading || recLoading) {
+    return <div className="loading-text">Loading recommendations...</div>;
+  }
+
+  if (!movies.length) {
+    return <div className="loading-text">No recommendations found</div>;
+  }
 
   const stack = [0, 1, 2].map((offset) =>
     movies[(currentIndex + offset) % movies.length]
@@ -144,16 +129,21 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
               >
                 {isTop ? (
                   <div className={`card-inner ${flipped ? "flipped" : ""}`}>
-                    {/* front */}
+                    {/* Front */}
                     <div className="card-front">
-                      <img src={movie.poster_url} alt={movie.title} />
+                      <img 
+                        src={movie.poster_url || '/placeholder-movie.jpg'} 
+                        alt={movie.title}
+                        loading="lazy"
+                      />
                     </div>
-                    {/* back */}
+                    
+                    {/* Back */}
                     <div className="card-back">
                       <h3>{movie.title}</h3>
-                      <p><strong>Year:</strong> {movie.release_date}</p>
+                      <p><strong>Year:</strong> {movie.year}</p>
                       <p><strong>Runtime:</strong> {movie.runtime}</p>
-                      <p><strong>Rating:</strong> {movie.vote_average}</p>
+                      <p><strong>Rating:</strong> {movie.rating}</p>
                       <p><strong>Director:</strong> {movie.director}</p>
                       <p className="overview">{movie.plot}</p>
                       <button
@@ -163,7 +153,8 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                         Movie Details
                       </button>
                     </div>
-                    {/* icons with .5s delay on next */}
+
+                    {/* Action Buttons */}
                     <button
                       className="icon-btn dislike"
                       onClick={(e) => {
@@ -186,7 +177,11 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                     </button>
                   </div>
                 ) : (
-                  <img src={movie.poster_url} alt={movie.title} />
+                  <img 
+                    src={movie.poster_url || '/placeholder-movie.jpg'} 
+                    alt={movie.title}
+                    loading="lazy"
+                  />
                 )}
               </div>
             );
@@ -202,6 +197,12 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
           margin: 0 auto 50px;
           padding: 0 10px;
         }
+        .loading-text {
+          color: #fff;
+          text-align: center;
+          padding: 2rem;
+          font-size: 1.2rem;
+        }
         .carousel-title {
           color: #fff;
           font-size: 1.6rem;
@@ -215,51 +216,80 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
           height: 600px;
         }
         .card-container, .card {
-          position: absolute; top: 0; left: 50%;
-          width: ${CARD_WIDTH}px; height: ${CARD_HEIGHT}px;
-          border-radius: 12px; overflow: hidden;
+          position: absolute; 
+          top: 0; 
+          left: 50%;
+          width: ${CARD_WIDTH}px; 
+          height: ${CARD_HEIGHT}px;
+          border-radius: 12px; 
+          overflow: hidden;
           box-shadow: 0 12px 24px rgba(0,0,0,0.7);
-          background: #111; transition: transform 0.4s ease;
+          background: #111; 
+          transition: transform 0.4s ease;
         }
         .card-container {
-          perspective: 1200px; cursor: pointer;
+          perspective: 1200px; 
+          cursor: pointer;
         }
         .card-inner {
-          width: 100%; height: 100%;
-          position: relative; transform-style: preserve-3d;
+          width: 100%; 
+          height: 100%;
+          position: relative; 
+          transform-style: preserve-3d;
           transition: transform 0.6s ease;
         }
         .card-inner.flipped {
           transform: rotateY(180deg);
         }
         .card-front, .card-back {
-          position: absolute; top: 0; left: 0;
-          width: 100%; height: 100%;
+          position: absolute; 
+          top: 0; 
+          left: 0;
+          width: 100%; 
+          height: 100%;
           backface-visibility: hidden;
-          display: flex; flex-direction: column;
+          display: flex; 
+          flex-direction: column;
           color: #fff;
         }
         .card-front img, .card img {
-          width: 100%; height: 100%; object-fit: cover;
+          width: 100%; 
+          height: 100%; 
+          object-fit: cover;
         }
         .card-back {
-          background: #111; padding: 20px; box-sizing: border-box;
-          overflow: auto; transform: rotateY(180deg);
+          background: #111; 
+          padding: 20px; 
+          box-sizing: border-box;
+          overflow: auto; 
+          transform: rotateY(180deg);
         }
         .overview {
-          flex: 1; font-size: 0.9rem; margin: 8px 0;
+          flex: 1; 
+          font-size: 0.9rem; 
+          margin: 8px 0;
         }
         .details-btn {
-          padding: 8px 12px; background: #7d00ff; border: none;
-          color: #fff; border-radius: 6px; cursor: pointer;
+          padding: 8px 12px; 
+          background: #7d00ff; 
+          border: none;
+          color: #fff; 
+          border-radius: 6px; 
+          cursor: pointer;
           margin-top: auto;
         }
         .icon-btn {
-          position: absolute; bottom: 12px;
+          position: absolute; 
+          bottom: 12px;
           background: rgba(0, 0, 0, 0.7);
-          border: none; padding: 10px; border-radius: 50%;
-          color: #fff; font-size: 1.4rem; cursor: pointer;
-          z-index: 5; transition: transform 0.1s, background 0.1s;
+          border: none; 
+          padding: 10px; 
+          border-radius: 50%;
+          color: #fff; 
+          font-size: 1.4rem; 
+          cursor: pointer;
+          z-index: 5; 
+          transition: transform 0.1s, background 0.1s;
         }
         .icon-btn:active {
           transform: scale(0.85);
@@ -268,10 +298,17 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
         .icon-btn.dislike { left: 12px; color: #ff4d4d; }
         .icon-btn.like    { right: 12px; color: #4caf50; }
         .arrow {
-          position: absolute; top: 50%; transform: translateY(-50%);
-          background: rgba(0,0,0,0.5); border: none;
-          color: #fff; font-size: 2rem; width: 50px;
-          height: 50px; border-radius: 50%; cursor: pointer;
+          position: absolute; 
+          top: 50%; 
+          transform: translateY(-50%);
+          background: rgba(0,0,0,0.5); 
+          border: none;
+          color: #fff; 
+          font-size: 2rem; 
+          width: 50px;
+          height: 50px; 
+          border-radius: 50%; 
+          cursor: pointer;
           z-index: 10;
         }
         .left  { left: ${ARROW_GAP}px; }
@@ -282,67 +319,3 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
 };
 
 export default DiscoverCardStack;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

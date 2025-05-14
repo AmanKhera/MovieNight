@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from movie.models import Movie, Watchlist, WatchlistItem, UserMovieJournal, RecommendationFeedback
 from group.models import Group
-from user.models import User
+from user.models import User, MemberRecommendation, RecommendationVote
 from django.db.models import Q
 from user.views import get_user_username
 import json
@@ -240,7 +240,7 @@ def api_movie_search(request):
             defaults={
                 'runtime': runtime,
                 'rating': data.get('Rated', 'N/A'),
-                'plot': data.get('Plot', 'No plot available.'),
+#                'plot': data.get('Plot', 'No plot available.'),
                 'director': data.get('Director', 'Unknown Director'),
             }
         )
@@ -399,23 +399,46 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 @csrf_exempt
+@require_POST
 def generate_movie_summary(request):
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
 
+    data = json.loads(request.body)
+    movie_info = data.get("movie_info", {})
+
+    title = movie_info.get('title')
+    year = movie_info.get('year', '')
+        
+
+    movie = Movie.objects.get(title = title, year = year)
+    director = movie.director
+    plot = movie.plot
+
+    if movie.plot_overwritten:
+        return JsonResponse({'summary': plot})
+
+    return generate_movie_and_store(title, year, director, plot)
+
+
+#Generate Movie and Store
+#Def: Function uses OpenAI to grab plots for movies that have not been updated in our DB
+#Params: title = movie title, year = year released, director = director of movie, plot = current plot of movie
+#Returns: JSON Dictionary with movie summary 
+def generate_movie_and_store(title, year, director, plot):
+    
     try:
-        data = json.loads(request.body)
-        movie_info = data.get('movie_info', {})
-
-        if not movie_info:
-            return JsonResponse({'error': 'Movie information is required'}, status=400)
+        #data = json.loads(request.body)
+        #movie_info = data.get('movie_info', {})
+        
+        #if not movie_info:
+        #    return JsonResponse({'error': 'Movie information is required'}, status=400)
+        
 
         # Construct prompt from movie info
         prompt = f"""Create an engaging, spoiler-free plot summary for this movie:
-Title: {movie_info.get('title', '')}
-Year: {movie_info.get('year', '')}
-Director: {movie_info.get('director', '')}
-Original Plot: {movie_info.get('plot', '')}
+Title: {title}
+Year: {year}
+Director: {director}
+Original Plot: {plot}
 
 Write a 150-200 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
 
@@ -430,11 +453,11 @@ Write a 150-200 word summary that would appeal to potential viewers, highlightin
         )
 
         summary = response.choices[0].message.content
-        title = movie_info.get('title')
-        year  = movie_info.get('year')
+
         updated = False
         if title and year:
-            updated_count = update_movie_plot(title, year, summary)
+
+            updated = update_movie_plot(title, year, summary)
 
         return JsonResponse({'summary': summary})
 
@@ -443,7 +466,7 @@ Write a 150-200 word summary that would appeal to potential viewers, highlightin
 
 
 def update_movie_plot(movie_title, movie_year, new_plot):
-    updated = Movie.objects.filter(movie_title=movie_title, movie_year = movie_year,plot = new_plot)
+    updated = Movie.objects.filter(title = movie_title, year=movie_year).update(plot = new_plot, plot_overwritten=True)
     return updated
 
 
@@ -506,7 +529,6 @@ def generate_recommendations(request):
         gpt_content = response.choices[0].message.content
         try:
             parsed = json.loads(gpt_content)
-            print(parsed)
             return JsonResponse({'summary': parsed})
 
         except json.JSONDecodeError:
@@ -514,111 +536,6 @@ def generate_recommendations(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
-# @csrf_exempt
-# def generate_recommendations(request):
-#     if request.method != 'POST':
-#         return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
-
-#     try:
-#         data = json.loads(request.body)
-#         user_id = data.get('user_id', {})
-#         user = User.objects.get(id = user_id)
-
-#         if not user_id:
-#             return JsonResponse({'error': 'Movie information is required'}, status=400)
-
-#         # assuming you have a User instance in `user`
-#         feedback_count = RecommendationFeedback.objects.filter(user=user).count()
-
-
-#         if feedback_count > 20:
-
-#             feedback = RecommendationFeedback.objects.filter(user=user).select_related('movie')
-
-#             liked_ids = [f.movie.id for f in feedback if f.liked]
-#             disliked_ids = [f.movie.id for f in feedback if not f.liked]
-
-
-#             disliked = list(Movie.objects.filter(id__in=disliked_ids).values('title', flat = True))
-#             liked = list(Movie.objects.filter(id__in=liked_ids).values('title', flat = True))
-
-#             prev_prefs = {
-#                 "liked": liked,
-#                 "disliked": disliked,
-#             }
-
-
-#             prompt = (
-#                 "You are a movie recommendation engine. "
-#                 "Given the user’s preference data below, return exactly one JSON object "
-#                 "with a single key `recommendations` whose value is an array of 21 movie titles.\n\n"
-#                 "Do not recommend any movie that appears in the given list."
-#                 f"{json.dumps(prev_prefs)}"
-#             )
-
-#             response = client.chat.completions.create(
-#                 model="gpt-3.5-turbo",
-#                 messages=[
-#                     {"role": "system", "content": "You are a movie expert who gives recommendations."},
-#                     {"role": "user", "content": prompt}
-#                 ],
-#                 max_tokens=400,
-#                 temperature=0.6
-#             )
-
-#             summary = response.choices[0].message.content
-#             return JsonResponse({'summary': summary})
-
-#         else:
-
-#             user_liked = Movie.objects.filter(
-#                 user_journals__user=user,
-#                 user_journals__rating__gt = 3.5
-#             ).distinct()
-
-#             user_seen = Movie.objects.filter(
-#                 user_journals__user=user
-#             ).distinct()
-
-
-
-#             liked_titles = list(user_liked.values_list('title', flat = True))
-#             seen_titles = list(user_seen.values_list('title', flat = True))
-
-
-#             system_prompt = (
-#                 "You are a movie recommendation engine. "
-#                 "When given a JSON payload of user preferences, "
-#                 "you must respond with _only_ valid JSON containing a single key "
-#                 "`recommendations` whose value is an array of 21 **unique** movie titles. "
-#                 "Do not repeat any title. "
-#                 "Do not recommend any movie that appears in the `seen` list."
-#             )
-
-
-#             user_payload = {
-#                 'liked':liked_titles,
-#                 'seen':seen_titles,
-#             }
-
-#             prompt = json.dumps(user_payload)
-
-#             response = client.chat.completions.create(
-#                 model="gpt-3.5-turbo",
-#                 messages=[
-#                     {"role": "system", "content": system_prompt},
-#                     {"role": "user", "content": prompt}
-#                 ],
-#                 max_tokens=400,
-#                 temperature=0.6
-#             )
-
-#             summary = response.choices[0].message.content
-#             return JsonResponse({'summary': summary})
-
-#     except Exception as e:
-#          return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt
@@ -655,3 +572,5 @@ def review_recommendations(request):
 
     except:
         return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+
+
