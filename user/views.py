@@ -232,8 +232,10 @@ def get_followers(request):
 #Example URL 
 #http://127.0.0.1:8000/get_following/?id=1
 def get_following(request):
+
     user_id = request.GET.get('id')
 
+    user_id = int(user_id)
     #ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
     
@@ -777,7 +779,7 @@ def frontend_username(request):
 
 #Get Following
 #helper method
-def get_following(user_id):
+def get_following_helper(user_id):
 
 
     #ids the user follows
@@ -800,7 +802,7 @@ def get_following(user_id):
 def retrieve_feed(request):
 
     user_id = request.GET.get("user_id")
-    following = get_following(user_id)
+    following = get_following_helper(user_id)
 
     following_ids = following.keys()
 
@@ -839,7 +841,7 @@ def get_following_watch_status(request):
     movie_id = request.GET.get("movie_id")
     user_id = request.GET.get("user_id")
 
-    following = get_following(user_id)
+    following = get_following_helper(user_id)
     following_ids = following.keys()
 
     if not following_ids:

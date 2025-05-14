@@ -579,10 +579,11 @@ def generate_group_recommendations(group_id, num_of_recs):
 def retrieve_model_recommendations(request):
     group_id = request.GET.get("group_id")
     user = User.objects.get(pk=group_id)
+    model_id = 7648
 
     latest_ids = (
         MemberRecommendation.objects
-        .filter(user_receiving=user, recommended=0)
+        .filter(user_receiving=user, member_suggested = model_id ,recommended=0)
         .values('movie_id')
         .annotate(latest_id=Max('id'))
         .values_list('latest_id', flat=True)
@@ -595,7 +596,7 @@ def retrieve_model_recommendations(request):
         .filter(id__in=latest_ids)
         .annotate(movie_title=Subquery(movie_title_sq))
         .order_by('-date_suggested')
-        .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]
+        .values('id', 'member_suggested','movie_id', 'movie_title', 'date_suggested')[:20]
     )
 
     if rows.count() < 20:
@@ -604,7 +605,7 @@ def retrieve_model_recommendations(request):
 
         latest_ids = (
             MemberRecommendation.objects
-            .filter(user_receiving=user, recommended=0)
+            .filter(user_receiving=user, member_suggested = model_id, recommended=0)
             .values('movie_id')
             .annotate(latest_id=Max('id'))
             .values_list('latest_id', flat=True)
@@ -615,7 +616,7 @@ def retrieve_model_recommendations(request):
             .filter(id__in=latest_ids)
             .annotate(movie_title=Subquery(movie_title_sq))
             .order_by('-date_suggested')
-            .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]
+            .values('id', 'member_suggested' 'movie_id', 'movie_title', 'date_suggested')[:20]
         )
 
 
