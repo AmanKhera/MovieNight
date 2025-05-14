@@ -325,7 +325,7 @@ def group_recommendation(request):
         recommendations = MemberRecommendation.objects.filter(
         user_receiving=group_id,
         date_suggested__gte=seven_days
-         ).order_by('-voting')
+         ).exclude(member_suggested=7648).order_by('-votes')
         
         movie_ids = [recs.movie_id for recs in recommendations]
         movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
@@ -481,8 +481,10 @@ def generate_group_recommendations(group_id, num_of_recs):
             
         previously_watched = UserMovieJournal.objects.filter(user_id=group.id)
 
+
         liked = [f.movie.title for f in previously_watched if f.rating is not None and f.rating >= 3]
         disliked = [f.movie.title for f in previously_watched if f.rating is not None and f.rating <= 2]
+
 
         #Use seen and split seen into liked an disliked recommendations
         user_payload = {
