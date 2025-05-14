@@ -1055,7 +1055,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           value,
         }),
       });
-      if (!resp.ok) throw new Error("Vote failed");
+      if (!resp.ok) {
+        throw new Error("Vote failed");
+      } else {
+
+        const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
+        
+      }
       const { upvotes, downvotes } = await resp.json();
 
       listSetter((prev) =>

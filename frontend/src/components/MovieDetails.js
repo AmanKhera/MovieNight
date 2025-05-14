@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
+import { queryClient } from "../App";
 
 const MovieDetailsPage = () => {
   const { id } = useParams();
@@ -51,20 +52,13 @@ const MovieDetailsPage = () => {
 
   useEffect(() => {
     if (!username || !userId) return;
-    
     const fetchGroupsAndFriends = async () => {
       try {
-        const groupsRes = await fetch(
-          `http://localhost:8000/get_user_groups/?username=${username}`,
-          { credentials: "include" }
-        );
+        const groupsRes = await fetch(`http://localhost:8000/get_user_groups/?username=${username}`, { credentials: "include" });
         const groupsData = await groupsRes.json();
         setUserGroups(groupsData.groups || []);
 
-        const friendsRes = await fetch(
-          `http://localhost:8000/get_mutual_friends/?id=${userId}`,
-          { credentials: "include" }
-        );
+        const friendsRes = await fetch(`http://localhost:8000/get_mutual_friends/?id=${userId}`, { credentials: "include" });
         const friendsData = await friendsRes.json();
         setUserFriends(friendsData.friends || []);
       } catch (error) {
@@ -107,9 +101,7 @@ const MovieDetailsPage = () => {
 
     const fetchLocalId = async (title, year) => {
       try {
-        const resp = await fetch(
-          `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`
-        );
+        const resp = await fetch(`http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`);
         const d = await resp.json();
         if (resp.ok && d.movies?.length) {
           setMovie(prev => ({ ...prev, db_id: d.movies[0].id }));
@@ -133,9 +125,7 @@ const MovieDetailsPage = () => {
 
   const fetchBackdrop = async title => {
     try {
-      const resp = await fetch(
-        `http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`
-      );
+      const resp = await fetch(`http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`);
       const d = await resp.json();
       if (d.backdrop) setBackdropURL(d.backdrop);
     } catch (e) {
@@ -147,9 +137,7 @@ const MovieDetailsPage = () => {
     if (!movie) return;
     (async () => {
       try {
-        const resp = await fetch(
-          `http://localhost:8000/movie_poster/?title=${encodeURIComponent(movie.title)}`
-        );
+        const resp = await fetch(`http://localhost:8000/movie_poster/?title=${encodeURIComponent(movie.title)}`);
         const d = await resp.json();
         if (d.poster) setPosterURL(d.poster);
       } catch (e) {
@@ -181,10 +169,7 @@ const MovieDetailsPage = () => {
     setLoadingAdd(true);
     try {
       const idToSend = movie.db_id || movie.id;
-      const resp = await fetch(
-        `http://localhost:8000/add_movie/?movie_id=${idToSend}`,
-        { credentials: "include" }
-      );
+      const resp = await fetch(`http://localhost:8000/add_movie/?movie_id=${idToSend}`, { credentials: "include" });
       const d = await resp.json();
       setMessage({ text: d.message || "Added to watchlist", type: "success" });
     } catch (e) {
@@ -211,7 +196,6 @@ const MovieDetailsPage = () => {
           movie_id: idToSend
         }),
       });
-      
       const data = await resp.json();
       if (resp.ok) {
         setMessage({ text: data.message || "Recommendation sent to group!", type: "success" });
@@ -242,7 +226,6 @@ const MovieDetailsPage = () => {
           movie_id: idToSend
         }),
       });
-      
       const data = await resp.json();
       if (resp.ok) {
         setMessage({ text: data.message || "Recommendation sent to friend!", type: "success" });
@@ -277,6 +260,16 @@ const MovieDetailsPage = () => {
       });
       const d = await resp.json();
       setMessage({ text: d.message, type: resp.ok ? "success" : "error" });
+
+      if (resp.ok) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['recentlyWatched'] }),
+          queryClient.invalidateQueries({ queryKey: ['reviewedMovies', userId] }),
+          queryClient.invalidateQueries({ queryKey: ['movieDetails', id] }),
+          queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
+          queryClient.invalidateQueries({ queryKey: ['watchedMovies'] }),
+        ]);
+      }
     } catch (e) {
       console.error(e);
       setMessage({ text: "Failed to mark watched", type: "error" });
@@ -296,7 +289,6 @@ const MovieDetailsPage = () => {
   return (
     <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
       <div style={styles.backdropOverlay} />
-
       {message && (
         <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
           {message.text}
