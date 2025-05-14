@@ -17,7 +17,6 @@ export const fetchMovies = async (searchText, moviesCallback, errorCallback) => 
 
       moviesCallback(movieDetails);
       errorCallback(null);
-      // console.log("movieDetails==>>" + JSON.stringify(movieDetails)); //delete
       return movieDetails;
     } else {
       moviesCallback([]);
@@ -40,7 +39,6 @@ export const fetchMovieDetails = async (id, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?i=${id}&plot=full&apikey=3d39d278`);
     const data = await response.json();
-    // console.log("data==>>" + JSON.stringify(data)); //delete
     if (data.Response === 'True') {
       return data;
     } else {
@@ -74,7 +72,6 @@ export const fetchMoviesByDirector = async (searchText, moviesCallback, errorCal
         if (movie != null && movie.Director == data.directors[i].director) {
           moviesArray.push(movie);
         }
-
       }
 
       moviesCallback(moviesArray);
@@ -109,7 +106,7 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Year == year) { //### == to ===  <-- no
+        if (movie != null && movie.Year == year) {
           moviesArray.push(movie);
         }
       }
@@ -128,27 +125,25 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
 };
 
 /**
- * uses the given searchText that is assumed to be the content rating of a movie (G, PG, PG-13, R)
+ * uses the given searchFilterValue that is assumed to be the content rating of a movie (G, PG, PG-13, R)
  * to call two endpoints and return the search results
- * @param {String} searchText - user's search input that is assumed to be the content rating of a
- *                              movie (G, PG, PG-13, R)
+ * @param {String} searchFilterValue - user's search filter that is assumed to be the content rating of a
+ *                                     movie (G, PG, PG-13, R)
  * @param {Function} moviesCallback -
  * @param {Function} errorCallback -
- * @param {Number} index -
+ * @param {Number} batchSize - number of movies to be returned each call
  * @return {JSON <object>} - search results
  */
-export const fetchMoviesByContentRating = async (searchText, moviesCallback, errorCallback, index) => {
+export const fetchMoviesByContentRating = async (searchFilterValue, moviesCallback, errorCallback, batchSize) => {
   try {
-    console.log("in fetchMoviesByContentRating");
-    const response = await fetch(`http://localhost:8000/search/?filter=rating&q=${searchText}`);
+    const response = await fetch(`http://localhost:8000/search/?filter=rating&q=${searchFilterValue}`);
     const data = await response.json();
     if (response.ok) {
 
       const moviesArray = [];
 
-      for (let i = (-10 + index); i < index; i++) {
+      for (let i = (-10 + batchSize); i < batchSize; i++) {
         const title = data.movies[i].title;
-        console.log(title); //delete
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
         if (movie != null && movie.Rated == data.movies[i].rating) {
@@ -170,28 +165,26 @@ export const fetchMoviesByContentRating = async (searchText, moviesCallback, err
 };
 
 /**
- * uses the given searchText that is assumed to be the runtime of a movie (in minutes)
+ * uses the given searchFilterValue that is assumed to be the runtime of a movie (in minutes)
  * to call two endpoints and return the search results
- * @param {String} searchText - user's search input that is assumed to be the runtime of a
- *                              movie (in minutes)
+ * @param {String} searchFilterValue - user's search filter that is assumed to be the runtime of a
+ *                                     movie in minutes (either 90, 120, or 180)
  * @param {Function} moviesCallback -
  * @param {Function} errorCallback -
- * @param {Number} index -
+ * @param {Number} batchSize - number of movies to be returned each call
  * @return {JSON <object>} - search results
  */
-export const fetchMoviesByRuntime = async (searchText, moviesCallback, errorCallback, index) => {
+export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, errorCallback, batchSize) => {
   try {
-    const response = await fetch(`http://localhost:8000/search/?filter=runtime&q=${searchText}`);
+    const response = await fetch(`http://localhost:8000/search/?filter=runtime&q=${searchFilterValue}`);
     const data = await response.json();
     if (response.ok) {
       const moviesArray = [];
 
-      for (let i = (index - 10); i < index; i++) {
+      for (let i = (batchSize - 10); i < batchSize; i++) {
         const title = data.movies[i].title;
-        console.log(title);
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        console.log("omdb movie==>>" + JSON.stringify(movie));
         if (movie != null && movie.Title == title) {
           moviesArray.push(movie);
         }

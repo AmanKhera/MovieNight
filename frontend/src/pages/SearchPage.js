@@ -148,7 +148,6 @@ const SearchPage = () => {
       let tokens = (clicked.target.id).split("-");
       let genre = tokens[2];
       console.log("genre: " + genre);
-      // fetchMoviesByGenre();
     }
   };
 
@@ -237,8 +236,8 @@ const SearchPage = () => {
       };
     }
 
-
     console.log("query==>>" + JSON.stringify(query));
+
     const finalQuery = query || searchInputText;
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(finalQuery);
@@ -324,7 +323,6 @@ const SearchPage = () => {
       if (!movieResult) {
         document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
       } else {
-        // console.log("movieResult==>>" + JSON.stringify(movieResult)); //delete
         await displayMovieSearchResult(movieResult);
       }
     }
@@ -434,7 +432,6 @@ const SearchPage = () => {
    * @param {JSON <object>} result - movie data resulting from the search
    */
   const displayMovieSearchResult = async (result) => {
-    console.log("working on displaying...");
     document.getElementById("spinner").classList.add("hidden");
     if ((!result || result.length === 0) &&
         (!document.getElementById("filter-runtime-button").classList.contains("clicked") ||
