@@ -20,14 +20,16 @@ import {
   fetchMovieRecommendations,
   fetchMovieDetailsByTitle,
   fetchMoviePoster,
-
+  fetchUserGroups,
+  fetchMutualFriends,
+  fetchGroupMembers
 } from './api';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 1, // 1 minutes
-      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 60 * 1,
+      gcTime: 1000 * 60 * 60 * 24,
     },
   },
 });
@@ -45,19 +47,13 @@ function App() {
   useEffect(() => {
     async function prefetchCriticalData() {
       try {
-
-        //queryClient.clear();
-        
-        // Prefetch user info first
         const userInfo = await queryClient.fetchQuery({
           queryKey: ['userInfo'],
           queryFn: fetchUserInfo,
           staleTime: Infinity
         });
 
-        // Parallel prefetch of all essential data
         await Promise.all([
-          // Core user data
           queryClient.prefetchQuery({
             queryKey: ['recentlyWatched'],
             queryFn: fetchRecentlyWatched,
@@ -70,10 +66,26 @@ function App() {
             queryKey: ['reviewedMovies', userInfo.id],
             queryFn: () => fetchRecentlyWatched(userInfo.id),
           }),
-          
-          
-          
-          // Recommendations pipeline
+          queryClient.prefetchQuery({
+            queryKey: ['userGroups', userInfo.username],
+            queryFn: () => fetchUserGroups(userInfo.username),
+          }).then(async () => {
+            const groups = queryClient.getQueryData(['userGroups', userInfo.username]);
+            if (groups?.length) {
+              await Promise.all(
+                groups.map(group => 
+                  queryClient.prefetchQuery({
+                    queryKey: ['groupMembers', group.group_id],
+                    queryFn: () => fetchGroupMembers(group.group_id),
+                  })
+                )
+              );
+            }
+          }),
+          queryClient.prefetchQuery({
+            queryKey: ['mutualFriends', userInfo.id],
+            queryFn: () => fetchMutualFriends(userInfo.id),
+          }),
           queryClient.prefetchQuery({
             queryKey: ['recommendations', userInfo.id],
             queryFn: () => fetchMovieRecommendations(userInfo.id),
@@ -97,17 +109,25 @@ function App() {
             }
           })
         ]);
-        
-        console.log("Critical data prefetched successfully");
       } catch (error) {
-        console.error("Critical prefetch error:", error.message);
+        console.error("Prefetch error:", error);
       }
     }
 
     prefetchCriticalData();
     
-    // Background prefetch for less critical data
-    
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({
+        queryKey: ['recentlyWatched'],
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['watchlistMovies'],
+        refetchType: 'active',
+      });
+    }, 1000 * 60 * 5);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (

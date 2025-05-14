@@ -1,6 +1,18 @@
 // src/components/thecomponents.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { 
+  fetchUserInfo,
+  fetchUserGroups,
+  fetchGroupMembers,
+  fetchMutualFriends,
+  createGroup,
+  addFriend,
+  addGroupMember,
+  removeGroupMember
+} from '../api';
 
 const getCookie = (name) => {
   let cookieValue = null;
@@ -31,10 +43,28 @@ export const GroupsSidebar = ({
   selectedChat,
   onSelectChat
 }) => {
-  const [leaderId, setLeaderId] = useState(null);
-  const [username, setUsername] = useState("");
-  const [userGroups, setUserGroups] = useState([]);
-  const [userFriends, setUserFriends] = useState([]);
+  const queryClient = useQueryClient();
+  const { data: userInfo } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: fetchUserInfo,
+    staleTime: Infinity
+  });
+  const leaderId = userInfo?.id;
+  const username = userInfo?.username;
+
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['userGroups', username],
+    queryFn: () => fetchUserGroups(username),
+    enabled: !!username
+  });
+
+  const { data: userFriends = [] } = useQuery({
+    queryKey: ['mutualFriends', leaderId],
+    queryFn: () => fetchMutualFriends(leaderId),
+    enabled: !!leaderId
+  });
+
+  const [loadedMembers, setLoadedMembers] = useState({});
   const [groupName, setGroupName] = useState("");
   const [genre, setGenre] = useState("");
   const [newFriendId, setNewFriendId] = useState("");
@@ -42,186 +72,144 @@ export const GroupsSidebar = ({
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [showFriendForm, setShowFriendForm] = useState(false);
   const [showGroupMenu, setShowGroupMenu] = useState(null);
-  const [groupMembers, setGroupMembers] = useState({});
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
 
-  useEffect(() => {
-    const ac = new AbortController();
-    fetch("http://localhost:8000/user_info/", {
-      credentials: "include",
-      signal: ac.signal,
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setLeaderId(data.id);
-          setUsername(data.username);
+  const createGroupMutation = useMutation({
+    mutationFn: ({ groupName, leaderId, genre }) => 
+      createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
+    onMutate: async (newGroup) => {
+      await queryClient.cancelQueries(['userGroups', username]);
+      const previousGroups = queryClient.getQueryData(['userGroups', username]);
+      queryClient.setQueryData(['userGroups', username], (old) => [
+        ...(old || []),
+        {
+          group_id: Date.now(),
+          group_name: newGroup.groupName,
+          leader_id: newGroup.leaderId,
+          genre: newGroup.genre,
+          role: 'leader'
         }
-      })
-      .catch(() => setError(""));
-    return () => ac.abort();
-  }, []);
+      ]);
+      return { previousGroups };
+    },
+    onError: (err, newGroup, context) => {
+      queryClient.setQueryData(['userGroups', username], context.previousGroups);
+      setError("Failed to create group");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['userGroups', username]);
+    }
+  });
 
-  const fetchFriends = async (signal = null) => {
-    try {
-      const friendsRes = await fetch(
-        `http://localhost:8000/get_mutual_friends/?id=${leaderId}`,
-        { credentials: "include", signal }
+  const addFriendMutation = useMutation({
+    mutationFn: (friendId) => 
+      addFriend(getCookie("csrftoken"), { friend_id: friendId }),
+    onMutate: async (friendId) => {
+      await queryClient.cancelQueries(['mutualFriends', leaderId]);
+      const previousFriends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      queryClient.setQueryData(['mutualFriends', leaderId], (old) => [
+        ...(old || []),
+        {
+          id: Date.now(),
+          username: `user_${friendId}`,
+          friend_id: friendId
+        }
+      ]);
+      return { previousFriends };
+    },
+    onError: (err, friendId, context) => {
+      queryClient.setQueryData(['mutualFriends', leaderId], context.previousFriends);
+      setError("Failed to add friend");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['mutualFriends', leaderId]);
+    }
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      const friends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      const newMember = friends?.find(f => f.id === userId);
+      if (newMember) {
+        queryClient.setQueryData(['groupMembers', groupId], (old) => [
+          ...(old || []),
+          {
+            id: userId,
+            username: newMember.username
+          }
+        ]);
+      }
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("Failed to add member");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
+    }
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      queryClient.setQueryData(['groupMembers', groupId], (old) => 
+        old?.filter(member => member.id !== userId) || []
       );
-      if (friendsRes.ok) {
-        const { friends = [] } = await friendsRes.json();
-        setUserFriends(friends);
-      }
-      setError("");
-    } catch {
-      setError("");
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("Failed to remove member");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
     }
+  });
+
+  const handleCreateGroup = () => {
+    if (!groupName || !leaderId) return;
+    createGroupMutation.mutate({ groupName, leaderId, genre });
   };
 
-  useEffect(() => {
-    if (!username) return;
-    const ac = new AbortController();
-    const fetchLists = async () => {
-      try {
-        const groupsRes = await fetch(
-          `http://localhost:8000/get_user_groups/?username=${username}`,
-          { credentials: "include", signal: ac.signal }
-        );
-        if (!groupsRes.ok) throw new Error("Failed to fetch groups");
-        const { groups = [] } = await groupsRes.json();
-        setUserGroups(groups);
-
-        const membersPromises = groups.map(group => 
-          fetch(`http://localhost:8000/get_group_members/?group_id=${group.group_id}`, {
-            credentials: "include",
-            signal: ac.signal
-          }).then(r => r.json())
-        );
-        const membersResults = await Promise.all(membersPromises);
-        const membersData = {};
-        groups.forEach((group, index) => {
-          membersData[group.group_id] = membersResults[index].members || [];
-        });
-        setGroupMembers(membersData);
-
-        await fetchFriends(ac.signal);
-      } catch {
-        setError("");
-      }
-    };
-    fetchLists();
-    return () => ac.abort();
-  }, [username, leaderId]);
-
-  const handleCreateGroup = async () => {
-    try {
-      const csrf = getCookie("csrftoken");
-      const res = await fetch("http://localhost:8000/create_group/", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrf,
-        },
-        body: JSON.stringify({ group_name: groupName, leader_id: leaderId, genre }),
-      });
-      if (res.ok) {
-        const refreshed = await fetch(
-          `http://localhost:8000/get_user_groups/?username=${username}`,
-          { credentials: "include" }
-        );
-        const { groups = [] } = await refreshed.json();
-        setUserGroups(groups);
-        setShowGroupForm(false);
-        setGroupName("");
-        setGenre("");
-      }
-    } catch (e) {
-      console.error("Error creating group:", e);
-    }
+  const handleAddFriend = () => {
+    if (!newFriendId) return;
+    addFriendMutation.mutate(newFriendId);
   };
 
-  const handleAddFriend = async () => {
-    try {
-      const csrf = getCookie("csrftoken");
-      const res = await fetch("http://localhost:8000/add_friend/", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrf,
-        },
-        body: JSON.stringify({ friend_id: newFriendId }),
-      });
-      if (res.ok) {
-        await fetchFriends();
-        setShowFriendForm(false);
-        setNewFriendId("");
-      }
-    } catch (e) {
-      console.error("Error adding friend:", e);
-    }
+  const handleAddMember = (groupId) => {
+    if (!selectedMember) return;
+    addMemberMutation.mutate({ groupId, userId: selectedMember });
   };
 
-  const handleAddMember = async (groupId) => {
-    try {
-      const csrf = getCookie("csrftoken");
-      const res = await fetch("http://localhost:8000/add_group_member/", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrf,
-        },
-        body: JSON.stringify({ group_id: groupId, user_id: selectedMember }),
-      });
-      if (res.ok) {
-        const membersRes = await fetch(
-          `http://localhost:8000/get_group_members/?group_id=${groupId}`,
-          { credentials: "include" }
-        );
-        const { members = [] } = await membersRes.json();
-        setGroupMembers(prev => ({
-          ...prev,
-          [groupId]: members
-        }));
-        setActionType(null);
-        setSelectedMember("");
-      }
-    } catch (e) {
-      console.error("Error adding member:", e);
-    }
+  const handleRemoveMember = (groupId) => {
+    if (!selectedMember) return;
+    removeMemberMutation.mutate({ groupId, userId: selectedMember });
   };
 
-  const handleRemoveMember = async (groupId) => {
-    try {
-      const csrf = getCookie("csrftoken");
-      const res = await fetch("http://localhost:8000/remove_group_member/", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrf,
-        },
-        body: JSON.stringify({ group_id: groupId, user_id: selectedMember }),
+  const handleGroupClick = async (group) => {
+    onSelectChat(group);
+    await fetchMembersForGroup(group.group_id);
+  };
+
+  const fetchMembersForGroup = async (groupId) => {
+    if (!loadedMembers[groupId]) {
+      const members = await queryClient.fetchQuery({
+        queryKey: ['groupMembers', groupId],
+        queryFn: () => fetchGroupMembers(groupId)
       });
-      if (res.ok) {
-        const membersRes = await fetch(
-          `http://localhost:8000/get_group_members/?group_id=${groupId}`,
-          { credentials: "include" }
-        );
-        const { members = [] } = await membersRes.json();
-        setGroupMembers(prev => ({
-          ...prev,
-          [groupId]: members
-        }));
-        setActionType(null);
-        setSelectedMember("");
-      }
-    } catch (e) {
-      console.error("Error removing member:", e);
+      setLoadedMembers(prev => ({ ...prev, [groupId]: members }));
+      return members;
     }
+    return loadedMembers[groupId];
   };
 
   const sidebarStyle = {
@@ -307,10 +295,7 @@ export const GroupsSidebar = ({
           </button>
           <button
             style={tabButtonStyle(activeTab === "friends")}
-            onClick={() => {
-              onTabChange("friends");
-              fetchFriends();
-            }}
+            onClick={() => onTabChange("friends")}
           >
             Friends
           </button>
@@ -344,7 +329,7 @@ export const GroupsSidebar = ({
               <div
                 key={group.group_id}
                 style={listItemStyle(selectedChat?.group_id === group.group_id)}
-                onClick={() => onSelectChat(group)}
+                onClick={() => handleGroupClick(group)}
               >
                 <span>{group.group_name}</span>
                 <div style={{ display: "flex", alignItems: "center" }}>
@@ -484,7 +469,7 @@ export const GroupsSidebar = ({
                   {userFriends
                     .filter(
                       (friend) =>
-                        !groupMembers[showGroupMenu]?.some(
+                        !loadedMembers[showGroupMenu]?.some(
                           (member) => member.id === friend.id
                         )
                     )
@@ -502,9 +487,9 @@ export const GroupsSidebar = ({
                       padding: "0.8rem",
                     }}
                     onClick={() => handleAddMember(showGroupMenu)}
-                    disabled={!selectedMember}
+                    disabled={!selectedMember || addMemberMutation.isPending}
                   >
-                    Add
+                    {addMemberMutation.isPending ? "Adding..." : "Add"}
                   </button>
                   <button
                     style={{
@@ -531,7 +516,7 @@ export const GroupsSidebar = ({
                   onChange={(e) => setSelectedMember(e.target.value)}
                 >
                   <option value="">Select a member to remove</option>
-                  {groupMembers[showGroupMenu]
+                  {loadedMembers[showGroupMenu]
                     ?.filter((member) => member.id !== leaderId)
                     .map((member) => (
                       <option key={member.id} value={member.id}>
@@ -547,9 +532,9 @@ export const GroupsSidebar = ({
                       padding: "0.8rem",
                     }}
                     onClick={() => handleRemoveMember(showGroupMenu)}
-                    disabled={!selectedMember}
+                    disabled={!selectedMember || removeMemberMutation.isPending}
                   >
-                    Remove
+                    {removeMemberMutation.isPending ? "Removing..." : "Remove"}
                   </button>
                   <button
                     style={{
@@ -647,6 +632,7 @@ export const GroupsSidebar = ({
             />
             <button
               onClick={handleCreateGroup}
+              disabled={createGroupMutation.isPending}
               style={{
                 backgroundColor: "#6a0dad",
                 color: "white",
@@ -655,9 +641,10 @@ export const GroupsSidebar = ({
                 borderRadius: "6px",
                 cursor: "pointer",
                 width: "100%",
+                opacity: createGroupMutation.isPending ? 0.7 : 1,
               }}
             >
-              Create Group
+              {createGroupMutation.isPending ? "Creating..." : "Create Group"}
             </button>
           </div>
         </div>
@@ -726,6 +713,7 @@ export const GroupsSidebar = ({
             />
             <button
               onClick={handleAddFriend}
+              disabled={addFriendMutation.isPending}
               style={{
                 backgroundColor: "#6a0dad",
                 color: "white",
@@ -734,9 +722,10 @@ export const GroupsSidebar = ({
                 borderRadius: "6px",
                 cursor: "pointer",
                 width: "100%",
+                opacity: addFriendMutation.isPending ? 0.7 : 1,
               }}
             >
-              Add Friend
+              {addFriendMutation.isPending ? "Adding..." : "Add Friend"}
             </button>
           </div>
         </div>

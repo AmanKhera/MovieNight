@@ -397,8 +397,8 @@ def generate_group_recommendations(request):
             
         previously_watched = UserMovieJournal.objects.filter(user_id=group.id)
 
-        liked = [f.movie.title for f in previously_watched if f.rating >= 3]
-        disliked = [f.movie.title for f in previously_watched if not f.rating <= 2]   
+        liked = [f.movie.title for f in previously_watched if f.rating > 3]
+        disliked = [f.movie.title for f in previously_watched if not f.rating < 2]   
 
         user_payload = {
         "liked_recommendations": liked,
