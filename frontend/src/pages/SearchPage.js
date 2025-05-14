@@ -461,8 +461,9 @@ const SearchPage = () => {
       info.appendChild(username);
 
       const isBlockedByThem = await getBlockStatus(currentUserId, result[i].id);
+      console.log(isBlockedByThem)
 
-      if (!isBlockedByThem) {
+      if (!(isBlockedByThem === "blocked")) {
 
         const buttonContainer = document.createElement("div");
         buttonContainer.style.display = "flex";
@@ -490,20 +491,30 @@ const SearchPage = () => {
           await toggleRelationship(currentUserId, result[i].id);
 
           // Refresh button text after change
-          const updatedStatus = await getRelationshipStatus(currentUserId, result[i].id);
-          followBtn.innerText = updatedStatus;
+          const updatedRelationship = await getRelationshipStatus(currentUserId, result[i].id);
+          const updatedStatus = await getBlockStatus(currentUserId, result[i].id);
+          followBtn.innerText = updatedRelationship;
+          blockBtn.innerText = updatedStatus;
         };
         buttonContainer.appendChild(followBtn);
 
 
         // --- Block/Unblock button ---
         const blockBtn = document.createElement("button");
-        blockBtn.innerText = "Block";
-        blockBtn.classList.add("follow-button"); // reusing style
 
+        blockBtn.classList.add("follow-button"); // reusing style
+        blockBtn.disabled = !currentUserId;
+        if (currentUserId) {
+          const blockStatus = await getBlockStatus(currentUserId, result[i].id)
+          blockBtn.innerText = blockStatus;
+        }
         blockBtn.onclick = async () => {
           try {
-            toggleBlockUser(currentUserId, result[i].id, blockBtn);
+            await toggleBlockUser(currentUserId, result[i].id,);
+            const updatedRelationship = await getRelationshipStatus(currentUserId, result[i].id);
+            const updatedStatus = await getBlockStatus(currentUserId, result[i].id);
+            followBtn.innerText = updatedRelationship;
+            blockBtn.innerText = updatedStatus;
           } catch (err) {
             console.error("Block error:", err);
             alert("Could not update block status.");
@@ -517,14 +528,21 @@ const SearchPage = () => {
         messageBtn.classList.add("follow-button");
 
         messageBtn.onclick = () => {
-          const username = result[i].username || result[i].name;
-          alert(`Open chat UI with ${username} here!`); // Replace this with real messaging modal or redirect
+          navigate("/groups", {
+            state: {
+              chatUser: {
+                id: user.id,
+                name: user.name,
+                username: user.username
+              }
+            }
+          });
         };
         buttonContainer.appendChild(messageBtn);
 
         info.appendChild(buttonContainer);
       }
-      else if (isBlockedByThem) {
+      else if (isBlockedByThem === "blocked") {
         const msg = document.createElement("div");
         msg.innerText = "User has blocked you";
         msg.style.color = "red";
@@ -595,7 +613,7 @@ const SearchPage = () => {
   const getRelationshipStatus = async (currentUserId, targetUserId) => {
     try {
       const [followersRes, followingRes] = await Promise.all([
-        fetch(`http://localhost:8000/get_followers/?id=${targetUserId}`, { credentials: "include" }),
+        fetch(`http://localhost:8000/get_followers/?id=${currentUserId}`, { credentials: "include" }),
         fetch(`http://localhost:8000/get_following/?id=${currentUserId}`, { credentials: "include" })
       ]);
 
@@ -603,11 +621,14 @@ const SearchPage = () => {
       const followingData = await followingRes.json(); // people `currentUserId` follows
 
       const youFollowThem = Object.keys(followingData).includes(targetUserId.toString());
-      const theyFollowYou = Object.keys(followersData).includes(currentUserId.toString());
+      const theyFollowYou = Object.keys(followersData).includes(targetUserId.toString());
+
+      console.log("followers data: ", followersData);
+      console.log("following data: ", followingData);
 
       if (youFollowThem && theyFollowYou) return "Friends";
-      if (youFollowThem) return "Unfollow";
-      if (theyFollowYou) return "Follows You";
+      else if (youFollowThem) return "Unfollow";
+      else if (theyFollowYou) return "Follow Back";
       return "Follow";
     } catch (err) {
       console.error("Error checking relationship:", err);
@@ -617,28 +638,48 @@ const SearchPage = () => {
 
   const getBlockStatus = async (viewerId, profileId) => {
     try {
-      const response = await fetch(`http://localhost:8000/check_blocked/?searcher_id=${viewerId}&profile_id=${profileId}`, {
-        credentials: "include"
-      });
-      const data = await response.json();
-      return data.blocked_by_them || false;
-    } catch (error) {
-      console.error("Failed to check block status:", error);
-      return false;
+      const [youBlockedThemRes, theyBlockedYouRes] = await Promise.all([
+        fetch(`http://localhost:8000/view_blocked_users/?id=${viewerId}`, { credentials: "include" }),
+        fetch(`http://localhost:8000/view_blocked_users/?id=${profileId}`, { credentials: "include" })
+      ]);
+
+      const blockData = await youBlockedThemRes.json(); // followers of `targetUserId`
+      const blockedData = await theyBlockedYouRes.json(); // people `currentUserId` follows*/
+
+      const youBlockedThem = Object.keys(blockData).includes(profileId.toString());
+      const theyBlockedYou = Object.keys(blockedData).includes(viewerId.toString());
+
+      console.log("blocker data: ", blockData);
+      console.log("blocked data: ", blockedData);
+
+      if (theyBlockedYou) return "blocked";
+      if (youBlockedThem) return "Unblock";
+      return "Block";
+    } catch (err) {
+      console.error("Error checking relationship:", err);
+      return "Block"; // fallback
     }
   };
 
 
 
   //follows or unfollows other user
-  const toggleRelationship = async (followerId, followingId) => {
+  const toggleRelationship = async (followerId, followingId, skipBlockCheck = false) => {
     try {
+      if (!skipBlockCheck) {
+        const blockStatus = await getBlockStatus(followerId, followingId);
+
+        if (blockStatus === "Unblock") {
+          // You're trying to follow someone you blocked — first unblock
+          await toggleBlockUser(followerId, followingId, true);
+        }
+      }
       const response = await fetch(`http://localhost:8000/create_relationship/?follower_id=${followerId}&following_id=${followingId}`, {
         method: 'GET',
         credentials: 'include',
       });
       const data = await response.json();
-      alert(data.message);
+      //alert(data.message);
     } catch (err) {
       console.error("Failed to update relationship:", err);
       alert("Something went wrong.");
@@ -646,8 +687,25 @@ const SearchPage = () => {
   };
 
   //blocks or unblocks other user
-  const toggleBlockUser = async (currentUserId, targetUserId, blockButton) => {
+  const toggleBlockUser = async (currentUserId, targetUserId, skipRelationshipCheck = false) => {
     try {
+      if (!skipRelationshipCheck) {
+        const relationshipStatus = await getRelationshipStatus(currentUserId, targetUserId);
+
+        if (relationshipStatus === "Unfollow") {
+          //unfollow other user if you're following them
+          await toggleRelationship(currentUserId, targetUserId, true);
+        }
+        else if (relationshipStatus === "Friends") {
+          //mutually unfollow each user if they're friends
+          await toggleRelationship(currentUserId, targetUserId, true);  // unfollow them
+          await toggleRelationship(targetUserId, currentUserId, true);  // unfollow you
+        }
+        else if (relationshipStatus === "Follow Back") {
+          //makes user being blocked unfollow current user
+          await toggleRelationship(targetUserId, currentUserId, true);
+        }
+      }
       const response = await fetch("http://localhost:8000/block_user/", {
         method: "POST",
         credentials: "include",
@@ -661,8 +719,7 @@ const SearchPage = () => {
       });
       const data = await response.json();
       if (data.message) {
-        alert(data.message);
-        blockButton.innerText = data.message === "User Unblocked" ? "Block" : "Unblock";//adjusts text of block button to reflect current blocked status
+        //alert(data.message);
       } else if (data.error) {
         alert(data.error);
       }
@@ -684,6 +741,7 @@ const SearchPage = () => {
   return (
     <div>
       <Toolbar />
+
       <section>
         <div id="search-container">
           <input

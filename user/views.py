@@ -6,7 +6,7 @@ from user.models import User, Relationship, MemberRecommendation, Message, Block
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Max
 from django.core.exceptions import ObjectDoesNotExist
 import json
 import os
@@ -14,6 +14,9 @@ import requests
 from django.views.decorators.csrf import csrf_exempt
 import jwt
 from django.core import serializers
+from django.utils import timezone
+from datetime import timedelta
+
 
 
 #remove in production
@@ -215,22 +218,11 @@ def get_followers(request):
     #ids of users that follow given user
     followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
-    #ids the user follows
-    following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
+    follower_info = User.objects.filter(id__in=followers_ids).values('id', 'name')
 
-    #creates set with only followers
-    non_mutual_ids = set(followers_ids.difference(set(following_ids)))
-
-    #grabs followers id and name
-    follower_info = User.objects.filter(id__in=non_mutual_ids).values('id','name')
-
-    #returns dictionary where id is the key and name is the value
     response = {str(user['id']): user['name'] for user in follower_info}
 
     return JsonResponse(response, status=200)
-
-
-
 
 
 
@@ -242,15 +234,10 @@ def get_followers(request):
 def get_following(request):
 
     user_id = request.GET.get('id')
-   
-    #ids of users that follow given user
-    followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
+    user_id = int(user_id)
     #ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
-
-    #creates set with only followers
-    following_only_ids = set(following_ids.difference(set(followers_ids)))
     
     #grabs followers id and name
     following_info = User.objects.filter(id__in=following_ids).values('id','name')
@@ -266,25 +253,28 @@ def get_following(request):
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
 #Example URL 
 #http://127.0.0.1:8000/get_mutual_friends/?id=1
-def get_mutual_friends(request):
 
+def get_mutual_friends(request):
     user_id = request.GET.get('id')
 
-    #ids of users that follow given user
+    # ids of users that follow given user
     followers_ids = set(Relationship.objects.filter(following_id=user_id).values_list('follower_id', flat=True))
 
-    #ids the user follows
+    # ids the user follows
     following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
 
-    #Mutual friends are the intersection of following and followers
+    # Mutual friends are the intersection of following and followers
     mutual_friend_ids = set(following_ids).intersection(set(followers_ids))
 
-    mutual_info = User.objects.filter(id__in=mutual_friend_ids).values('id','username')
+    mutual_friends = User.objects.filter(id__in=mutual_friend_ids).values('id', 'username')
+    
+    # Convert to list of dictionaries in the format frontend expects
+    friends_list = [
+        {'id': friend['id'], 'username': friend['username']}
+        for friend in mutual_friends
+    ]
 
-    #returns dictionary where id is the key and name is the value
-    response = {str(user['id']): user['username'] for user in mutual_info}
-
-    return JsonResponse(response, status=200)
+    return JsonResponse({'friends': friends_list}, status=200)
 
 
 
@@ -677,7 +667,7 @@ def retrieve_recently_watched(request):
         {
             "movie": movie.movie.id,
             "title":movie.movie.title,
-            "rating": movie.rating,
+            "user_rating": movie.rating,
             "review": movie.review,
             "date_watched": movie.date_watched.isoformat()
             
@@ -754,7 +744,7 @@ def view_blocked_users(request):
     user_id = request.GET.get('id')
 
     #ids of users that are blocked by user
-    blocked_ids = set(BlockList.objects.filter(blocker=user_id).values_list('blocker_id', flat=True))
+    blocked_ids = BlockList.objects.filter(blocker_id=user_id).values_list('blocked_id', flat=True)
 
     blocked_list = User.objects.filter(id__in=blocked_ids).values('id','name')
 
@@ -787,8 +777,92 @@ def frontend_username(request):
         return JsonResponse({"Failure":"User does not exist"}, status=400)
 
 
+#Get Following
+#helper method
+def get_following_helper(user_id):
 
+
+    #ids the user follows
+    following_ids = set(Relationship.objects.filter(follower_id=user_id).values_list('following_id', flat=True))
+    
+    #grabs followers id and name
+    following_info = User.objects.filter(id__in=following_ids).values('id','username')
+
+    #returns dictionary where id is the key and name is the value
+    response = {user['id']: user['username'] for user in following_info}
+
+    return response 
+
+
+
+#Retrieve Feed
+#Desc: Retrieves all of users following movies made in the past month
+#params: user_id = id of user 
+#return: Json includes user_id, username, movie_title, movie_id, watched_on (date watched), rating (rating given by user), review
+def retrieve_feed(request):
+
+    user_id = request.GET.get("user_id")
+    following = get_following_helper(user_id)
+
+    following_ids = following.keys()
+
+    if not following_ids:
+        return JsonResponse({"feed": []})
     
 
+    one_month = timezone.now() - timedelta(days=30)
 
- 
+    recent_entries = (
+        UserMovieJournal.objects.filter(user_id__in = following_ids, date_watched__gte=one_month)
+        .select_related('movie')
+        .order_by('-date_watched')
+    )
+
+    feed=[]
+    for entry in recent_entries:
+        feed.append({
+            "user_id": entry.user_id,
+            "username": following[entry.user_id],
+            "movie_title": entry.movie.title,
+            "movie_id": entry.movie.id,
+            "watched_on": entry.date_watched,
+            "rating": entry.rating,
+            "review": entry.review,            
+        })
+
+    return JsonResponse({"feed": feed})
+
+
+
+
+
+def get_following_watch_status(request):
+
+    movie_id = request.GET.get("movie_id")
+    user_id = request.GET.get("user_id")
+
+    following = get_following_helper(user_id)
+    following_ids = following.keys()
+
+    if not following_ids:
+        return JsonResponse({"Followers_Watched": []})
+
+    recent_entries = (
+        UserMovieJournal.objects.filter(user_id__in = following_ids,movie_id = movie_id)
+        .select_related('movie')
+        .order_by('-date_watched')
+    )
+
+    feed=[]
+    for entry in recent_entries:
+        feed.append({
+            "user_id": entry.user_id,
+            "username": following[entry.user_id],
+            "watched_on": entry.date_watched,
+            "rating": entry.rating,
+            "review": entry.review,            
+        })
+
+
+    return JsonResponse({"Followers_watched": feed})
+

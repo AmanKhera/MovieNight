@@ -1,45 +1,49 @@
 // src/pages/GroupPage.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Toolbar from "../components/Toolbar";
-import { GroupsSidebar, ChatSection, MoviePoll, UserProfile } from "../components/thecomponents";
-import "./GroupPage.css"; // CSS for overriding toolbar, etc.
+import MainLayout from "../components/MainLayout";
+import {
+  GroupsSidebar,
+  ChatSection,
+  MoviePoll,
+  UserProfile
+} from "../components/thecomponents";
+/*import "./GroupPage.css";*/
 
 const GroupPage = () => {
-  // Groups
-  const [selectedGroup, setSelectedGroup] = useState("Group 1");
-  const groups = ["Group 1", "Group 2", "Group 3", "Group 4"];
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState("groups");    // "groups" or "friends"
+  const [selectedChat, setSelectedChat] = useState(null);
 
-  // Chat: start empty
+  // ChatSection state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
 
-  // Movie Poll
-  const [pollItems, setPollItems] = useState([
-    { id: 1, title: "Inception", votes: 3 },
-    { id: 2, title: "Interstellar", votes: 2 },
-    { id: 3, title: "Tenet", votes: 1 },
-  ]);
+  useEffect(() => {
+    if (location.state?.chatUser) {
+      setSelectedChat(location.state.chatUser);
+      setActiveTab("friends"); // Optional: auto-switch to friends tab
+    }
+  }, [location.state]);
 
-  // Handlers
-  const handleSelectGroup = (group) => {
-    setSelectedGroup(group);
+  const handleSelectChat = (chat) => {
+    setSelectedChat(chat);
   };
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return;
-    setMessages([...messages, { sender: "You", text: newMessage.trim() }]);
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: "You",
+        text: newMessage.trim(),
+        timestamp: new Date().toISOString()
+      }
+    ]);
     setNewMessage("");
   };
 
-  const handleVote = (movieId) => {
-    setPollItems((prev) =>
-      prev.map((item) =>
-        item.id === movieId ? { ...item, votes: item.votes + 1 } : item
-      )
-    );
-  };
-
-  // Page layout styles
   const pageStyle = {
     display: "flex",
     flexDirection: "column",
@@ -56,27 +60,31 @@ const GroupPage = () => {
   };
 
   return (
-    <div className="group-page" style={pageStyle}>
-      <Toolbar />
+      <MainLayout>
+        <div style={contentStyle}>
+          <GroupsSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            selectedChat={selectedChat}
+            onSelectChat={handleSelectChat}
+          />
 
-      <div style={contentStyle}>
-        <GroupsSidebar
-          groups={groups}
-          selectedGroup={selectedGroup}
-          onSelectGroup={handleSelectGroup}
-        />
+          <ChatSection
+            selectedChat={selectedChat}
+            messages={messages}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onSendMessage={handleSendMessage}
+          />
 
-        <ChatSection
-          selectedGroup={selectedGroup}
-          messages={messages}
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          onSendMessage={handleSendMessage}
-        />
-        <MoviePoll selectedGroup={selectedGroup} />
-      </div>
-    </div>
+          <MoviePoll
+            selectedItem={selectedChat}
+            activeTab={activeTab}
+          />
+        </div>
+      </MainLayout>
+
   );
 };
 
-export default GroupPage;
+          export default GroupPage;

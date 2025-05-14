@@ -7,7 +7,7 @@ const DiscoverCarousel = ({
 }) => {
   const [movies, setMovies] = useState([]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const itemsToScroll = 1; // Scroll one item per click
+  const itemsToScroll = 3; // Scroll one item per click
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enableTransition, setEnableTransition] = useState(true);
   const [message, setMessage] = useState(null); // For user feedback
@@ -363,7 +363,7 @@ const DiscoverCarousel = ({
                   className="carousel-image"
                   style={{ cursor: "pointer" }}
                 />
-                <button
+                {/*}<button
                   className="add-button"
                   onClick={() => addToWatchlist(movie.id)}
                   title="Add to Watchlist"
@@ -371,10 +371,10 @@ const DiscoverCarousel = ({
                   disabled={loading[movie.id]}
                 >
                   {loading[movie.id] ? "..." : "+"}
-                </button>
+                </button>{*/}
               </div>
               <div className="carousel-info">
-                <h3>{movie.title || movie.original_title}</h3>
+                {/*}<h3>{movie.title || movie.original_title}</h3>{*/}
               </div>
             </div>
           ))}
