@@ -1,4 +1,3 @@
-// src/pages/MovieDetailsPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 
@@ -8,7 +7,8 @@ const MovieDetailsPage = () => {
   const queryParams = new URLSearchParams(location.search);
   const release_date = queryParams.get("release_date");
 
-  const [userId, setUserId] = useState(null);           // ← new
+  const [userId, setUserId] = useState(null);
+  const [username, setUsername] = useState(null);
   const [movie, setMovie] = useState(null);
   const [posterURL, setPosterURL] = useState(null);
   const [backdropURL, setBackdropURL] = useState(null);
@@ -18,7 +18,6 @@ const MovieDetailsPage = () => {
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // dropdown & form states
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showWatchedForm, setShowWatchedForm] = useState(false);
   const [watchedRating, setWatchedRating] = useState("");
@@ -28,7 +27,11 @@ const MovieDetailsPage = () => {
   const [loadingPlot, setLoadingPlot] = useState(false);
   const hasEnhancedPlot = useRef(false);
 
-  // ---- fetch current user ID on mount ----
+  const [userGroups, setUserGroups] = useState([]);
+  const [userFriends, setUserFriends] = useState([]);
+  const [showGroupList, setShowGroupList] = useState(false);
+  const [showFriendList, setShowFriendList] = useState(false);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -38,6 +41,7 @@ const MovieDetailsPage = () => {
         if (!resp.ok) throw new Error("Failed to fetch user info");
         const js = await resp.json();
         setUserId(js.id);
+        setUsername(js.username);
       } catch (e) {
         console.error("user_info error:", e);
       }
@@ -45,7 +49,32 @@ const MovieDetailsPage = () => {
     fetchUser();
   }, []);
 
-  // 1) Fetch OMDB info, then local DB ID
+  useEffect(() => {
+    if (!username || !userId) return;
+    
+    const fetchGroupsAndFriends = async () => {
+      try {
+        const groupsRes = await fetch(
+          `http://localhost:8000/get_user_groups/?username=${username}`,
+          { credentials: "include" }
+        );
+        const groupsData = await groupsRes.json();
+        setUserGroups(groupsData.groups || []);
+
+        const friendsRes = await fetch(
+          `http://localhost:8000/get_mutual_friends/?id=${userId}`,
+          { credentials: "include" }
+        );
+        const friendsData = await friendsRes.json();
+        setUserFriends(friendsData.friends || []);
+      } catch (error) {
+        console.error("Failed to fetch groups/friends:", error);
+      }
+    };
+
+    fetchGroupsAndFriends();
+  }, [username, userId]);
+
   useEffect(() => {
     const fetchOMDB = async () => {
       try {
@@ -102,7 +131,6 @@ const MovieDetailsPage = () => {
     });
   }, [id, release_date]);
 
-  // 2) Fetch backdrop
   const fetchBackdrop = async title => {
     try {
       const resp = await fetch(
@@ -115,7 +143,6 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // 3) Fetch poster
   useEffect(() => {
     if (!movie) return;
     (async () => {
@@ -131,7 +158,6 @@ const MovieDetailsPage = () => {
     })();
   }, [movie]);
 
-  // 4) Enhance plot via AI
   const enhancePlot = async m => {
     setLoadingPlot(true);
     try {
@@ -151,7 +177,6 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // 5) Add to watchlist
   const addToWatchlist = async () => {
     setLoadingAdd(true);
     try {
@@ -172,7 +197,68 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // 6) Add to watched (now uses userId)
+  const sendToGroup = async (groupId) => {
+    setLoadingAdd(true);
+    try {
+      const idToSend = movie.db_id || movie.id;
+      const resp = await fetch("http://localhost:8000/recommend_movie/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          member_suggested: userId,
+          user_receiving: groupId,
+          movie_id: idToSend
+        }),
+      });
+      
+      const data = await resp.json();
+      if (resp.ok) {
+        setMessage({ text: data.message || "Recommendation sent to group!", type: "success" });
+      } else {
+        throw new Error(data.error || "Failed to send recommendation");
+      }
+    } catch (e) {
+      console.error(e);
+      setMessage({ text: e.message || "Failed to send to group", type: "error" });
+    } finally {
+      setLoadingAdd(false);
+      setShowGroupList(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const sendToFriend = async (friendId) => {
+    setLoadingAdd(true);
+    try {
+      const idToSend = movie.db_id || movie.id;
+      const resp = await fetch("http://localhost:8000/recommend_movie/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          member_suggested: userId,
+          user_receiving: friendId,
+          movie_id: idToSend
+        }),
+      });
+      
+      const data = await resp.json();
+      if (resp.ok) {
+        setMessage({ text: data.message || "Recommendation sent to friend!", type: "success" });
+      } else {
+        throw new Error(data.error || "Failed to send recommendation");
+      }
+    } catch (e) {
+      console.error(e);
+      setMessage({ text: e.message || "Failed to send to friend", type: "error" });
+    } finally {
+      setLoadingAdd(false);
+      setShowFriendList(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
   const addToWatched = async () => {
     if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
@@ -183,7 +269,7 @@ const MovieDetailsPage = () => {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          user_id: userId,                 // ← use real userId
+          user_id: userId,
           movie_id: idToSend,
           rating: parseInt(watchedRating, 10),
           review: watchedReview
@@ -205,7 +291,7 @@ const MovieDetailsPage = () => {
   };
 
   if (loading) return <div style={styles.loading}>Loading…</div>;
-  if (error)   return <div style={styles.error}>Error: {error}</div>;
+  if (error) return <div style={styles.error}>Error: {error}</div>;
 
   return (
     <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
@@ -230,29 +316,40 @@ const MovieDetailsPage = () => {
           </button>
 
           {showAddMenu && (
-            <div className="add-menu">
-              {!showWatchedForm ? (
-                <>
-                  <button onClick={addToWatchlist}>Add to Watchlist</button>
-                  <button onClick={() => setShowWatchedForm(true)}>Mark as Watched</button>
-                </>
-              ) : (
-                <div className="watched-form">
-                  <label>
-                    Rating:
-                    <select value={watchedRating} onChange={e => setWatchedRating(e.target.value)} required>
-                      <option value="">Select</option>
-                      {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    Review:
-                    <textarea value={watchedReview} onChange={e => setWatchedReview(e.target.value)} maxLength={2000} />
-                  </label>
-                  <button onClick={addToWatched} disabled={loadingAdd}>{loadingAdd ? "…" : "Submit"}</button>
-                  <button onClick={() => { setShowWatchedForm(false); setWatchedRating(''); setWatchedReview(''); }}>Cancel</button>
-                </div>
-              )}
+            <div style={styles.addMenu}>
+              <button 
+                style={styles.menuButton}
+                onClick={addToWatchlist}
+              >
+                Add to Watchlist
+              </button>
+              <button 
+                style={styles.menuButton}
+                onClick={() => {
+                  setShowGroupList(true);
+                  setShowAddMenu(false);
+                }}
+              >
+                Send to Group
+              </button>
+              <button 
+                style={styles.menuButton}
+                onClick={() => {
+                  setShowFriendList(true);
+                  setShowAddMenu(false);
+                }}
+              >
+                Send to Friend
+              </button>
+              <button 
+                style={styles.menuButton}
+                onClick={() => {
+                  setShowWatchedForm(true);
+                  setShowAddMenu(false);
+                }}
+              >
+                Mark as Watched
+              </button>
             </div>
           )}
         </div>
@@ -279,43 +376,117 @@ const MovieDetailsPage = () => {
         </div>
       </div>
 
-      <style>{`
-        .add-menu {
-          position: absolute;
-          top: 60px;
-          right: 15px;
-          background: #240046;
-          border: 1px solid #7d00ff;
-          border-radius: 6px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-          z-index: 10;
-        }
-        .add-menu button {
-          display: block;
-          width: 100%;
-          padding: 10px 16px;
-          background: none;
-          border: none;
-          color: #fff;
-          text-align: left;
-          cursor: pointer;
-          font-size: 1rem;
-          transition: background 0.2s;
-        }
-        .add-menu button:hover { background: rgba(125,0,255,0.4); }
-        .watched-form { display: flex; flex-direction: column; padding: 12px; }
-        .watched-form label { color: #fff; font-size: 1rem; margin-bottom: 8px; }
-        .watched-form select, .watched-form textarea { margin-top: 4px; padding: 6px; border-radius: 4px; border: none; font-size: 1rem; width: 100%; }
-        .watched-form textarea { resize: vertical; min-height: 60px; }
-        .watched-form button { margin-top: 8px; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
-        .watched-form button:first-of-type { background: #7d00ff; color: #fff; }
-        .watched-form button:last-of-type { background: #444; color: #fff; }
-      `}</style>
+      {showWatchedForm && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.watchedForm}>
+            <h3>Mark as Watched</h3>
+            <label style={styles.formLabel}>
+              Rating:
+              <select 
+                value={watchedRating} 
+                onChange={e => setWatchedRating(e.target.value)} 
+                style={styles.formInput}
+                required
+              >
+                <option value="">Select</option>
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label style={styles.formLabel}>
+              Review:
+              <textarea 
+                value={watchedReview} 
+                onChange={e => setWatchedReview(e.target.value)} 
+                maxLength={2000} 
+                style={{...styles.formInput, minHeight: '100px'}}
+              />
+            </label>
+            <div style={styles.formButtons}>
+              <button 
+                style={{...styles.formButton, backgroundColor: '#7d00ff'}}
+                onClick={addToWatched} 
+                disabled={loadingAdd}
+              >
+                {loadingAdd ? "Submitting..." : "Submit"}
+              </button>
+              <button 
+                style={{...styles.formButton, backgroundColor: '#444'}}
+                onClick={() => { 
+                  setShowWatchedForm(false); 
+                  setWatchedRating(''); 
+                  setWatchedReview(''); 
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGroupList && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.listModal}>
+            <h3>Select a Group</h3>
+            <div style={styles.listContainer}>
+              {userGroups.length > 0 ? (
+                userGroups.map(group => (
+                  <div 
+                    key={group.group_id}
+                    style={styles.listItem}
+                    onClick={() => sendToGroup(group.group_id)}
+                  >
+                    {group.group_name}
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: '#fff' }}>You don't have any groups yet.</p>
+              )}
+            </div>
+            <button 
+              style={styles.closeButton}
+              onClick={() => setShowGroupList(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showFriendList && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.listModal}>
+            <h3>Select a Friend</h3>
+            <div style={styles.listContainer}>
+              {userFriends.length > 0 ? (
+                userFriends.map(friend => (
+                  <div 
+                    key={friend.id}
+                    style={styles.listItem}
+                    onClick={() => sendToFriend(friend.id)}
+                  >
+                    {friend.username}
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: '#fff' }}>You don't have any friends yet.</p>
+              )}
+            </div>
+            <button 
+              style={styles.closeButton}
+              onClick={() => setShowFriendList(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 const styles = {
+
   container: { position: "relative", padding: "40px 20px", color: "#fff", backgroundColor: "#240046" ,backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat", minHeight: "100vh" },
   backdropOverlay: { position: "absolute", inset: 0, background: "rgba(36,0,70,0.85)", zIndex: 0 },
   loading: { color: "#fff", textAlign: "center", padding: "40px", fontSize: "1.2rem" },
@@ -333,6 +504,7 @@ const styles = {
   plotLoading: { color: "#adb5bd", fontStyle: "italic", marginBottom: "25px" },
   plotText: { lineHeight: "1.6", marginBottom: "25px", fontSize: "1.1rem" },
   link: { color: "inherit", textDecoration: "none" },
+
 };
 
 export default MovieDetailsPage;

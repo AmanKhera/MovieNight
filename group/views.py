@@ -56,7 +56,6 @@ def create_group(request):
             email=f"{group_name.replace(' ', '_').lower()}_{user.id}@group.local"
         )
 
-        watchlist = Watchlist.objects.create(user_id=New_Group.id)
 
         Group_ = Group.objects.create(
             group_id=New_Group,
@@ -85,6 +84,27 @@ def create_group(request):
             for entry in leader_watched_movies
         ]      
         UserMovieJournal.objects.bulk_create(group_watched)
+
+
+        watchlist = Watchlist.objects.create(user_id=New_Group.id)
+
+        leaderWatchlist = Watchlist.objects.get(user=user, type='MAIN')
+
+        leader_watchlist = WatchlistItem.objects.filter(watchlist=leaderWatchlist)
+
+        group_watchlist = [
+            WatchlistItem(
+                watchlist = watchlist,
+                movie = entry.movie,
+                #date_watched = entry.date_watched,
+                #rating = entry.rating,
+                #review = entry.review,
+                #favorite = entry.favorite
+            )
+            for entry in leader_watchlist
+        ]      
+        WatchlistItem.objects.bulk_create(group_watchlist)
+
 
         return JsonResponse({'message': 'Group created successfully'}, status=201)
 
@@ -115,7 +135,7 @@ def add_member_to_group(request):
 
         total_members = GroupMember.objects.filter(group=group).count()
         group.voting_limit = ceil(total_members / 2)
-        group.save(update_field=['voting_limit'])
+        group.save(update_fields=['voting_limit'])
 
         #Grabs groups watched movies
         group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat = True))
@@ -129,6 +149,33 @@ def add_member_to_group(request):
         UserMovieJournal.objects.filter(user=group_id).exclude(movie_id__in=keep_ids).delete()
 
 
+        group_watchlist = Watchlist.objects.get(user=group_id)
+        new_member_watchlist = Watchlist.objects.get(user=member.id)
+
+        movies_in_watchlist = set(WatchlistItem.objects.filter(watchlist=group_watchlist).values_list('movie_id', flat=True))
+
+        new_member_watchlist_items = set(WatchlistItem.objects.filter(watchlist=new_member_watchlist).values_list('movie_id', flat=True))
+
+        shared_movie_ids  = new_member_watchlist_items & movies_in_watchlist
+
+        WatchlistItem.objects.filter(
+            watchlist=group_watchlist
+        ).exclude(movie_id__in=shared_movie_ids).delete()
+
+        existing_ids = set(
+            WatchlistItem.objects.filter(watchlist=group_watchlist)
+            .values_list('movie_id', flat=True)
+        )
+        missing_ids = shared_movie_ids - existing_ids
+
+        new_items = [
+            WatchlistItem(watchlist=group_watchlist, movie_id=movie_id)
+            for movie_id in missing_ids
+        ]
+        WatchlistItem.objects.bulk_create(new_items)       
+
+
+
         return JsonResponse({'message': 'Member added to group!'})
 
     except json.JSONDecodeError:
@@ -140,12 +187,11 @@ def add_member_to_group(request):
 
 #Remove Member From Group
 #Params: remove_id (person being removed), group_id
-#When MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
 @csrf_exempt
 def remove_member_from_group(request):
     try:
         data = json.loads(request.body)
-        username = request.GET.get("username")
+        username = data.get("username")
         current_user_id = User.objects.get(username=username).id  # Ensure leader is the one removing members
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
@@ -153,7 +199,6 @@ def remove_member_from_group(request):
 
         # Use get to retrieve a single group instance
         group = Group.objects.get(group_id=group_id)
-
         if group.leader_id != current_user_id:
             return JsonResponse({"error": "Not authorized to remove member"}, status=403)
 
@@ -186,6 +231,47 @@ def remove_member_from_group(request):
         UserMovieJournal.objects.filter(user=group_id) \
             .exclude(movie_id__in=group_movie_ids) \
             .delete()
+
+
+        group_watchlist = Watchlist.objects.get(user=group_id, type=Watchlist.MAIN)
+        shared_watchlist_ids = None
+
+        for member_id in remaining_member_ids:
+            try:
+                member_watchlist = Watchlist.objects.get(user_id=member_id, type=Watchlist.MAIN)
+                member_movie_ids = set(
+                    WatchlistItem.objects.filter(watchlist=member_watchlist)
+                    .values_list('movie_id', flat=True)
+                )
+                if shared_watchlist_ids is None:
+                    shared_watchlist_ids = member_movie_ids
+                else:
+                    shared_watchlist_ids &= member_movie_ids
+            except Watchlist.DoesNotExist:
+                shared_watchlist_ids = set() if shared_watchlist_ids is None else shared_watchlist_ids & set()
+
+        if shared_watchlist_ids is None:
+            shared_watchlist_ids = set()
+
+        #Remove non-shared items from the group's watchlist
+        WatchlistItem.objects.filter(
+            watchlist=group_watchlist
+        ).exclude(movie_id__in=shared_watchlist_ids).delete()
+        
+        #Add any missing shared items
+        existing_ids = set(
+            WatchlistItem.objects.filter(watchlist=group_watchlist)
+            .values_list('movie_id', flat=True)
+        )
+        missing_ids = shared_watchlist_ids - existing_ids
+
+        new_items = [
+            WatchlistItem(watchlist=group_watchlist, movie_id=movie_id)
+            for movie_id in missing_ids
+        ]
+        WatchlistItem.objects.bulk_create(new_items)
+
+
 
         return JsonResponse({"Success": "User has been removed from the group"}, status=200)
            
@@ -239,7 +325,7 @@ def group_recommendation(request):
         recommendations = MemberRecommendation.objects.filter(
         user_receiving=group_id,
         date_suggested__gte=seven_days
-         ).order_by('-voting')
+         ).exclude(member_suggested=7648).order_by('-votes')
         
         movie_ids = [recs.movie_id for recs in recommendations]
         movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
@@ -320,10 +406,10 @@ from django.shortcuts import get_object_or_404
 @require_POST
 def update_recommendation(request):
     try:
-        data            = json.loads(request.body)
-        user_id         = data["user_id"]
+        data = json.loads(request.body)
+        user_id = data["user_id"]
         recommendation_id = data["recommendation_id"]
-        vote_value      = int(data.get("value"))
+        vote_value = int(data.get("value"))
     except (KeyError, ValueError, json.JSONDecodeError):
         return JsonResponse({"error": "Invalid payload"}, status=400)
 
@@ -380,31 +466,35 @@ def update_recommendation(request):
 
 
 
-@csrf_exempt
-@require_POST
-def generate_group_recommendations(request):
 
-    payload = json.loads(request.body)
-    num_of_recs = payload.get("num_of_recs")
-    group_id = payload.get("group_id")
+def generate_group_recommendations(group_id, num_of_recs):
+
     group = User.objects.get(pk=group_id)
 
 
     seen = Movie.objects.filter(user_journals__user=group).distinct()
     seen_titles = list(seen.values_list("title", flat=True))     
 
+
+    #If user has not voted on recommendations before we use more tokens to create an accurate recommendation
     if MemberRecommendation.objects.filter(user_receiving=group).count() < 20:
             
         previously_watched = UserMovieJournal.objects.filter(user_id=group.id)
 
-        liked = [f.movie.title for f in previously_watched if f.rating >= 3]
-        disliked = [f.movie.title for f in previously_watched if not f.rating <= 2]   
 
+        liked = [f.movie.title for f in previously_watched if f.rating is not None and f.rating >= 3]
+        disliked = [f.movie.title for f in previously_watched if f.rating is not None and f.rating <= 2]
+
+
+        #Use seen and split seen into liked an disliked recommendations
         user_payload = {
         "liked_recommendations": liked,
         "disliked_recommendations": disliked,
         "seen": seen_titles,
         }
+
+    #If user has voted on recommendations before we use less tokens
+    #need to reduce MemberRecommendations to the last 50 recs
     else:
         previous_liked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=1).values_list("movie_id", flat=True)
         previous_liked_recs = Movie.objects.filter(id__in=previous_liked_recs)
@@ -412,7 +502,7 @@ def generate_group_recommendations(request):
         previous_disliked_recs = MemberRecommendation.objects.filter(user_receiving=group,recommended=-1).values_list("movie_id", flat=True)
         previous_disliked_recs = Movie.objects.filter(id__in=previous_disliked_recs)
 
-
+        #only use seen and previous recommendations
         user_payload = {
         "liked_recommendations": list(previous_liked_recs.values_list("title", flat=True)),
         "disliked_recommendations": list(previous_disliked_recs.values_list("title", flat=True)),
@@ -422,11 +512,13 @@ def generate_group_recommendations(request):
 
     system_prompt = (
         "You are a highly intelligent and discerning movie recommendation engine. "
-        f"You analyze a user's prior movie preferences to suggest {num_of_recs} unique movies they haven't seen. "
-        "Use the `liked_recommendations` list to infer genres or themes the user enjoys. "
+        f"You must recommend exactly {num_of_recs} unique movies that the user has not seen. "
+        "Use the `liked_recommendations` list to identify genres, themes, or styles the user enjoys. "
         "Avoid anything from `disliked_recommendations` or `seen`. "
+        "Do not recommend any duplicates. "
         "Respond ONLY with a valid JSON object using this format: "
-        "{\"recommendations\": [\"Movie Title 1\", \"Movie Title 2\", ..., \"Movie Title 21\"]}. "
+        "{\"recommendations\": [\"Movie Title 1\", \"Movie Title 2\", ..., \"Movie Title N\"]} "
+        "where N is exactly the number requested"
         "Do not include any explanations or extra text — just the JSON."
     )
 
@@ -479,7 +571,7 @@ def generate_group_recommendations(request):
             "date_suggested": rec.date_suggested.isoformat(),
         })
 
-    return JsonResponse({"created": created})
+    return created
 
 
 
@@ -505,6 +597,27 @@ def retrieve_model_recommendations(request):
         .order_by('-date_suggested')
         .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]
     )
+
+    if rows.count() < 20:
+        num_needed = 20 - rows.count()
+        generate_group_recommendations(group_id, num_needed)
+
+        latest_ids = (
+            MemberRecommendation.objects
+            .filter(user_receiving=user, recommended=0)
+            .values('movie_id')
+            .annotate(latest_id=Max('id'))
+            .values_list('latest_id', flat=True)
+        )
+
+        rows = (
+            MemberRecommendation.objects
+            .filter(id__in=latest_ids)
+            .annotate(movie_title=Subquery(movie_title_sq))
+            .order_by('-date_suggested')
+            .values('id', 'movie_id', 'movie_title', 'date_suggested')[:20]
+        )
+
 
     return JsonResponse({"recommendations": list(rows)})
 

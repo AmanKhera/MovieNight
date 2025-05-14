@@ -141,9 +141,9 @@ const DiscoverCardStack = ({ title = "Movie Stack" }) => {
                     {/* Back */}
                     <div className="card-back">
                       <h3>{movie.title}</h3>
-                      <p><strong>Year:</strong> {movie.release_date}</p>
+                      <p><strong>Year:</strong> {movie.year}</p>
                       <p><strong>Runtime:</strong> {movie.runtime}</p>
-                      <p><strong>Rating:</strong> {movie.vote_average}</p>
+                      <p><strong>Rating:</strong> {movie.rating}</p>
                       <p><strong>Director:</strong> {movie.director}</p>
                       <p className="overview">{movie.plot}</p>
                       <button

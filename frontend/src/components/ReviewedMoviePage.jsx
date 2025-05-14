@@ -33,6 +33,7 @@ const ReviewedMoviesPage = () => {
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
 
+
   // 3) as soon as reviews arrive, prefetch each movie's poster
   useEffect(() => {
     if (!reviews) return;
@@ -59,6 +60,9 @@ const ReviewedMoviesPage = () => {
     <div style={styles.container}>
       <h1 style={styles.pageTitle}>My Rated Movies</h1>
       <div style={styles.grid}>
+
+        {console.log("REVIEWS ARE " + reviews)}
+        
         {reviews.map((r) => (
           <div
             key={`${r.title}-${r.date_watched}`}
@@ -76,7 +80,7 @@ const ReviewedMoviesPage = () => {
             <div style={styles.info}>
               <h2 style={styles.title}>{r.title}</h2>
               <div style={styles.stars}>
-                {[...Array(5)].map((_, i) => (i < r.rating ? "★" : "☆"))}
+                {[...Array(5)].map((_, i) => (i < r.user_rating ? "★" : "☆"))}
               </div>
               <p style={styles.reviewText}>{r.review}</p>
               <p style={styles.dateText}>
