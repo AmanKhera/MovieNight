@@ -1111,7 +1111,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               .filter(Boolean);
             finalList = finalList.concat(enrichedNew);
           }
-        }*/
+        }
 
         setRecommendations(finalList);
       } catch (e) {
