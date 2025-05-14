@@ -239,7 +239,7 @@ def group_recommendation(request):
         recommendations = MemberRecommendation.objects.filter(
         user_receiving=group_id,
         date_suggested__gte=seven_days
-         ).order_by('-voting')
+         ).exclude(member_suggested=7648).order_by('-votes')
         
         movie_ids = [recs.movie_id for recs in recommendations]
         movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
