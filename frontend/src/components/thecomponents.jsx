@@ -46,7 +46,6 @@ export const GroupsSidebar = ({
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
 
-  // Fetch user info on component mount
   useEffect(() => {
     const ac = new AbortController();
     fetch("http://localhost:8000/user_info/", {
@@ -64,7 +63,6 @@ export const GroupsSidebar = ({
     return () => ac.abort();
   }, []);
 
-  // Reusable function to fetch friends list
   const fetchFriends = async (signal = null) => {
     try {
       const friendsRes = await fetch(
@@ -81,13 +79,11 @@ export const GroupsSidebar = ({
     }
   };
 
-  // Fetch groups and friends when username or leaderId changes
   useEffect(() => {
     if (!username) return;
     const ac = new AbortController();
     const fetchLists = async () => {
       try {
-        // Fetch groups
         const groupsRes = await fetch(
           `http://localhost:8000/get_user_groups/?username=${username}`,
           { credentials: "include", signal: ac.signal }
@@ -96,7 +92,6 @@ export const GroupsSidebar = ({
         const { groups = [] } = await groupsRes.json();
         setUserGroups(groups);
 
-        // Fetch group members
         const membersPromises = groups.map(group => 
           fetch(`http://localhost:8000/get_group_members/?group_id=${group.group_id}`, {
             credentials: "include",
@@ -110,7 +105,6 @@ export const GroupsSidebar = ({
         });
         setGroupMembers(membersData);
 
-        // Fetch friends
         await fetchFriends(ac.signal);
       } catch {
         setError("");
@@ -161,7 +155,7 @@ export const GroupsSidebar = ({
         body: JSON.stringify({ friend_id: newFriendId }),
       });
       if (res.ok) {
-        await fetchFriends(); // Refresh friends list
+        await fetchFriends();
         setShowFriendForm(false);
         setNewFriendId("");
       }
@@ -315,29 +309,27 @@ export const GroupsSidebar = ({
             style={tabButtonStyle(activeTab === "friends")}
             onClick={() => {
               onTabChange("friends");
-              fetchFriends(); // Refresh friends when tab is clicked
+              fetchFriends();
             }}
           >
             Friends
           </button>
         </div>
-        <button
-          style={{
-            backgroundColor: "#6a0dad",
-            color: "white",
-            border: "none",
-            padding: "0.6rem 1rem",
-            borderRadius: "6px",
-            cursor: "pointer",
-          }}
-          onClick={() =>
-            activeTab === "groups"
-              ? setShowGroupForm(true)
-              : setShowFriendForm(true)
-          }
-        >
-          {activeTab === "groups" ? "+ Group" : "+ Friend"}
-        </button>
+        {activeTab === "groups" && (
+          <button
+            style={{
+              backgroundColor: "#6a0dad",
+              color: "white",
+              border: "none",
+              padding: "0.6rem 1rem",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+            onClick={() => setShowGroupForm(true)}
+          >
+            + Group
+          </button>
+        )}
       </div>
 
       {error && (
@@ -383,7 +375,6 @@ export const GroupsSidebar = ({
             ))}
       </div>
 
-      {/* Group Member Management Modal */}
       {showGroupMenu && (
         <div 
           style={{
@@ -578,7 +569,6 @@ export const GroupsSidebar = ({
         </div>
       )}
 
-      {/* Create Group Modal */}
       {showGroupForm && (
         <div
           style={{
@@ -673,7 +663,6 @@ export const GroupsSidebar = ({
         </div>
       )}
 
-      {/* Add Friend Modal */}
       {showFriendForm && (
         <div
           style={{
@@ -1089,7 +1078,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           isGroup ? selectedItem.group_id : selectedItem.id
         );
         let resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("Failed to fetch group_recs");
+        if (!resp.ok) throw new Error("");
         let data = await resp.json();
         let existing = data.recommendations || [];
 
