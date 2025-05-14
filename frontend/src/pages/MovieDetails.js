@@ -6,8 +6,8 @@ import MovieDetails from '../components/MovieDetails';
 const MovieDetailsPage = () => {
   return (
     <div>
-      <Toolbar/>
-      <MovieDetails/>
+        <Toolbar />
+        <MovieDetails />
     </div>
   );
 };

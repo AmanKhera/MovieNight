@@ -139,7 +139,7 @@ const DiscoverCarousel = ({
       margin: 0 auto;
       overflow: hidden;
       position: relative;
-      background-color: #240046;
+      background-image: radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43));
     }
     .popular-carousel h2 {
       font-size: 1.8rem;

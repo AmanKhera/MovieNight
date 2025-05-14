@@ -60,31 +60,32 @@ const GroupPage = () => {
   };
 
   return (
-      <MainLayout>
-        <div style={contentStyle}>
-          <GroupsSidebar
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            selectedChat={selectedChat}
-            onSelectChat={handleSelectChat}
-          />
+    <MainLayout>
+      <div style={contentStyle}>
 
-          <ChatSection
-            selectedChat={selectedChat}
-            messages={messages}
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            onSendMessage={handleSendMessage}
-          />
+        <GroupsSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          selectedChat={selectedChat}
+          onSelectChat={handleSelectChat}
+        />
 
-          <MoviePoll
-            selectedItem={selectedChat}
-            activeTab={activeTab}
-          />
-        </div>
-      </MainLayout>
+        <ChatSection
+          selectedChat={selectedChat}
+          messages={messages}
+          newMessage={newMessage}
+          setNewMessage={setNewMessage}
+          onSendMessage={handleSendMessage}
+        />
+
+        <MoviePoll
+          selectedItem={selectedChat}
+          activeTab={activeTab}
+        />
+      </div>
+  </MainLayout>
 
   );
 };
 
-          export default GroupPage;
+export default GroupPage;
