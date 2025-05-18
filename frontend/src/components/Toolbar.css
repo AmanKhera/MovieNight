@@ -11,17 +11,25 @@ body {
   flex-direction: column;
   font-family: 'Outfit', sans-serif;
   font-optical-sizing: auto;
-   font-weight: 100;
+  font-weight: 300;
    font-style:normal;
 }
 
 nav {
   /* Make the toolbar taller to fit a bigger logo/poster */
-  position: relative;
+
+  position: sticky;
   height: 105px; /* Increase if your logo is taller */
+
   padding: 0;
+  top:0;
   box-sizing: border-box;
+  z-index:1000;
+  background-color:#10002B;
 }
+ main {
+  padding-top: 105px;
+} 
 
 /* LOGO/POSTER AREA */
 #logo {
@@ -35,13 +43,15 @@ nav {
   background-color: #10002b00;
   border: none;
   cursor: pointer;
-  padding: 0; /* No extra padding around the image */
+  padding: 0;
+  /* No extra padding around the image */
 }
 
 .responsive-image {
   display: block;
   width: auto;
-  max-height: 100px; /* Constrain logo height so it doesn't overflow the nav */
+  max-height: 100px;
+  /* Constrain logo height so it doesn't overflow the nav */
   margin: 0;
 }
 
@@ -86,7 +96,8 @@ nav {
 .hover-text-logo {
   visibility: hidden;
   position: absolute;
-  bottom: 100%;             /* Show tooltip above the logo */
+  bottom: 100%;
+  /* Show tooltip above the logo */
   left: 50%;
   transform: translateX(-50%);
   background-color: #240046;
@@ -104,7 +115,8 @@ nav {
 .hover-text {
   visibility: hidden;
   position: absolute;
-  bottom: -50%;             /* Position above the icon */
+  bottom: -50%;
+  /* Position above the icon */
   left: 50%;
   transform: translateX(-50%);
   background-color: #240046;
@@ -123,7 +135,8 @@ nav {
 .hover-text-logo::after {
   content: '';
   position: absolute;
-  top: 0%; /* Arrow at the bottom edge of the tooltip */
+  top: 0%;
+  /* Arrow at the bottom edge of the tooltip */
   left: 50%;
   transform: translateX(-50%);
   border-width: 5px;

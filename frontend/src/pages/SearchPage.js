@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
-import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear } from '../components/fetchMovies';
+import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear, fetchMoviesByContentRating, fetchMoviesByRuntime } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
+import defaultPoster from '../images/default-poster.jpg';
 import { SpinnerCircular } from 'spinners-react';
 
 const SearchPage = () => {
@@ -143,34 +144,51 @@ const SearchPage = () => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let genre = tokens[2];
       console.log("genre: " + genre);
-      // fetchMoviesByGenre();
     }
   };
 
   const filterContentRatingButtonAction = () => {
     toggleFilterOptions("content-rating-filter-options");
     toggleButtonClicked("filter-content-rating-button");
+    if (!document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
+      document.getElementById("g-rated-button").classList.remove("clicked");
+      document.getElementById("pg-rated-button").classList.remove("clicked");
+      document.getElementById("pg13-rated-button").classList.remove("clicked");
+      document.getElementById("r-rated-button").classList.remove("clicked");
+    }
   };
 
   const contentRatingFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let contentRating = tokens[0];
       console.log("content rating: " + contentRating);
-      // fetchMoviesByContentRating();
     }
   };
 
   const filterRuntimeButtonAction = () => {
     toggleFilterOptions("runtime-filter-options");
     toggleButtonClicked("filter-runtime-button");
+    if (!document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      document.getElementById("90-min-button").classList.remove("clicked");
+      document.getElementById("120-min-button").classList.remove("clicked");
+      document.getElementById("180-min-button").classList.remove("clicked");
+    }
+  };
+
+  const runtimeFilterButtonAction = (clicked) => {
+    toggleButtonClicked(clicked.target.id);
+    const buttonClicked = document.getElementById(`${clicked.target.id}`);
+    if (buttonClicked.classList.contains("clicked")) {
+      let tokens = (clicked.target.id).split("-");
+      let runtime = tokens[0];
+      console.log("runtime: " + runtime);
+    }
   };
 
   const filterDirectorButtonAction = () => {
@@ -183,10 +201,6 @@ const SearchPage = () => {
     toggleFilterOptions("director-filter-options");
   };
 
-  const filterActorButtonAction = () => {
-    document.getElementById('filter-actor-button').classList.toggle("clicked");
-  };
-
   const filterYearButtonAction = () => {
     toggleButtonClicked("filter-year-button");
     if (document.getElementById('filter-year-button').classList.contains("clicked")) {
@@ -195,18 +209,45 @@ const SearchPage = () => {
       document.getElementById('search-input').placeholder = "Type your search here...";
     }
     toggleFilterOptions("year-filter-options");
-  }
+  };
 
   /**
    * execute user's search for users/movies
    */
   const searchButtonAction = async (query) => {
+
+    if (document.getElementById("filter-content-rating-button").classList.contains("clicked") ||
+        document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      query = {
+        Rated: {
+          G: (document.getElementById("g-rated-button").classList.contains("clicked")),
+          PG: (document.getElementById("pg-rated-button").classList.contains("clicked")),
+          PG13: (document.getElementById("pg13-rated-button").classList.contains("clicked")),
+          R: (document.getElementById("r-rated-button").classList.contains("clicked"))
+        },
+        Runtime: {
+          Ninety: (document.getElementById("90-min-button").classList.contains("clicked")),
+          OneTwenty: (document.getElementById("120-min-button").classList.contains("clicked")),
+          OneEighty: (document.getElementById("180-min-button").classList.contains("clicked"))
+        }
+      };
+    }
+
+    console.log("query==>>" + JSON.stringify(query));
+
     const finalQuery = query || searchInputText;
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(finalQuery);
+    document.getElementById("no-search-error").classList.add("hidden");
     document.getElementById("spinner").classList.remove("hidden");
     document.getElementById("search-result-user").innerHTML = "";
     document.getElementById("search-result-movie").innerHTML = "";
+
+    if (finalQuery === "") {
+      document.getElementById("spinner").classList.add("hidden");
+      document.getElementById("no-search-error").classList.remove("hidden");
+      return;
+    }
 
     if (document.getElementById('filter-director-button').classList.contains("clicked")) {
       let directorResult = await fetchMoviesByDirector(finalQuery, setMovies, setError);
@@ -214,6 +255,59 @@ const SearchPage = () => {
     } else if (document.getElementById('filter-year-button').classList.contains("clicked")) {
       let yearResult = await fetchMoviesByYear(finalQuery, setMovies, setError);
       await displayMovieSearchResult(yearResult);
+    } else if (document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
+      let index = 10;
+      if (query.Rated.G) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.PG) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.PG13) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.R) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+    } else if (document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      let index = 10;
+      if (query.Runtime.Ninety) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("90", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
+      if (query.Runtime.OneTwenty) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("120", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
+      if (query.Runtime.OneEighty) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("180", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
     } else {
       let userResult = await fetchUser(finalQuery, setUsers, setError);
       if (userResult.length === 0) { //################# == to ===
@@ -256,8 +350,9 @@ const SearchPage = () => {
       info.appendChild(username);
 
       const isBlockedByThem = await getBlockStatus(currentUserId, result[i].id);
+      console.log(isBlockedByThem)
 
-      if (!isBlockedByThem) {
+      if (!(isBlockedByThem === "blocked")) {
 
         const buttonContainer = document.createElement("div");
         buttonContainer.style.display = "flex";
@@ -285,20 +380,30 @@ const SearchPage = () => {
           await toggleRelationship(currentUserId, result[i].id);
 
           // Refresh button text after change
-          const updatedStatus = await getRelationshipStatus(currentUserId, result[i].id);
-          followBtn.innerText = updatedStatus;
+          const updatedRelationship = await getRelationshipStatus(currentUserId, result[i].id);
+          const updatedStatus = await getBlockStatus(currentUserId, result[i].id);
+          followBtn.innerText = updatedRelationship;
+          blockBtn.innerText = updatedStatus;
         };
         buttonContainer.appendChild(followBtn);
 
 
         // --- Block/Unblock button ---
         const blockBtn = document.createElement("button");
-        blockBtn.innerText = "Block";
-        blockBtn.classList.add("follow-button"); // reusing style
 
+        blockBtn.classList.add("follow-button"); // reusing style
+        blockBtn.disabled = !currentUserId;
+        if (currentUserId) {
+          const blockStatus = await getBlockStatus(currentUserId, result[i].id)
+          blockBtn.innerText = blockStatus;
+        }
         blockBtn.onclick = async () => {
           try {
-            toggleBlockUser(currentUserId, result[i].id, blockBtn);
+            await toggleBlockUser(currentUserId, result[i].id,);
+            const updatedRelationship = await getRelationshipStatus(currentUserId, result[i].id);
+            const updatedStatus = await getBlockStatus(currentUserId, result[i].id);
+            followBtn.innerText = updatedRelationship;
+            blockBtn.innerText = updatedStatus;
           } catch (err) {
             console.error("Block error:", err);
             alert("Could not update block status.");
@@ -312,14 +417,21 @@ const SearchPage = () => {
         messageBtn.classList.add("follow-button");
 
         messageBtn.onclick = () => {
-          const username = result[i].username || result[i].name;
-          alert(`Open chat UI with ${username} here!`); // Replace this with real messaging modal or redirect
+          navigate("/groups", {
+            state: {
+              chatUser: {
+                id: user.id,
+                name: user.name,
+                username: user.username
+              }
+            }
+          });
         };
         buttonContainer.appendChild(messageBtn);
 
         info.appendChild(buttonContainer);
       }
-      else if (isBlockedByThem) {
+      else if (isBlockedByThem === "blocked") {
         const msg = document.createElement("div");
         msg.innerText = "User has blocked you";
         msg.style.color = "red";
@@ -336,30 +448,34 @@ const SearchPage = () => {
    */
   const displayMovieSearchResult = async (result) => {
     document.getElementById("spinner").classList.add("hidden");
-    if (!result || !result.Search || result.Search.length === 0) {
+    if ((!result || result.length === 0) &&
+        (!document.getElementById("filter-runtime-button").classList.contains("clicked") ||
+         !document.getElementById("filter-content-rating-button").classList.contains("clicked"))) {
       document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
       return;
     }
-    for (let i = 0; i < result.Search.length; i++) {
+    for (let i = 0; i < result.length; i++) {
       let movie = document.createElement("li");
-      movie.id = result.Search[i].imdbID;
+      movie.id = result[i].imdbID;
       let poster = document.createElement("img");
-      poster.src = result.Search[i].Poster;
-      poster.alt = result.Search[i].Title + " movie poster";
-      poster.onclick = () => handleMovieClick(result.Search[i].Title);
+      poster.src = result[i].Poster;
+      poster.alt = result[i].Title + " movie poster";
+      poster.onerror = () => {
+        poster.src = defaultPoster;
+      };
+      poster.onclick = () => handleMovieClick(result[i].Title);
       movie.appendChild(poster);
       let info = document.createElement("div");
       movie.appendChild(info);
       let title = document.createElement("h1");
-      title.textContent = result.Search[i].Title;
-      title.onclick = () => handleMovieClick(result.Search[i].Title);
+      title.textContent = result[i].Title;
+      title.onclick = () => handleMovieClick(result[i].Title);
       info.appendChild(title);
-      let year = document.createElement("h2");
-      year.textContent = result.Search[i].Year;
-      info.appendChild(year);
+      let yearRuntimeRating = document.createElement("h2");
+      yearRuntimeRating.textContent = result[i].Year + " | " + result[i].Runtime + " | " + result[i].Rated;
+      info.appendChild(yearRuntimeRating);
       let director = document.createElement("h2");
-      let moreInfo = await fetchMovieDetails(movie.id, error);
-      director.textContent = "Directed by: " + moreInfo.Director;
+      director.textContent = "Directed by: " + result[i].Director;
       info.appendChild(director);
       document.getElementById("search-result-movie").appendChild(movie);
     }
@@ -386,7 +502,7 @@ const SearchPage = () => {
   const getRelationshipStatus = async (currentUserId, targetUserId) => {
     try {
       const [followersRes, followingRes] = await Promise.all([
-        fetch(`http://localhost:8000/get_followers/?id=${targetUserId}`, { credentials: "include" }),
+        fetch(`http://localhost:8000/get_followers/?id=${currentUserId}`, { credentials: "include" }),
         fetch(`http://localhost:8000/get_following/?id=${currentUserId}`, { credentials: "include" })
       ]);
 
@@ -394,11 +510,14 @@ const SearchPage = () => {
       const followingData = await followingRes.json(); // people `currentUserId` follows
 
       const youFollowThem = Object.keys(followingData).includes(targetUserId.toString());
-      const theyFollowYou = Object.keys(followersData).includes(currentUserId.toString());
+      const theyFollowYou = Object.keys(followersData).includes(targetUserId.toString());
+
+      console.log("followers data: ", followersData);
+      console.log("following data: ", followingData);
 
       if (youFollowThem && theyFollowYou) return "Friends";
-      if (youFollowThem) return "Unfollow";
-      if (theyFollowYou) return "Follows You";
+      else if (youFollowThem) return "Unfollow";
+      else if (theyFollowYou) return "Follow Back";
       return "Follow";
     } catch (err) {
       console.error("Error checking relationship:", err);
@@ -408,28 +527,48 @@ const SearchPage = () => {
 
   const getBlockStatus = async (viewerId, profileId) => {
     try {
-      const response = await fetch(`http://localhost:8000/check_blocked/?searcher_id=${viewerId}&profile_id=${profileId}`, {
-        credentials: "include"
-      });
-      const data = await response.json();
-      return data.blocked_by_them || false;
-    } catch (error) {
-      console.error("Failed to check block status:", error);
-      return false;
+      const [youBlockedThemRes, theyBlockedYouRes] = await Promise.all([
+        fetch(`http://localhost:8000/view_blocked_users/?id=${viewerId}`, { credentials: "include" }),
+        fetch(`http://localhost:8000/view_blocked_users/?id=${profileId}`, { credentials: "include" })
+      ]);
+
+      const blockData = await youBlockedThemRes.json(); // followers of `targetUserId`
+      const blockedData = await theyBlockedYouRes.json(); // people `currentUserId` follows*/
+
+      const youBlockedThem = Object.keys(blockData).includes(profileId.toString());
+      const theyBlockedYou = Object.keys(blockedData).includes(viewerId.toString());
+
+      console.log("blocker data: ", blockData);
+      console.log("blocked data: ", blockedData);
+
+      if (theyBlockedYou) return "blocked";
+      if (youBlockedThem) return "Unblock";
+      return "Block";
+    } catch (err) {
+      console.error("Error checking relationship:", err);
+      return "Block"; // fallback
     }
   };
 
 
 
   //follows or unfollows other user
-  const toggleRelationship = async (followerId, followingId) => {
+  const toggleRelationship = async (followerId, followingId, skipBlockCheck = false) => {
     try {
+      if (!skipBlockCheck) {
+        const blockStatus = await getBlockStatus(followerId, followingId);
+
+        if (blockStatus === "Unblock") {
+          // You're trying to follow someone you blocked — first unblock
+          await toggleBlockUser(followerId, followingId, true);
+        }
+      }
       const response = await fetch(`http://localhost:8000/create_relationship/?follower_id=${followerId}&following_id=${followingId}`, {
         method: 'GET',
         credentials: 'include',
       });
       const data = await response.json();
-      alert(data.message);
+      //alert(data.message);
     } catch (err) {
       console.error("Failed to update relationship:", err);
       alert("Something went wrong.");
@@ -437,8 +576,25 @@ const SearchPage = () => {
   };
 
   //blocks or unblocks other user
-  const toggleBlockUser = async (currentUserId, targetUserId, blockButton) => {
+  const toggleBlockUser = async (currentUserId, targetUserId, skipRelationshipCheck = false) => {
     try {
+      if (!skipRelationshipCheck) {
+        const relationshipStatus = await getRelationshipStatus(currentUserId, targetUserId);
+
+        if (relationshipStatus === "Unfollow") {
+          //unfollow other user if you're following them
+          await toggleRelationship(currentUserId, targetUserId, true);
+        }
+        else if (relationshipStatus === "Friends") {
+          //mutually unfollow each user if they're friends
+          await toggleRelationship(currentUserId, targetUserId, true);  // unfollow them
+          await toggleRelationship(targetUserId, currentUserId, true);  // unfollow you
+        }
+        else if (relationshipStatus === "Follow Back") {
+          //makes user being blocked unfollow current user
+          await toggleRelationship(targetUserId, currentUserId, true);
+        }
+      }
       const response = await fetch("http://localhost:8000/block_user/", {
         method: "POST",
         credentials: "include",
@@ -452,8 +608,7 @@ const SearchPage = () => {
       });
       const data = await response.json();
       if (data.message) {
-        alert(data.message);
-        blockButton.innerText = data.message === "User Unblocked" ? "Block" : "Unblock";//adjusts text of block button to reflect current blocked status
+        //alert(data.message);
       } else if (data.error) {
         alert(data.error);
       }
@@ -475,8 +630,9 @@ const SearchPage = () => {
   return (
     <div>
       <Toolbar />
+
       <section>
-        <div class="search-container">
+        <div id="search-container">
           <input
             type="text" id="search-input" placeholder="Type your search here..."
             value={searchInputText}
@@ -491,12 +647,12 @@ const SearchPage = () => {
           <div>
             <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden" />
           </div>
+          <p id="no-search-error" class="hidden">Please type your search in the search bar</p>
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>
             <button id="filter-runtime-button" onClick={filterRuntimeButtonAction}>Runtime</button>
             <button id="filter-director-button" onClick={filterDirectorButtonAction}>Director</button>
-            <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button>
             <button id="filter-year-button" onClick={filterYearButtonAction}>Year</button>
           </div>
           <div id="genre-filter-options" class="hidden">
@@ -523,9 +679,9 @@ const SearchPage = () => {
             <button id="r-rated-button" onClick={contentRatingFilterButtonAction}>R</button>
           </div>
           <div id="runtime-filter-options" class="hidden">
-            <button id="90-min-button" onClick={contentRatingFilterButtonAction}>90 Min</button>
-            <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
-            <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
+            <button id="90-min-button" onClick={runtimeFilterButtonAction}>90 Min</button>
+            <button id="120-min-button" onClick={runtimeFilterButtonAction}>120 Min</button>
+            <button id="180-min-button" onClick={runtimeFilterButtonAction}>180 Min</button>
           </div>
           <div id="director-filter-options" class="hidden">
             <p>To search by <strong>director</strong>, search the <strong>director's name</strong> in the search bar</p>

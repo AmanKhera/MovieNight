@@ -25,18 +25,18 @@ class Relationship(models.Model):
     follower = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='following'  # Users this user is following
+        related_name='following'  
     )
     following = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
-        related_name='followers'  # Users following this user
+        related_name='followers'  
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'relationships'  # Link to 'relationships' table in MySQL
-        unique_together = ('follower', 'following')  # Prevent duplicate relationships
+        db_table = 'relationships'
+        unique_together = ('follower', 'following') 
 
     def __str__(self):
         return f"{self.follower.name} follows {self.following.name}"
@@ -55,21 +55,21 @@ class MemberRecommendation(models.Model):
         on_delete=models.CASCADE, 
         related_name='received_recommendations', 
         db_column='user_receiving'
-    )  #The user receiving the recommendation
+    )  
     
-    movie_id = models.IntegerField()  #Movie ID column
-    date_suggested = models.DateTimeField(auto_now_add=True)  #Auto timestamp on creation
+    movie_id = models.IntegerField()  
+    date_suggested = models.DateTimeField(auto_now_add=True)  
     recommended = models.SmallIntegerField(
         choices=[
-            (-1, "Rejected"),   # ≥ half down-votes
-            ( 0, "Pending"),    # fewer than half have voted
-            ( 1, "Accepted"),   # ≥ half up-votes
+            (-1, "Rejected"),   
+            ( 0, "Pending"),    
+            ( 1, "Accepted"),   
         ],
         default=0
     )
 
     class Meta:
-        db_table = 'MemberRecommendations' # links to correct table in mysql
+        db_table = 'MemberRecommendations' 
 
     def __str__(self):
         return f"Recommendation of movie {self.movie_id} from {self.member_suggested} to {self.user_receiving}"

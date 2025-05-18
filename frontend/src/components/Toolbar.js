@@ -9,7 +9,7 @@ import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
-function Toolbar() {
+function  Toolbar() {
   // Get the 'navigate' function from react-router-dom
   const navigate = useNavigate();
 
@@ -32,7 +32,7 @@ function Toolbar() {
     navigate("/groups");
   };
   const friendsButtonAction = () => {
-    navigate("/FriendsPage");
+    navigate("/UserWatchlists");
   };
   const profileButtonAction = () => {
     navigate("/UserProfile");

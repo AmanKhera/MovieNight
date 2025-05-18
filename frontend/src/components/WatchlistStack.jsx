@@ -183,15 +183,6 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
               src={getPosterUrl(movie)}
               alt={movie.title || movie.original_title}
             />
-            <button
-              className="add-button"
-              onClick={() => addToWatchlist(movie)}
-              title="Add to Watchlist"
-              aria-label={`Add ${movie.title || movie.original_title} to Watchlist`}
-              disabled={loading[movie.id]}
-            >
-              {loading[movie.id] ? "..." : "+"}
-            </button>
             <div className="movie-title">
               {movie.title || movie.original_title}
             </div>
