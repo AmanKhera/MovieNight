@@ -96,15 +96,23 @@ urlpatterns = [
     path('favorite', movie_views.favorite, name = 'favorite'),
     path('retrieve_favorite', movie_views.retrieve_favorites, name = 'retrieve_favorites'),
 
-    path('block/', user_views.block_user, name='block_user'),
+    path('block_user/', user_views.block_user, name='block_user'),
+    path("check_blocked/", user_views.check_blocked, name="check_blocked"),
+    path('view_blocked_users/', user_views.view_blocked_users, name = "view_blocked_users"),
+
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
     path('frontend_user/', user_views.frontend_username, name = 'frontend_user'),
-    path('leave_group/', group_views.leave_group, name = 'leave_group'),
+    #path('leave_group/', group_views.leave_group, name = 'leave_group'),
     path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
     path('group_messages/', group_views.retrieve_group_messages, name='group_messages'),
     path('movie_rec/', movie_views.generate_recommendations, name='group_messages'),
     path('movie_review/', movie_views.review_recommendations, name='group_messages'),
+    path('group_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
+    path('generate_group_recommendations/', group_views.generate_group_recommendations, name='group_messages'),
+    path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
+    path('retrieve_feed/', user_views.retrieve_feed, name='group_messages'),
+    path('get_following_watch_status/', user_views.get_following_watch_status, name='group_messages'),
     ]
 
 

@@ -6,10 +6,10 @@ import MovieDetails from '../components/MovieDetails';
 import ReviewedMoviesPage from '../components/ReviewedMoviePage';
 const ReviewPage = () => {
   return (
-    <div>
-      <Toolbar/>
-      <ReviewedMoviesPage/>
-    </div>
+      <div>
+        <Toolbar />
+        <ReviewedMoviesPage />
+      </div>
   );
 };
 

@@ -1,9 +1,19 @@
 // src/components/thecomponents.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-/** ========== GROUPS SIDEBAR ========== */
+import { 
+  fetchUserInfo,
+  fetchUserGroups,
+  fetchGroupMembers,
+  fetchMutualFriends,
+  createGroup,
+  addFriend,
+  addGroupMember,
+  removeGroupMember
+} from '../api';
 
-// Helper to read a named cookie (e.g., "csrftoken").
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -19,404 +29,704 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
-export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
-  // === State ===
-  const [leaderId, setLeaderId] = useState(null); // from /user_info/ (used for creating groups)
-  const [userGroups, setUserGroups] = useState([]); // from /get_user_groups/
+
+
+
+
+
+
+
+//Group Sidebar
+export const GroupsSidebar = ({
+  activeTab,
+  onTabChange,
+  selectedChat,
+  onSelectChat
+}) => {
+  const queryClient = useQueryClient();
+  const { data: userInfo } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: fetchUserInfo,
+    staleTime: Infinity
+  });
+  const leaderId = userInfo?.id;
+  const username = userInfo?.username;
+
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['userGroups', username],
+    queryFn: () => fetchUserGroups(username),
+    enabled: !!username
+  });
+
+  const { data: userFriends = [] } = useQuery({
+    queryKey: ['mutualFriends', leaderId],
+    queryFn: () => fetchMutualFriends(leaderId),
+    enabled: !!leaderId
+  });
+
+  const [loadedMembers, setLoadedMembers] = useState({});
   const [groupName, setGroupName] = useState("");
   const [genre, setGenre] = useState("");
+  const [newFriendId, setNewFriendId] = useState("");
   const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false); // toggle for creating a new group
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showFriendForm, setShowFriendForm] = useState(false);
+  const [showGroupMenu, setShowGroupMenu] = useState(null);
+  const [actionType, setActionType] = useState(null);
+  const [selectedMember, setSelectedMember] = useState("");
 
-  // State for per‑group member management modal
-  const [expandedGroupId, setExpandedGroupId] = useState(null);
-  const [addMemberId, setAddMemberId] = useState("");
-  const [removeMemberId, setRemoveMemberId] = useState("");
-
-  // Insert keyframes for modal fadeIn animation (only once)
-  useEffect(() => {
-    if (!document.getElementById("modal-keyframes")) {
-      const style = document.createElement("style");
-      style.id = "modal-keyframes";
-      style.innerHTML = `
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
+  const createGroupMutation = useMutation({
+    mutationFn: ({ groupName, leaderId, genre }) => 
+      createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
+    onMutate: async (newGroup) => {
+      await queryClient.cancelQueries(['userGroups', username]);
+      const previousGroups = queryClient.getQueryData(['userGroups', username]);
+      queryClient.setQueryData(['userGroups', username], (old) => [
+        ...(old || []),
+        {
+          group_id: Date.now(),
+          group_name: newGroup.groupName,
+          leader_id: newGroup.leaderId,
+          genre: newGroup.genre,
+          role: 'leader'
         }
-      `;
-      document.head.appendChild(style);
+      ]);
+      return { previousGroups };
+    },
+    onError: (err, newGroup, context) => {
+      queryClient.setQueryData(['userGroups', username], context.previousGroups);
+      setError("");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['userGroups', username]);
     }
-  }, []);
+  });
 
-  // 1) Fetch user info (to get leaderId)
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to fetch user info");
+  const addFriendMutation = useMutation({
+    mutationFn: (friendId) => 
+      addFriend(getCookie("csrftoken"), { friend_id: friendId }),
+    onMutate: async (friendId) => {
+      await queryClient.cancelQueries(['mutualFriends', leaderId]);
+      const previousFriends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      queryClient.setQueryData(['mutualFriends', leaderId], (old) => [
+        ...(old || []),
+        {
+          id: Date.now(),
+          username: `user_${friendId}`,
+          friend_id: friendId
         }
-        const data = await response.json();
-        console.log("User info response:", data);
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setLeaderId(data.id);
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-    };
-    fetchUserInfo();
-  }, []);
-
-  // 2) Fetch user groups
-  const fetchUserGroups = async () => {
-    try {
-      const response = await fetch("http://localhost:8000/get_user_groups/", {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch user groups");
-      }
-      const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setUserGroups(data.groups || []);
-      }
-    } catch (err) {
-      setError(err.message);
+      ]);
+      return { previousFriends };
+    },
+    onError: (err, friendId, context) => {
+      queryClient.setQueryData(['mutualFriends', leaderId], context.previousFriends);
+      setError("");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['mutualFriends', leaderId]);
     }
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      const friends = queryClient.getQueryData(['mutualFriends', leaderId]);
+      const newMember = friends?.find(f => f.id === userId);
+      if (newMember) {
+        queryClient.setQueryData(['groupMembers', groupId], (old) => [
+          ...(old || []),
+          {
+            id: userId,
+            username: newMember.username
+          }
+        ]);
+      }
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
+    }
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ groupId, userId }) => 
+      removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+    onMutate: async ({ groupId, userId }) => {
+      await queryClient.cancelQueries(['groupMembers', groupId]);
+      const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
+      queryClient.setQueryData(['groupMembers', groupId], (old) => 
+        old?.filter(member => member.id !== userId) || []
+      );
+      return { previousMembers, groupId };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
+      setError("");
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries(['groupMembers', variables.groupId]);
+    }
+  });
+
+  const handleCreateGroup = () => {
+    if (!groupName || !leaderId) return;
+    createGroupMutation.mutate({ groupName, leaderId, genre });
   };
 
-  useEffect(() => {
-    fetchUserGroups();
-  }, []);
-
-  // 3) Create a new group
-  const handleCreateGroup = async () => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      const response = await fetch("http://localhost:8000/create_group/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_name: groupName,
-          leader_id: leaderId,
-          genre: genre,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create group");
-      }
-
-      const data = await response.json();
-      console.log("Group created:", data.message);
-
-      // Refresh group list
-      fetchUserGroups();
-      // Reset form and close modal
-      setGroupName("");
-      setGenre("");
-      setShowForm(false);
-    } catch (error) {
-      console.error("Error creating group:", error);
-    }
+  const handleAddFriend = () => {
+    if (!newFriendId) return;
+    addFriendMutation.mutate(newFriendId);
   };
 
-  // 4) Add a member to a group
-  const handleAddMember = async (group_id) => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      const response = await fetch("http://localhost:8000/add_members/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_id: group_id,
-          member_id: addMemberId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to add member");
-      }
-      console.log("Member added:", data.message);
-      alert(data.message);
-      setAddMemberId("");
-    } catch (error) {
-      console.error("Error adding member:", error);
-      alert(error);
-    }
+  const handleAddMember = (groupId) => {
+    if (!selectedMember) return;
+    addMemberMutation.mutate({ groupId, userId: selectedMember });
   };
 
-  // 5) Remove a member from a group
-  const handleRemoveMember = async (group_id) => {
-    try {
-      const csrfToken = getCookie("csrftoken");
-      if (!csrfToken) {
-        console.error("CSRF token not found");
-        return;
-      }
-      // Updated URL to match Django configuration
-      const response = await fetch("http://localhost:8000/remove_member/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          group_id: group_id,
-          remove_id: removeMemberId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to remove member");
-      }
-      console.log("Member removed:", data);
-      alert("User has been removed from the group");
-      setRemoveMemberId("");
-    } catch (error) {
-      console.error("Error removing member:", error);
-      alert(error);
-    }
+  const handleRemoveMember = (groupId) => {
+    if (!selectedMember) return;
+    removeMemberMutation.mutate({ groupId, userId: selectedMember });
   };
 
-  // === Styling ===
+  const handleGroupClick = async (group) => {
+    onSelectChat(group);
+    await fetchMembersForGroup(group.group_id);
+  };
+
+  const fetchMembersForGroup = async (groupId) => {
+    if (!loadedMembers[groupId]) {
+      const members = await queryClient.fetchQuery({
+        queryKey: ['groupMembers', groupId],
+        queryFn: () => fetchGroupMembers(groupId)
+      });
+      setLoadedMembers(prev => ({ ...prev, [groupId]: members }));
+      return members;
+    }
+    return loadedMembers[groupId];
+  };
+
   const sidebarStyle = {
-    width: "15%",
-    padding: "1rem",
-    boxSizing: "border-box",
-    color: "white",
-    backgroundColor: "#1a0133",
-  };
-
-  // Header container using flex for the "My Groups" header and header plus button (for creating new groups)
-  const headerFlexStyle = {
+    width: "25%",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "1rem",
+    flexDirection: "column",
+    height: "90vh",
+    backgroundColor: "#1a0133",
+    color: "white",
+    overflow: "hidden",
+    position: "relative",
   };
 
-  // Button style for the header plus button (for creating a new group)
-  const plusButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
+  const tabContainerStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1.5rem",
+    borderBottom: "1px solid #3a1f5c",
+  };
+
+  const tabButtonStyle = (isActive) => ({
+    padding: "0.8rem 1.2rem",
+    fontSize: "1rem",
+    backgroundColor: isActive ? "#6a0dad" : "transparent",
     border: "none",
-    padding: "0.5rem 0.75rem",
+    color: "white",
     cursor: "pointer",
     borderRadius: "4px",
-    fontSize: "1.2rem",
-  };
-
-  // Style for the per‑group member management plus button
-  const memberButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
-    border: "none",
-    padding: "0.35rem 0.5rem",
-    cursor: "pointer",
-    borderRadius: "50%",
-    marginLeft: "0.5rem",
-    fontSize: "0.9rem",
-  };
-
-  // List and list-item styling
-  const listStyle = {
-    listStyle: "none",
-    margin: 0,
-    padding: 0,
-  };
+  });
 
   const listItemStyle = (active) => ({
     padding: "1rem",
-    marginBottom: "0.5rem",
+    margin: "0.5rem 0",
     backgroundColor: active ? "#240046" : "transparent",
+    borderRadius: "6px",
     cursor: "pointer",
-    borderRadius: "4px",
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
+    position: "relative",
   });
 
-  // Modal overlay and content styles for the Create Group pop-up
-  const modalOverlayStyle = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
+  const listContainerStyle = {
+    flex: 1,
+    overflowY: "auto",
+    padding: "0 1.5rem",
   };
 
-  const modalContentStyle = {
-    backgroundColor: "#fff",
-    padding: "1rem",
-    borderRadius: "4px",
-    width: "300px",
-    maxWidth: "90%",
-    color: "#000",
-    position: "relative",
-    animation: "fadeIn 0.5s ease-out",
-  };
-
-  const closeButtonStyle = {
-    backgroundColor: "transparent",
+  const menuButtonStyle = {
+    background: "none",
     border: "none",
-    fontSize: "1.2rem",
+    color: "white",
     cursor: "pointer",
-    position: "absolute",
-    right: "0.5rem",
-    top: "0.5rem",
+    fontSize: "1.2rem",
+    padding: "0 0.5rem",
   };
 
-  // Modal overlay and content styles for the Member Management pop-up (reusing similar styles)
-  const memberModalOverlayStyle = {
-    ...modalOverlayStyle,
-    zIndex: 1100, // Ensure it's above the create group modal if needed
+  const dropdownStyle = {
+    backgroundColor: "#240046",
+    color: "white",
+    border: "1px solid #6a0dad",
+    borderRadius: "4px",
   };
 
-  const memberModalContentStyle = {
-    ...modalContentStyle,
-    width: "300px",
-    maxWidth: "90%",
+  const actionButtonStyle = {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
   };
 
   return (
     <div style={sidebarStyle}>
-      {/* Header: "My Groups" with header plus button for creating new groups */}
-      <div style={headerFlexStyle}>
-        <h3 style={{ margin: 0 }}>My Groups</h3>
-        <button onClick={() => setShowForm(true)} style={plusButtonStyle}>
-          +
-        </button>
+      <div style={tabContainerStyle}>
+        <div>
+          <button
+            style={tabButtonStyle(activeTab === "groups")}
+            onClick={() => onTabChange("groups")}
+          >
+            Groups
+          </button>
+          <button
+            style={tabButtonStyle(activeTab === "friends")}
+            onClick={() => onTabChange("friends")}
+          >
+            Friends
+          </button>
+        </div>
+        {activeTab === "groups" && (
+          <button
+            style={{
+              backgroundColor: "#6a0dad",
+              color: "white",
+              border: "none",
+              padding: "0.6rem 1rem",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+            onClick={() => setShowGroupForm(true)}
+          >
+            + Group
+          </button>
+        )}
       </div>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && (
+        <div style={{ color: "#ff6666", margin: "1rem 1.5rem 0" }}>
+          {error}
+        </div>
+      )}
 
-      {/* List of groups */}
-      <ul style={listStyle}>
-        {userGroups.map((grp) => (
-          <li
-            key={grp.group_id}
-            style={listItemStyle(
-              selectedGroup && grp.group_name === selectedGroup.group_name
-            )}
-            onClick={() => onSelectGroup(grp)}
+      <div style={listContainerStyle}>
+        {activeTab === "groups"
+          ? userGroups.map((group) => (
+              <div
+                key={group.group_id}
+                style={listItemStyle(selectedChat?.group_id === group.group_id)}
+                onClick={() => handleGroupClick(group)}
+              >
+                <span>{group.group_name}</span>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <span style={{ color: "#888", marginRight: "0.5rem" }}>
+                    {group.role}
+                  </span>
+                  <button
+                    style={menuButtonStyle}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
+                      setActionType(null);
+                    }}
+                  >
+                    ⋯
+                  </button>
+                </div>
+              </div>
+            ))
+          : userFriends.map((friend) => (
+              <div
+                key={friend.id}
+                style={listItemStyle(selectedChat?.id === friend.id)}
+                onClick={() => onSelectChat(friend)}
+              >
+                {friend.username}
+              </div>
+            ))}
+      </div>
+
+      {showGroupMenu && (
+        <div 
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowGroupMenu(null);
+            setActionType(null);
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: "#3a1f5c",
+              padding: "1.5rem",
+              borderRadius: "8px",
+              width: "350px",
+              color: "white",
+              zIndex: 1001,
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <span>{grp.group_name}</span>
-            {/* Always show the per‑group member management plus button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpandedGroupId(grp.group_id);
-              }}
-              style={memberButtonStyle}
-            >
-              ...
-            </button>
-          </li>
-        ))}
-      </ul>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+            }}>
+              <h3 style={{ margin: 0 }}>
+                {!actionType 
+                  ? "Manage Group Members" 
+                  : actionType === "add" 
+                    ? "Add Member" 
+                    : "Remove Member"}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowGroupMenu(null);
+                  setActionType(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  padding: "0.5rem",
+                }}
+              >
+                ×
+              </button>
+            </div>
 
-      {/* Modal pop-up for managing members for the selected group */}
-      {expandedGroupId && (
-        <div style={memberModalOverlayStyle}>
-          <div style={memberModalContentStyle}>
-            <button onClick={() => setExpandedGroupId(null)} style={closeButtonStyle}>
-              ×
-            </button>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>
-              Manage Members for{" "}
-              {userGroups.find((g) => g.group_id === expandedGroupId)?.group_name ||
-                "Group"}
-            </h4>
-            <div style={{ marginBottom: "0.5rem" }}>
-              <strong>Add Member:</strong>
-              <input
-                type="text"
-                placeholder="Member ID"
-                value={addMemberId}
-                onChange={(e) => setAddMemberId(e.target.value)}
-                style={{ marginLeft: "0.5rem", width: "60%" }}
-              />
-              <button
-                onClick={() => handleAddMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
-                Add
-              </button>
-            </div>
-            <div>
-              <strong>Remove Member:</strong>
-              <input
-                type="text"
-                placeholder="Member ID"
-                value={removeMemberId}
-                onChange={(e) => setRemoveMemberId(e.target.value)}
-                style={{ marginLeft: "0.5rem", width: "60%" }}
-              />
-              <button
-                onClick={() => handleRemoveMember(expandedGroupId)}
-                style={{ marginLeft: "0.5rem" }}
-              >
-                Remove
-              </button>
-            </div>
+            {!actionType ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                  }}
+                  onClick={() => setActionType("add")}
+                >
+                  Add Member
+                </button>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                  }}
+                  onClick={() => setActionType("remove")}
+                >
+                  Remove Member
+                </button>
+                <button
+                  style={{
+                    ...actionButtonStyle,
+                    padding: "0.8rem",
+                    backgroundColor: "#333",
+                  }}
+                  onClick={() => setShowGroupMenu(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : actionType === "add" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <select
+                  style={{
+                    ...dropdownStyle,
+                    width: "100%",
+                    padding: "0.8rem",
+                  }}
+                  value={selectedMember}
+                  onChange={(e) => setSelectedMember(e.target.value)}
+                >
+                  <option value="">Select a friend to add</option>
+                  {userFriends
+                    .filter(
+                      (friend) =>
+                        !loadedMembers[showGroupMenu]?.some(
+                          (member) => member.id === friend.id
+                        )
+                    )
+                    .map((friend) => (
+                      <option key={friend.id} value={friend.id}>
+                        {friend.username}
+                      </option>
+                    ))}
+                </select>
+                <div style={{ display: "flex", gap: "0.8rem" }}>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                    }}
+                    onClick={() => handleAddMember(showGroupMenu)}
+                    disabled={!selectedMember || addMemberMutation.isPending}
+                  >
+                    {addMemberMutation.isPending ? "Adding..." : "Add"}
+                  </button>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                      backgroundColor: "#333",
+                    }}
+                    onClick={() => setActionType(null)}
+                    >
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
+                <select
+                  style={{
+                    ...dropdownStyle,
+                    width: "100%",
+                    padding: "0.8rem",
+                  }}
+                  value={selectedMember}
+                  onChange={(e) => setSelectedMember(e.target.value)}
+                >
+                  <option value="">Select a member to remove</option>
+                  {loadedMembers[showGroupMenu]
+                    ?.filter((member) => member.id !== leaderId)
+                    .map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.username}
+                      </option>
+                    ))}
+                </select>
+                <div style={{ display: "flex", gap: "0.8rem" }}>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                    }}
+                    onClick={() => handleRemoveMember(showGroupMenu)}
+                    disabled={!selectedMember || removeMemberMutation.isPending}
+                  >
+                    {removeMemberMutation.isPending ? "Removing..." : "Remove"}
+                  </button>
+                  <button
+                    style={{
+                      ...actionButtonStyle,
+                      flex: 1,
+                      padding: "0.8rem",
+                      backgroundColor: "#333",
+                    }}
+                    onClick={() => setActionType(null)}
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Modal pop-up for creating a new group */}
-      {showForm && (
-        <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <button onClick={() => setShowForm(false)} style={closeButtonStyle}>
-              ×
-            </button>
-            <h4>Create New Group</h4>
+      {showGroupForm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#1a0133",
+              padding: "2rem",
+              borderRadius: "8px",
+              width: "400px",
+              color: "white",
+              zIndex: 1001,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3>Create New Group</h3>
+              <button
+                onClick={() => setShowGroupForm(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
             <input
               type="text"
               placeholder="Group Name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              style={{ marginBottom: "0.5rem", width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
             />
             <input
               type="text"
               placeholder="Genre (optional)"
               value={genre}
               onChange={(e) => setGenre(e.target.value)}
-              style={{ marginBottom: "0.5rem", width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1.5rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
             />
-            <button onClick={handleCreateGroup}>Create Group</button>
+            <button
+              onClick={handleCreateGroup}
+              disabled={createGroupMutation.isPending}
+              style={{
+                backgroundColor: "#6a0dad",
+                color: "white",
+                border: "none",
+                padding: "1rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                width: "100%",
+                opacity: createGroupMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showFriendForm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#1a0133",
+              padding: "2rem",
+              borderRadius: "8px",
+              width: "400px",
+              color: "white",
+              zIndex: 1001,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3>Add New Friend</h3>
+              <button
+                onClick={() => setShowFriendForm(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "white",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Friend ID"
+              value={newFriendId}
+              onChange={(e) => setNewFriendId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "0.8rem",
+                marginBottom: "1.5rem",
+                borderRadius: "4px",
+                border: "1px solid #6a0dad",
+                backgroundColor: "#240046",
+                color: "white",
+              }}
+            />
+            <button
+              onClick={handleAddFriend}
+              disabled={addFriendMutation.isPending}
+              style={{
+                backgroundColor: "#6a0dad",
+                color: "white",
+                border: "none",
+                padding: "1rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                width: "100%",
+                opacity: addFriendMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              {addFriendMutation.isPending ? "Adding..." : "Add Friend"}
+            </button>
           </div>
         </div>
       )}
@@ -424,58 +734,87 @@ export const GroupsSidebar = ({ selectedGroup, onSelectGroup }) => {
   );
 };
 
-/** ========== CHAT SECTION ========== */
-export const ChatSection = ({ selectedGroup }) => {
+
+
+
+
+
+
+
+
+//*********************************** */
+export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  // Store the current user as an object (id and username).
   const [currentUser, setCurrentUser] = useState(null);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const chatStyle = {
-    width: "55%",
+    width: "75%",
+    height: "90vh",
     display: "flex",
     flexDirection: "column",
-    color: "white",
     backgroundColor: "#2a0252",
-  };
-
-  const chatHeaderStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem 1rem",
     color: "white",
-    backgroundColor: "#240046",
+    position: "relative",
   };
 
-  const messagesContainerStyle = {
+  const headerStyle = {
+    padding: "1.5rem",
+    backgroundColor: "#240046",
+    borderBottom: "2px solid #3a1f5c",
+    flexShrink: 0,
+  };
+
+  const messagesStyle = {
     flex: 1,
     overflowY: "auto",
-    padding: "1rem",
+    padding: "1.5rem",
+    minHeight: 0,
   };
 
-  const chatInputAreaStyle = {
+  const inputContainerStyle = {
+    padding: "1.5rem",
+    borderTop: "2px solid #3a1f5c",
     display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    borderTop: "1px solid #ccc",
-    padding: "0.5rem",
+    gap: "1rem",
+    backgroundColor: "#2a0252",
+    flexShrink: 0,
   };
 
-  // Fetch the current user's info from the backend.
+  const inputStyle = {
+    flex: 1,
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid #6a0dad",
+    backgroundColor: "#1a0133",
+    color: "white",
+    outline: "none",
+  };
+
+  const buttonStyle = {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    padding: "1rem 1.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const response = await fetch("http://localhost:8000/user_info/", {
+        const res = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
-        const data = await response.json();
-        if (response.ok) {
-          // Save both the id and username.
-          setCurrentUser({ id: data.id, username: data.username });
-        } else {
-          console.error("Error fetching user info:", data.error);
-        }
+        const data = await res.json();
+        if (res.ok) setCurrentUser(data);
       } catch (error) {
         console.error("Error fetching user info:", error);
       }
@@ -483,34 +822,39 @@ export const ChatSection = ({ selectedGroup }) => {
     fetchUserInfo();
   }, []);
 
-  // Function to fetch messages from the backend.
-  const fetchMessages = async () => {
-    if (!selectedGroup) return;
-    try {
-      const response = await fetch(
-        `http://localhost:8000/retrieve_messages/?num_messages=50&user_id=${selectedGroup.group_id}`,
-        { credentials: "include" }
-      );
-      const data = await response.json();
-      if (response.ok) {
-        // Ensure messages is always an array.
-        setMessages(data.messages || []);
-      } else {
-        console.error("Retrieve error:", data.error);
-        setMessages([]);
-      }
-    } catch (error) {
-      console.error("Error retrieving messages:", error);
-      setMessages([]);
-    }
-  };
+  useEffect(() => {
+    setMessages([]);
 
-  // Function to send a message using the updated backend endpoint.
+    const fetchMessages = async () => {
+      if (!selectedChat) return;
+      try {
+        const endpoint = selectedChat.group_id
+          ? `group_messages/?group_id=${selectedChat.group_id}`
+          : `group_messages/?group_id=${selectedChat.id}`;
+
+        const res = await fetch(`http://localhost:8000/${endpoint}`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMessages(data.messages || []);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+      }
+    };
+
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 5000);
+    return () => clearInterval(interval);
+  }, [selectedChat]);
+
   const handleSendMessage = async () => {
-    if (!selectedGroup || !newMessage || !currentUser) return;
+    if (!selectedChat || !newMessage.trim() || !currentUser) return;
+
     try {
       const csrfToken = getCookie("csrftoken");
-      const response = await fetch("http://localhost:8000/send_message/", {
+      await fetch("http://localhost:8000/send_message/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -518,190 +862,513 @@ export const ChatSection = ({ selectedGroup }) => {
         },
         credentials: "include",
         body: JSON.stringify({
-          user_sending: currentUser.id,
-          user_recieving: selectedGroup.group_id,
-          message: newMessage,
+          ...(selectedChat.group_id
+            ? {
+                user_sending: currentUser.id,
+                user_recieving: selectedChat.group_id,
+              }
+            : {
+                sender_id: currentUser.id,
+                receiver_id: selectedChat.id,
+              }),
+          message: newMessage.trim(),
         }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        console.log("Message sent:", data.Success);
-        setNewMessage("");
-        fetchMessages(); // Refresh messages after sending.
-      } else {
-        console.error("Send error:", data.error);
-      }
+
+      setNewMessage("");
+      scrollToBottom(); // Only scroll after sending
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleSendMessage();
-    }
-  };
-
-  // Fetch messages whenever the selected group changes and poll every 5 seconds.
-  useEffect(() => {
-    if (selectedGroup) {
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedGroup]);
-
   return (
     <div style={chatStyle}>
-      <div style={chatHeaderStyle}>
-        <h3>{selectedGroup ? selectedGroup.group_name : "Select a Group"}</h3>
-        <div style={{ display: "flex", gap: "0.5rem" }}></div>
+      <div style={headerStyle}>
+        <h2>
+          {selectedChat?.group_name ||
+            selectedChat?.username ||
+            "Select a chat"}
+        </h2>
       </div>
 
-      <div style={messagesContainerStyle}>
-        {messages.map((msg, idx) => (
-          <div key={idx} style={{ marginBottom: "0.5rem" }}>
-            <strong>
-              {typeof msg.user_sending === "number" &&
-              currentUser &&
-              msg.user_sending === currentUser.id
-                ? currentUser.username
-                : msg.user_sending}
-              :
-            </strong>{" "}
-            {msg.content}
+      <div style={messagesStyle} ref={messagesContainerRef}>
+        {messages.length > 0 ? (
+          <>
+            {messages.slice().reverse().map((message, index) => (
+              <div key={index} style={{ marginBottom: "1rem" }}>
+                <strong>
+                  {message.sender_id === currentUser?.id
+                    ? "You"
+                    : message.user_sending || `User ${message.sender_id}`}
+                  :
+                </strong>{" "}
+                {message.message_content}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        ) : (
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "2rem",
+              color: "#aaa",
+            }}
+          >
+            {selectedChat
+              ? "No messages yet"
+              : "Select a chat to start messaging"}
           </div>
-        ))}
+        )}
       </div>
 
-      <div style={chatInputAreaStyle}>
-        <input
-          style={{ flex: 1, padding: "0.5rem" }}
-          type="text"
-          placeholder="Type message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button onClick={handleSendMessage}>➤</button>
-      </div>
+      {selectedChat && (
+        <div style={inputContainerStyle}>
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type your message..."
+            style={inputStyle}
+            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+          />
+          <button
+            onClick={handleSendMessage}
+            style={buttonStyle}
+            disabled={!newMessage.trim()}
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-/** END OF CHAT SECTION
- * CHAT
- * CHAT
- * CHAT
- * CHAT
- * CHAT
- * CHAT
- * CHAT
- * CHAT
- */
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-export const MoviePoll = () => {
+
+const fetchMovieDetails = async (title,year) => {
+  try {
+    const searchRes = await fetch(
+      `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie&year=${encodeURIComponent(year)}`
+    );
+    const { movies = [] } = await searchRes.json();
+    if (!movies.length) return null;
+    const m = movies[0];
+    const posterRes = await fetch(
+      `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+    );
+    const { poster } = await posterRes.json();
+    return {
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      poster,
+      runtime: m.runtime,
+      rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const fetchMovieDetailsWithoutYear = async (title) => {
+  try {
+    const searchRes = await fetch(
+      `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie`
+    );
+    const { movies = [] } = await searchRes.json();
+    if (!movies.length) return null;
+    const m = movies[0];
+    const posterRes = await fetch(
+      `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+    );
+    const { poster } = await posterRes.json();
+    return {
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      poster,
+      runtime: m.runtime,
+      rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
+    };
+  } catch {
+    return null;
+  }
+};
+
+
+
+const UP_VOTE = 1;
+const DOWN_VOTE = -1;
+
+export const MoviePoll = ({ selectedItem, activeTab }) => {
+  const navigate = useNavigate();
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [pollView, setPollView] = useState("auto");
+  const isGroup = activeTab === "groups";
+
   const [recommendations, setRecommendations] = useState([]);
+  const [groupRecs, setGroupRecs] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Hardcode a group_id or pass it from parent
-  const groupId = 123;
+  const [votedRecIds, setVotedRecIds] = useState(new Set());
 
-  // On mount, fetch data from group_recommendation
   useEffect(() => {
-    const fetchGroupRecommendations = async () => {
+    fetch("http://localhost:8000/user_info/", { credentials: "include" })
+      .then((r) => r.json())
+      .then((js) => setCurrentUserId(js.id))
+      .catch(console.error);
+  }, []);
+
+  const sendVoteAndUpdate = async (recId, value, listSetter) => {
+    if (!currentUserId) return;
+    try {
+      const resp = await fetch("http://localhost:8000/update_recommendation/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          recommendation_id: recId,
+          value,
+        }),
+      });
+      if (!resp.ok) {
+        throw new Error("Vote failed");
+      } else {
+
+        const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
+        
+      }
+      const { upvotes, downvotes } = await resp.json();
+
+      listSetter((prev) =>
+        prev.map((m) =>
+          (pollView === "auto" ? m.id : m.recId) === recId
+            ? { ...m, upvotes, downvotes }
+            : m
+        )
+      );
+
+      setVotedRecIds((s) => new Set(s).add(recId));
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    setError(null);
+    setLoading(true);
+
+    const loadRecommendations = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:8000/group_recommendation/?group_id=${groupId}`,
-          { credentials: "include" }
+        const url = new URL("http://localhost:8000/group_recs/");
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
         );
-        if (!response.ok) {
-          throw new Error(`Failed to fetch recommendations: ${response.status}`);
+        let resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("");
+        let data = await resp.json();
+        let existing = data.recommendations || [];
+
+        const enrichedExisting = (
+          await Promise.all(
+            existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
+          )
+        )
+          .map((d, i) => d && { ...d, id: existing[i].id })
+          .filter(Boolean);
+
+
+        let finalList = [...enrichedExisting];
+
+       // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+
+        if (finalList.length < 20) {
+          const needed = 20 - finalList.length;
+          const genResp = await fetch(
+            "http://localhost:8000/generate_group_recommendations/",
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                group_id: isGroup
+                  ? selectedItem.group_id
+                  : selectedItem.id,
+                num_of_recs: needed,
+              }),
+            }
+          );
+          if (genResp.ok) {
+            const { created = [] } = await genResp.json();
+            const enrichedNew = (
+              await Promise.all(
+                created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
+              )
+            )
+              .map((d, i) => d && { ...d, id: created[i].id })
+              .filter(Boolean);
+            finalList = finalList.concat(enrichedNew);
+          }
         }
-        const data = await response.json();
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setRecommendations(data.Recommendations || []);
-        }
-      } catch (err) {
-        setError(err.toString());
+
+        setRecommendations(finalList);
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchGroupRecommendations();
-  }, [groupId]);
+    const loadGroupMembers = async () => {
+      setGroupRecs([]);
+      try {
+        const url = new URL("http://localhost:8000/group_recommendation/");
+        url.searchParams.set(
+          "group_id",
+          isGroup ? selectedItem.group_id : selectedItem.id
+        );
+        const resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) throw new Error("");
+        const data = await resp.json();
+        const recs = data.Recommendations || [];
+        const details = await Promise.all(
+          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
+        );
+        setGroupRecs(
+          details
+            .map((d, i) =>
+              d
+                ? {
+                    ...d,
+                    recId: recs[i].id,
+                    upvotes: 0,
+                    downvotes: 0,
+                  }
+                : null
+            )
+            .filter(Boolean)
+        );
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Optional: handle "vote" or other actions
-  const handleVote = (recommendId) => {
-    setRecommendations((prev) =>
-      prev.map((rec) =>
-        rec.id === recommendId
-          ? { ...rec, votes: (rec.votes || 0) + 1 }
-          : rec
-      )
-    );
-  };
+    pollView === "auto" ? loadRecommendations() : loadGroupMembers();
+  }, [selectedItem, activeTab, pollView]);
 
-  const pollStyle = {
-    width: "30%",
-    color: "white",
-    backgroundColor: "#1a0133",
-    padding: "1rem",
-    overflowY: "auto",
-    boxSizing: "border-box",
-  };
-
-  const pollItemsStyle = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  };
-
-  const pollItemStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    borderRadius: "4px",
-    padding: "0.75rem",
-    color: "white",
-    backgroundColor: "#240046",
-  };
-
-  const voteButtonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "#fff",
-    border: "none",
-    padding: "0.5rem 1rem",
-    borderRadius: "4px",
-    cursor: "pointer",
-  };
+  const list = pollView === "auto" ? recommendations : groupRecs;
+  const titleText =
+    pollView === "auto"
+      ? isGroup
+        ? "Generated Recommendations"
+        : "Friend Recommendations"
+      : "From Members";
 
   return (
-    <div style={pollStyle}>
-      <h3>Group Recommendations</h3>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div
+      style={{
+        width: "30%",
+        height: "86.6vh",
+        color: "white",
+        backgroundColor: "#1a0133",
+        padding: "1rem",
+        overflowY: "auto",
+      }}
+    >
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "auto" ? "#6a0dad" : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("auto")}
+        >
+          Recommendations
+        </button>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor:
+              pollView === "fromFriends"
+                ? "#6a0dad"
+                : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("fromFriends")}
+        >
+          From Members
+        </button>
+      </div>
 
-      <div style={pollItemsStyle}>
-        {recommendations.map((rec) => (
-          <div key={rec.id} style={pollItemStyle}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: "bold" }}>
-                {rec.title || `Recommendation #${rec.id}`}
+      <h3>{titleText}</h3>
+      {loading && <p>Loading…</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {!loading && list.length === 0 && <p>No recommendations yet.</p>}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "1rem",
+        }}
+      >
+        {list.map((movie) => {
+          const idKey =
+            pollView === "auto" ? movie.id : movie.recId;
+          const hasVoted = votedRecIds.has(idKey);
+          return (
+            <div
+              key={idKey}
+              style={{
+                backgroundColor: "#240046",
+                borderRadius: "8px",
+                overflow: "hidden",
+                position: "relative",
+                cursor: "pointer",
+              }}
+              onClick={() =>
+                navigate(
+                  `/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(
+                    movie.year
+                  )}`
+                )
+              }
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "#6a0dad",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontSize: "0.8rem",
+                }}
+              >
+                {movie.rating}
               </div>
-              {/* More fields, e.g. <div>{rec.description}</div> */}
+              <img
+                src={movie.poster}
+                alt={movie.title}
+                style={{
+                  width: "100%",
+                  height: 200,
+                  objectFit: "cover",
+                }}
+              />
+              <div style={{ padding: "0.5rem" }}>
+                <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
+                <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
+                  {movie.year} • {movie.runtime} mins
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "0.3rem 0.5rem",
+                  backgroundColor: "#1a0133",
+                }}
+              >
+                <button
+                  style={{
+                    border: "none",
+                    padding: "0.4rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#2e7d32",
+                    color: "white",
+                    fontSize: "0.8rem"
+                  }}
+                  disabled={hasVoted}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendVoteAndUpdate(idKey, UP_VOTE, setRecommendations);
+                  }}
+                >
+                  👍 {movie.upvotes}
+                </button>
+                <button
+                  style={{
+                    border: "none",
+                    padding: "0.4rem",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    backgroundColor: "#c62828",
+                    color: "white",
+                    fontSize: "0.8rem"
+                  }}
+                  disabled={hasVoted}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendVoteAndUpdate(idKey, DOWN_VOTE, setRecommendations);
+                  }}
+                >
+                  👎 {movie.downvotes}
+                </button>
+              </div>
             </div>
-            <button style={voteButtonStyle} onClick={() => handleVote(rec.id)}>
-              Vote
-            </button>
-            <span>{rec.votes || 0} votes</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** ========== USER PROFILE ========== */
 export const UserProfile = () => {
@@ -780,14 +1447,11 @@ export const UserProfile = () => {
 };
 
 /** ========== USER USERNAME ========== */
-// This component fetches the current user's id and then uses the new backend endpoint
-// "frontend_username" to display the user's username.
 export const UserUsername = () => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
 
-  // First, fetch the current user's info to get the id.
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -798,7 +1462,7 @@ export const UserUsername = () => {
         if (response.ok) {
           setUserId(data.id);
         } else {
-          setError(data.error || "Failed to fetch user info");
+          setError(data.error || "");
         }
       } catch (err) {
         setError(err.message);
@@ -808,7 +1472,6 @@ export const UserUsername = () => {
     fetchUserInfo();
   }, []);
 
-  // Once we have the user id, fetch the username.
   useEffect(() => {
     if (userId) {
       const fetchUsername = async () => {
@@ -817,12 +1480,11 @@ export const UserUsername = () => {
             `http://localhost:8000/frontend_username/?user_id=${userId}`,
             { credentials: "include" }
           );
-          console.log(data.Username + "USERNAME ISSSSSSSSSSS")
           const data = await response.json();
           if (response.ok) {
             setUsername(data.Username);
           } else {
-            setError(data.Failure || "Failed to fetch username");
+            setError(data.Failure || "");
           }
         } catch (err) {
           setError(err.message);
