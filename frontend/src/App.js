@@ -109,13 +109,44 @@ function App() {
             }
           })
         ]);
+
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+          const [url, options] = args;
+
+          const isRecommend = typeof url === 'string' && url.includes('/recommend_movie/');
+          const isWatchlistAdd = typeof url === 'string' && url.includes('/add_to_watchlist/');
+          const isWatchedAdd = typeof url === 'string' && url.includes('/add_to_watched/');
+
+          const response = await originalFetch(...args);
+
+          if (response.ok) {
+            const userInfo = queryClient.getQueryData(['userInfo']);
+
+            if (isRecommend && userInfo?.id) {
+              queryClient.invalidateQueries(['recommendations', userInfo.id]);
+            }
+
+            if (isWatchlistAdd) {
+              queryClient.invalidateQueries(['watchlistMovies']);
+            }
+
+            if (isWatchedAdd) {
+              queryClient.invalidateQueries(['recentlyWatched']);
+              queryClient.invalidateQueries(['reviewedMovies', userInfo?.id]);
+            }
+          }
+
+          return response;
+        };
+
       } catch (error) {
         console.error("Prefetch error:", error);
       }
     }
 
     prefetchCriticalData();
-    
+
     const interval = setInterval(() => {
       queryClient.invalidateQueries({
         queryKey: ['recentlyWatched'],

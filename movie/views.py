@@ -13,6 +13,7 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+
 load_dotenv()
 genre_dictionary = {
     "action":28,
@@ -36,6 +37,7 @@ genre_dictionary = {
 
 #Movie Poster Method
 #Grabs title of movie and returns poster of movie in json format
+@csrf_exempt
 #params: title: Which is title of movie
 #returns a dictionary containing title and poster
 def Movie_Poster(request):
@@ -67,6 +69,9 @@ def Movie_Poster(request):
 
 #Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
+
+@csrf_exempt
+
 #params: page: optional param used to show more results
 #returns json containing popular movies with all relevant information
 def popular(request):
@@ -87,6 +92,8 @@ def popular(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+
+@csrf_exempt
 # Helper for pagination
 def paginate(queryset, page, items_per_page=20):
     try:
@@ -113,11 +120,11 @@ def Search(request):
     year = request.GET.get('year','').strip()
     movie_id = request.GET.get('id','')
     filter_type = request.GET.get('filter', '').strip().lower()
-    rating = request.GET.get('rating', '').strip() 
+    rating = request.GET.get('rating', '').strip()
     max_runtime = request.GET.get('runtime', '').strip()
 
     page = request.GET.get('page', 1)
-    
+
 
     #Initialize response
     response = {'query': query}
@@ -320,7 +327,7 @@ def discover_movies(request):
         response = requests.get(url, params=params)
         data = response.json()
         return JsonResponse(data, safe=False)
- 
+
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": str(e)}, status=500)
 
@@ -432,6 +439,7 @@ def generate_movie_and_store(title, year, director, plot):
         #if not movie_info:
         #    return JsonResponse({'error': 'Movie information is required'}, status=400)
         
+
         # Construct prompt from movie info
         prompt = f"""Create an engaging, spoiler-free plot summary for this movie:
 Title: {title}
@@ -440,7 +448,7 @@ Director: {director}
 Original Plot: {plot}
 
 Write a 150-200 word summary that would appeal to potential viewers, highlighting what makes this movie special while avoiding major spoilers."""
-        
+
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -450,18 +458,19 @@ Write a 150-200 word summary that would appeal to potential viewers, highlightin
             max_tokens=300,
             temperature=0.7
         )
-        
+
         summary = response.choices[0].message.content
 
         updated = False
         if title and year:
+
             updated = update_movie_plot(title, year, summary)
-        
+
         return JsonResponse({'summary': summary})
-        
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
+
 
 def update_movie_plot(movie_title, movie_year, new_plot):
     updated = Movie.objects.filter(title = movie_title, year=movie_year).update(plot = new_plot, plot_overwritten=True)
@@ -477,7 +486,7 @@ def generate_recommendations(request):
 
         if not user_id:
             return JsonResponse({"error": "User ID is required"}, status = 400)
-        
+
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -488,12 +497,12 @@ def generate_recommendations(request):
         feedback = RecommendationFeedback.objects.filter(user=user).select_related("movie")
         #splits movies based on liked and disliked
         liked = [f.movie.title for f in feedback if f.liked]
-        disliked = [f.movie.title for f in feedback if not f.liked]   
+        disliked = [f.movie.title for f in feedback if not f.liked]
 
 
         #grabs all movies the user has seen
         seen = Movie.objects.filter(user_journals__user=user).distinct()
-        seen_titles = list(seen.values_list("title", flat=True))     
+        seen_titles = list(seen.values_list("title", flat=True))
 
 
         #payload
@@ -528,13 +537,12 @@ def generate_recommendations(request):
         try:
             parsed = json.loads(gpt_content)
             return JsonResponse({'summary': parsed})
-            
+
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON response from GPT"}, status=500)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
 
 
 @csrf_exempt
@@ -546,11 +554,11 @@ def review_recommendations(request):
     try:
         data = json.loads(request.body)
         user_id = data.get('user_id', {})
-        user = User.objects.get(id = user_id) 
+        user = User.objects.get(id = user_id)
         movie_title = data.get("movie_title")
         review = data.get('review')
 
-        movie = Movie.objects.get(title=movie_title)  
+        movie = Movie.objects.get(title=movie_title)
         if review == True:
             watchlist_main = Watchlist.objects.get(user_id = user_id, name = "Watchlist")
             if WatchlistItem.objects.filter(watchlist=watchlist_main, movie_id=movie.id).exists():
@@ -558,8 +566,8 @@ def review_recommendations(request):
 
             # Add the movie to the watchlist
             WatchlistItem.objects.create(watchlist=watchlist_main, movie_id=movie.id)
-            
-        
+
+
         feedback_updated, created = RecommendationFeedback.objects.update_or_create(user = user, movie=movie, liked = review)
 
         return JsonResponse({

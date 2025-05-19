@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import '../components/SearchPage.css';
 import Toolbar from '../components/Toolbar';
-import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear } from '../components/fetchMovies';
+import { fetchMovies, fetchMovieDetails, fetchMoviesByDirector, fetchMoviesByYear, fetchMoviesByContentRating, fetchMoviesByRuntime } from '../components/fetchMovies';
 import { fetchUser } from '../components/fetchUser';
 import profileImage from '../images/profile-btn.png';
+import defaultPoster from '../images/default-poster.jpg';
 import { SpinnerCircular } from 'spinners-react';
 
 const SearchPage = () => {
@@ -143,34 +144,51 @@ const SearchPage = () => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let genre = tokens[2];
       console.log("genre: " + genre);
-      // fetchMoviesByGenre();
     }
   };
 
   const filterContentRatingButtonAction = () => {
     toggleFilterOptions("content-rating-filter-options");
     toggleButtonClicked("filter-content-rating-button");
+    if (!document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
+      document.getElementById("g-rated-button").classList.remove("clicked");
+      document.getElementById("pg-rated-button").classList.remove("clicked");
+      document.getElementById("pg13-rated-button").classList.remove("clicked");
+      document.getElementById("r-rated-button").classList.remove("clicked");
+    }
   };
 
   const contentRatingFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
     const buttonClicked = document.getElementById(`${clicked.target.id}`);
     if (buttonClicked.classList.contains("clicked")) {
-      console.log(clicked.target.id);
       let tokens = (clicked.target.id).split("-");
       let contentRating = tokens[0];
       console.log("content rating: " + contentRating);
-      // fetchMoviesByContentRating();
     }
   };
 
   const filterRuntimeButtonAction = () => {
     toggleFilterOptions("runtime-filter-options");
     toggleButtonClicked("filter-runtime-button");
+    if (!document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      document.getElementById("90-min-button").classList.remove("clicked");
+      document.getElementById("120-min-button").classList.remove("clicked");
+      document.getElementById("180-min-button").classList.remove("clicked");
+    }
+  };
+
+  const runtimeFilterButtonAction = (clicked) => {
+    toggleButtonClicked(clicked.target.id);
+    const buttonClicked = document.getElementById(`${clicked.target.id}`);
+    if (buttonClicked.classList.contains("clicked")) {
+      let tokens = (clicked.target.id).split("-");
+      let runtime = tokens[0];
+      console.log("runtime: " + runtime);
+    }
   };
 
   const filterDirectorButtonAction = () => {
@@ -183,10 +201,6 @@ const SearchPage = () => {
     toggleFilterOptions("director-filter-options");
   };
 
-  const filterActorButtonAction = () => {
-    document.getElementById('filter-actor-button').classList.toggle("clicked");
-  };
-
   const filterYearButtonAction = () => {
     toggleButtonClicked("filter-year-button");
     if (document.getElementById('filter-year-button').classList.contains("clicked")) {
@@ -195,18 +209,45 @@ const SearchPage = () => {
       document.getElementById('search-input').placeholder = "Type your search here...";
     }
     toggleFilterOptions("year-filter-options");
-  }
+  };
 
   /**
    * execute user's search for users/movies
    */
   const searchButtonAction = async (query) => {
+
+    if (document.getElementById("filter-content-rating-button").classList.contains("clicked") ||
+        document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      query = {
+        Rated: {
+          G: (document.getElementById("g-rated-button").classList.contains("clicked")),
+          PG: (document.getElementById("pg-rated-button").classList.contains("clicked")),
+          PG13: (document.getElementById("pg13-rated-button").classList.contains("clicked")),
+          R: (document.getElementById("r-rated-button").classList.contains("clicked"))
+        },
+        Runtime: {
+          Ninety: (document.getElementById("90-min-button").classList.contains("clicked")),
+          OneTwenty: (document.getElementById("120-min-button").classList.contains("clicked")),
+          OneEighty: (document.getElementById("180-min-button").classList.contains("clicked"))
+        }
+      };
+    }
+
+    console.log("query==>>" + JSON.stringify(query));
+
     const finalQuery = query || searchInputText;
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(finalQuery);
+    document.getElementById("no-search-error").classList.add("hidden");
     document.getElementById("spinner").classList.remove("hidden");
     document.getElementById("search-result-user").innerHTML = "";
     document.getElementById("search-result-movie").innerHTML = "";
+
+    if (finalQuery === "") {
+      document.getElementById("spinner").classList.add("hidden");
+      document.getElementById("no-search-error").classList.remove("hidden");
+      return;
+    }
 
     if (document.getElementById('filter-director-button').classList.contains("clicked")) {
       let directorResult = await fetchMoviesByDirector(finalQuery, setMovies, setError);
@@ -214,6 +255,59 @@ const SearchPage = () => {
     } else if (document.getElementById('filter-year-button').classList.contains("clicked")) {
       let yearResult = await fetchMoviesByYear(finalQuery, setMovies, setError);
       await displayMovieSearchResult(yearResult);
+    } else if (document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
+      let index = 10;
+      if (query.Rated.G) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.PG) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.PG13) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+      if (query.Rated.R) {
+        while (index !== 200) {
+          let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, index);
+          await displayMovieSearchResult(ratedResult);
+          index += 10;
+        }
+      }
+    } else if (document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      let index = 10;
+      if (query.Runtime.Ninety) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("90", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
+      if (query.Runtime.OneTwenty) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("120", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
+      if (query.Runtime.OneEighty) {
+        while (index !== 200) {
+          let runtimeResult = await fetchMoviesByRuntime("180", setMovies, setError, index);
+          await displayMovieSearchResult(runtimeResult);
+          index += 10;
+        }
+      }
     } else {
       let userResult = await fetchUser(finalQuery, setUsers, setError);
       if (userResult.length === 0) { //################# == to ===
@@ -354,30 +448,34 @@ const SearchPage = () => {
    */
   const displayMovieSearchResult = async (result) => {
     document.getElementById("spinner").classList.add("hidden");
-    if (!result || !result.Search || result.Search.length === 0) {
+    if ((!result || result.length === 0) &&
+        (!document.getElementById("filter-runtime-button").classList.contains("clicked") ||
+         !document.getElementById("filter-content-rating-button").classList.contains("clicked"))) {
       document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
       return;
     }
-    for (let i = 0; i < result.Search.length; i++) {
+    for (let i = 0; i < result.length; i++) {
       let movie = document.createElement("li");
-      movie.id = result.Search[i].imdbID;
+      movie.id = result[i].imdbID;
       let poster = document.createElement("img");
-      poster.src = result.Search[i].Poster;
-      poster.alt = result.Search[i].Title + " movie poster";
-      poster.onclick = () => handleMovieClick(result.Search[i].Title);
+      poster.src = result[i].Poster;
+      poster.alt = result[i].Title + " movie poster";
+      poster.onerror = () => {
+        poster.src = defaultPoster;
+      };
+      poster.onclick = () => handleMovieClick(result[i].Title);
       movie.appendChild(poster);
       let info = document.createElement("div");
       movie.appendChild(info);
       let title = document.createElement("h1");
-      title.textContent = result.Search[i].Title;
-      title.onclick = () => handleMovieClick(result.Search[i].Title);
+      title.textContent = result[i].Title;
+      title.onclick = () => handleMovieClick(result[i].Title);
       info.appendChild(title);
-      let year = document.createElement("h2");
-      year.textContent = result.Search[i].Year;
-      info.appendChild(year);
+      let yearRuntimeRating = document.createElement("h2");
+      yearRuntimeRating.textContent = result[i].Year + " | " + result[i].Runtime + " | " + result[i].Rated;
+      info.appendChild(yearRuntimeRating);
       let director = document.createElement("h2");
-      let moreInfo = await fetchMovieDetails(movie.id, error);
-      director.textContent = "Directed by: " + moreInfo.Director;
+      director.textContent = "Directed by: " + result[i].Director;
       info.appendChild(director);
       document.getElementById("search-result-movie").appendChild(movie);
     }
@@ -534,7 +632,7 @@ const SearchPage = () => {
     <div>
       <Toolbar />
       <section>
-        <div class="search-container">
+        <div id="search-container">
           <input
             type="text" id="search-input" placeholder="Type your search here..."
             value={searchInputText}
@@ -549,12 +647,12 @@ const SearchPage = () => {
           <div>
             <SpinnerCircular id="spinner" size={40} thickness={99} speed={100} color="#5A189A" secondaryColor="#3C096C" class="hidden" />
           </div>
+          <p id="no-search-error" class="hidden">Please type your search in the search bar</p>
           <div id="filter-options" class="hidden">
             <button id="filter-genre-button" onClick={filterGenreButtonAction}>Genre</button>
             <button id="filter-content-rating-button" onClick={filterContentRatingButtonAction}>Content Rating</button>
             <button id="filter-runtime-button" onClick={filterRuntimeButtonAction}>Runtime</button>
             <button id="filter-director-button" onClick={filterDirectorButtonAction}>Director</button>
-            <button id="filter-actor-button" onClick={filterActorButtonAction}>Actor</button>
             <button id="filter-year-button" onClick={filterYearButtonAction}>Year</button>
           </div>
           <div id="genre-filter-options" class="hidden">
@@ -581,9 +679,9 @@ const SearchPage = () => {
             <button id="r-rated-button" onClick={contentRatingFilterButtonAction}>R</button>
           </div>
           <div id="runtime-filter-options" class="hidden">
-            <button id="90-min-button" onClick={contentRatingFilterButtonAction}>90 Min</button>
-            <button id="120-min-button" onClick={contentRatingFilterButtonAction}>120 Min</button>
-            <button id="180-min-button" onClick={contentRatingFilterButtonAction}>180 Min</button>
+            <button id="90-min-button" onClick={runtimeFilterButtonAction}>90 Min</button>
+            <button id="120-min-button" onClick={runtimeFilterButtonAction}>120 Min</button>
+            <button id="180-min-button" onClick={runtimeFilterButtonAction}>180 Min</button>
           </div>
           <div id="director-filter-options" class="hidden">
             <p>To search by <strong>director</strong>, search the <strong>director's name</strong> in the search bar</p>

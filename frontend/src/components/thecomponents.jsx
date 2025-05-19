@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+
 import { 
   fetchUserInfo,
   fetchUserGroups,
@@ -14,6 +15,8 @@ import {
   removeGroupMember
 } from '../api';
 
+
+// Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -28,12 +31,6 @@ const getCookie = (name) => {
   }
   return cookieValue;
 };
-
-
-
-
-
-
 
 
 //Group Sidebar
@@ -95,7 +92,7 @@ export const GroupsSidebar = ({
     },
     onError: (err, newGroup, context) => {
       queryClient.setQueryData(['userGroups', username], context.previousGroups);
-      setError("Failed to create group");
+      setError("");
     },
     onSettled: () => {
       queryClient.invalidateQueries(['userGroups', username]);
@@ -115,17 +112,19 @@ export const GroupsSidebar = ({
           username: `user_${friendId}`,
           friend_id: friendId
         }
+
       ]);
       return { previousFriends };
     },
     onError: (err, friendId, context) => {
       queryClient.setQueryData(['mutualFriends', leaderId], context.previousFriends);
-      setError("Failed to add friend");
+      setError("");
     },
     onSettled: () => {
       queryClient.invalidateQueries(['mutualFriends', leaderId]);
     }
   });
+
 
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) => 
@@ -148,7 +147,7 @@ export const GroupsSidebar = ({
     },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("Failed to add member");
+      setError("");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -168,7 +167,7 @@ export const GroupsSidebar = ({
     },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("Failed to remove member");
+      setError("");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -223,6 +222,7 @@ export const GroupsSidebar = ({
     position: "relative",
   };
 
+
   const tabContainerStyle = {
     display: "flex",
     justifyContent: "space-between",
@@ -230,6 +230,7 @@ export const GroupsSidebar = ({
     padding: "1.5rem",
     borderBottom: "1px solid #3a1f5c",
   };
+
 
   const tabButtonStyle = (isActive) => ({
     padding: "0.8rem 1.2rem",
@@ -240,6 +241,7 @@ export const GroupsSidebar = ({
     cursor: "pointer",
     borderRadius: "4px",
   });
+
 
   const listItemStyle = (active) => ({
     padding: "1rem",
@@ -285,6 +287,7 @@ export const GroupsSidebar = ({
 
   return (
     <div style={sidebarStyle}>
+
       <div style={tabContainerStyle}>
         <div>
           <button
@@ -322,6 +325,7 @@ export const GroupsSidebar = ({
           {error}
         </div>
       )}
+
 
       <div style={listContainerStyle}>
         {activeTab === "groups"
@@ -554,6 +558,7 @@ export const GroupsSidebar = ({
         </div>
       )}
 
+
       {showGroupForm && (
         <div
           style={{
@@ -600,6 +605,7 @@ export const GroupsSidebar = ({
                 ×
               </button>
             </div>
+
             <input
               type="text"
               placeholder="Group Name"
@@ -738,10 +744,6 @@ export const GroupsSidebar = ({
 
 
 
-
-
-
-
 //*********************************** */
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
@@ -749,6 +751,7 @@ export const ChatSection = ({ selectedChat }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+
 
   const chatStyle = {
     width: "75%",
@@ -759,6 +762,7 @@ export const ChatSection = ({ selectedChat }) => {
     color: "white",
     position: "relative",
   };
+
 
   const headerStyle = {
     padding: "1.5rem",
@@ -919,10 +923,10 @@ export const ChatSection = ({ selectedChat }) => {
             {selectedChat
               ? "No messages yet"
               : "Select a chat to start messaging"}
+
           </div>
         )}
       </div>
-
       {selectedChat && (
         <div style={inputContainerStyle}>
           <input
@@ -962,7 +966,34 @@ export const ChatSection = ({ selectedChat }) => {
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 
-const fetchMovieDetails = async (title) => {
+const fetchMovieDetails = async (title,year) => {
+  try {
+    const searchRes = await fetch(
+      `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie&year=${encodeURIComponent(year)}`
+    );
+    const { movies = [] } = await searchRes.json();
+    if (!movies.length) return null;
+    const m = movies[0];
+    const posterRes = await fetch(
+      `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`
+    );
+    const { poster } = await posterRes.json();
+    return {
+      id: m.id,
+      title: m.title,
+      year: m.year,
+      poster,
+      runtime: m.runtime,
+      rating: m.rating,
+      upvotes: 0,
+      downvotes: 0,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const fetchMovieDetailsWithoutYear = async (title) => {
   try {
     const searchRes = await fetch(
       `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie`
@@ -989,6 +1020,8 @@ const fetchMovieDetails = async (title) => {
   }
 };
 
+
+
 const UP_VOTE = 1;
 const DOWN_VOTE = -1;
 
@@ -1005,6 +1038,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [error, setError] = useState(null);
 
   const [votedRecIds, setVotedRecIds] = useState(new Set());
+
 
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
@@ -1026,7 +1060,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           value,
         }),
       });
-      if (!resp.ok) throw new Error("Vote failed");
+      if (!resp.ok) {
+        throw new Error("Vote failed");
+      } else {
+
+        const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
+        
+      }
       const { upvotes, downvotes } = await resp.json();
 
       listSetter((prev) =>
@@ -1063,7 +1103,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         const enrichedExisting = (
           await Promise.all(
-            existing.map((r) => fetchMovieDetails(r.movie_title))
+            existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
           )
         )
           .map((d, i) => d && { ...d, id: existing[i].id })
@@ -1072,7 +1112,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         let finalList = [...enrichedExisting];
 
-       // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+       // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
 
         if (finalList.length < 20) {
           const needed = 20 - finalList.length;
@@ -1094,7 +1134,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             const { created = [] } = await genResp.json();
             const enrichedNew = (
               await Promise.all(
-                created.map((c) => fetchMovieDetails(c.movie_title))
+                created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
               )
             )
               .map((d, i) => d && { ...d, id: created[i].id })
@@ -1121,11 +1161,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           isGroup ? selectedItem.group_id : selectedItem.id
         );
         const resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("Failed to fetch from members");
+        if (!resp.ok) throw new Error("");
         const data = await resp.json();
         const recs = data.Recommendations || [];
         const details = await Promise.all(
-          recs.map((r) => fetchMovieDetails(r.movie_title))
+          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
         );
         setGroupRecs(
           details
@@ -1151,6 +1191,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
     pollView === "auto" ? loadRecommendations() : loadGroupMembers();
   }, [selectedItem, activeTab, pollView]);
+
 
   const list = pollView === "auto" ? recommendations : groupRecs;
   const titleText =
@@ -1209,6 +1250,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       <h3>{titleText}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
+
       {!loading && list.length === 0 && <p>No recommendations yet.</p>}
 
       <div
@@ -1361,7 +1403,6 @@ export const UserProfile = () => {
         setErrorMessage(error.toString());
       }
     };
-
     fetchUserInfo();
   }, []);
 
@@ -1404,8 +1445,7 @@ export const UserProfile = () => {
         <strong>Email:</strong> {userInfo.email}
       </p>
       <p>
-        <strong>Date Joined:</strong>{" "}
-        {new Date(userInfo.date_joined).toLocaleString()}
+        <strong>Date Joined:</strong> {new Date(userInfo.date_joined).toLocaleString()}
       </p>
     </div>
   );
@@ -1427,7 +1467,7 @@ export const UserUsername = () => {
         if (response.ok) {
           setUserId(data.id);
         } else {
-          setError(data.error || "Failed to fetch user info");
+          setError(data.error || "");
         }
       } catch (err) {
         setError(err.message);
@@ -1449,7 +1489,7 @@ export const UserUsername = () => {
           if (response.ok) {
             setUsername(data.Username);
           } else {
-            setError(data.Failure || "Failed to fetch username");
+            setError(data.Failure || "");
           }
         } catch (err) {
           setError(err.message);

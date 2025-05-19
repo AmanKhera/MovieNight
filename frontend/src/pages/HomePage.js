@@ -8,6 +8,7 @@ import PopularCarousel from '../components/PopularCarousel';
 import { fetchRecentlyWatched } from '../api';
 import Footbar from '../components/Footbar'
 
+
 const HomePage = () => {
   const queryClient = useQueryClient();
 
@@ -36,7 +37,6 @@ const HomePage = () => {
       <DiscoverCarousel id="history" />
       <DiscoverCarousel id="thriller" />
       <Footbar/>
-
     </div>
   );
 };

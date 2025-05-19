@@ -315,35 +315,72 @@ def get_user_groups(request):
 #Retrieves recent movie recommendations for the group/user within last 7 days
 #params: group_id which can be group or user
 #returns: JsonResponse containing recommendations as a list
+
+from django.utils import timezone
+from datetime import timedelta
+from django.http import JsonResponse
+
 def group_recommendation(request):
     group_id = request.GET.get('group_id')
     try:
-
         seven_days = timezone.now() - timedelta(days=7)
 
-        #retrives recommendations in the past 7 days
+        # Retrieves recommendations in the past 7 days excluding a specific suggestion
         recommendations = MemberRecommendation.objects.filter(
-        user_receiving=group_id,
-        date_suggested__gte=seven_days
-         ).exclude(member_suggested=7648).order_by('-votes')
-        
+            user_receiving=group_id,
+            date_suggested__gte=seven_days
+        ).exclude(member_suggested=7648).order_by('-votes')
+
         movie_ids = [recs.movie_id for recs in recommendations]
-        movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title')
-        title_map = {mid: title for mid, title in movies}
+        movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title', 'year')
+        movie_map = {mid: {"title": title, "year": year} for mid, title, year in movies}
 
-
-        titles = [ title_map.get(r.movie_id) for r in recommendations ]
-
-        
         recommendations_list = list(recommendations.values())
 
-        for idx, rec_dict in enumerate(recommendations_list):
-            rec_dict['movie_title'] = titles[idx]
-
+        for rec_dict in recommendations_list:
+            movie_data = movie_map.get(rec_dict['movie_id'], {})
+            rec_dict['movie_title'] = movie_data.get("title")
+            rec_dict['movie_year'] = movie_data.get("year")
 
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
+
+
+
+# def group_recommendation(request):
+#     group_id = request.GET.get('group_id')
+#     try:
+
+#         seven_days = timezone.now() - timedelta(days=7)
+
+#         #retrives recommendations in the past 7 days
+#         recommendations = MemberRecommendation.objects.filter(
+#         user_receiving=group_id,
+#         date_suggested__gte=seven_days
+#          ).exclude(member_suggested=7648).order_by('-votes')
+        
+#         movie_ids = [recs.movie_id for recs in recommendations]
+#         movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title', 'year')
+#         title_map = {mid: title for mid, title in movies}
+
+
+#         titles = [ title_map.get(r.movie_id) for r in recommendations ]
+
+        
+#         recommendations_list = list(recommendations.values())
+
+#         for idx, rec_dict in enumerate(recommendations_list):
+#             rec_dict['movie_title'] = titles[idx]
+
+
+#         return JsonResponse({"Recommendations": recommendations_list})
+#     except Exception as e:
+#         return JsonResponse({"error": str(e)}, status=500)
     
 
 #Just use removed method
