@@ -9,6 +9,9 @@ button {
   font-family: 'Outfit', sans-serif;
 }
 
+.background {
+  background-image: radial-gradient(circle at center center, rgb(115,0,139),rgb(16,0,43));
+}
 
 #search-container {
   text-align: center;

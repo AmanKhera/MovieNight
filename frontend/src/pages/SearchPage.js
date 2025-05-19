@@ -628,9 +628,9 @@ const SearchPage = () => {
   }
 
   return (
+
     <div>
       <Toolbar />
-
       <section>
         <div id="search-container">
           <input
@@ -699,6 +699,7 @@ const SearchPage = () => {
         </div>
       </section>
     </div>
+
   );
 };
 

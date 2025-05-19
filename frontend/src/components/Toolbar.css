@@ -26,6 +26,8 @@ nav {
   box-sizing: border-box;
   z-index:1000;
   background-color:#10002B;
+  /* background-image: radial-gradient(circle at center center, rgb(42,0,46),rgb(16,0,43)); */
+  /* opacity: .97; */
 }
  main {
   padding-top: 105px;
@@ -50,7 +52,7 @@ nav {
 .responsive-image {
   display: block;
   width: auto;
-  max-height: 100px;
+  max-height: 95px;
   /* Constrain logo height so it doesn't overflow the nav */
   margin: 0;
 }
@@ -154,7 +156,7 @@ nav {
 /* FOOTER (optional) */
 footer {
   margin: 0;
-  padding: 10px;
+  /* padding: 10px; */
   background-color: #10002B;
   color: #fff;
   text-align: center;

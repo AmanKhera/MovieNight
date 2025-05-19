@@ -86,11 +86,12 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
         }
         .carousel-title {
           color: white;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
           text-transform: uppercase;
-          font-weight: bold;
+          font-weight: 450;
           font-size: 0.9rem;
-          padding-left: 10px;
+          padding-top: 5px;
+          padding-left: 15px;
         }
         .carousel-slide {
           position: relative;
@@ -163,10 +164,10 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
           transition: background 0.3s;
         }
         .carousel-button:hover {
-          background-color: rgba(255, 255, 255, 0.2);
+          background-color: rgb(69, 0, 134);
         }
         .prev-button { left: 15px; }
-        .next-button { right: 15px; }
+        .next-button { right: 20px; }
         .carousel-dots {
           text-align: center;
           margin-top: 8px;
@@ -176,7 +177,7 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
           width: 10px;
           height: 10px;
           margin: 0 4px;
-          background-color: rgba(255, 255, 255, 0.4);
+          background-color: rgba(238, 200, 255, 0.4);
           border-radius: 50%;
           cursor: pointer;
           transition: background-color 0.3s;
