@@ -1,3 +1,4 @@
+
 // src/components/WatchlistCarousel.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,11 +17,14 @@ const WatchlistCarousel = ({ title = "Your Watchlist" }) => {
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
     const releaseDate = movie.release_date;
     if (releaseDate) {
+
       navigate(`/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`);
+
     } else {
       navigate(`/movie/${titleParam}`);
     }
   };
+
 
   const handleSeeMore = () => {
     navigate("/UserWatchlists");
@@ -147,8 +151,11 @@ const WatchlistCarousel = ({ title = "Your Watchlist" }) => {
           min-height: 2.4em;
         }
       `}</style>
+
     </div>
   );
 };
 
+
 export default WatchlistCarousel;
+

@@ -13,6 +13,7 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+
 load_dotenv()
 genre_dictionary = {
     "action":28,
@@ -36,6 +37,7 @@ genre_dictionary = {
 
 #Movie Poster Method
 #Grabs title of movie and returns poster of movie in json format
+@csrf_exempt
 #params: title: Which is title of movie
 #returns a dictionary containing title and poster
 def Movie_Poster(request):
@@ -67,6 +69,9 @@ def Movie_Poster(request):
 
 #Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
+
+@csrf_exempt
+
 #params: page: optional param used to show more results
 #returns json containing popular movies with all relevant information
 def popular(request):
@@ -87,6 +92,8 @@ def popular(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+
+@csrf_exempt
 # Helper for pagination
 def paginate(queryset, page, items_per_page=20):
     try:
