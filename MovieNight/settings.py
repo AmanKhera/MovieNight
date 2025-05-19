@@ -24,7 +24,6 @@ pymysql.install_as_MySQLdb()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
@@ -33,6 +32,7 @@ SECRET_KEY = 'django-insecure-o^h99+k1s#ssrwn^_!g%*xf!tj(_j8bi==^#=cvoaru-5m9m=@
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
 
 ALLOWED_HOSTS = ['testserver','127.0.0.1', 'localhost', 'frontend.local']
 
@@ -57,7 +57,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',    
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -147,7 +147,7 @@ CORS_ALLOW_METHODS = [
 
 
 #change when production is complete
-CORS_ALLOW_CREDENTIALS = True 
+CORS_ALLOW_CREDENTIALS = True
 
 
 AWS_COGNITO_USER_POOL_ID = "us-east-1_0wS3ue88a"

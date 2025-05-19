@@ -1,23 +1,46 @@
-import React from 'react';
-import MovieCarousel from '../components/Carousel';
-import PopularCarousel from '../components/PopularCarousel';
+// src/pages/HomePage.jsx
+import React, { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Toolbar from '../components/Toolbar';
+import MovieCarousel from '../components/Carousel';
 import DiscoverCarousel from '../components/DiscoverCarousel';
-import WatchlistCarousel from '../components/WatchlistCarousel';
+import PopularCarousel from '../components/PopularCarousel';
+import MainLayout from "../components/MainLayout";
+import { fetchRecentlyWatched } from '../api';
+import Footbar from '../components/Footbar'
+
 
 const HomePage = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const prefetchData = async () => {
+      try {
+        const data = await queryClient.fetchQuery({
+          queryKey: ["recentlyWatched"],
+          queryFn: fetchRecentlyWatched,
+        });
+        console.log("Prefetched data in HomePage:", data);
+      } catch (err) {
+        console.error("Prefetch error in HomePage:", err.message);
+      }
+    };
+
+    prefetchData();
+  }, [queryClient]);
+
   return (
+    //<HomePage>
     <div>
       <Toolbar />
-        <PopularCarousel title="Top Popular Movies" />
-        <WatchlistCarousel/>
-        <DiscoverCarousel 
-          id="war" 
-        />
-        <DiscoverCarousel id="comedy" />
-        <DiscoverCarousel id="history" />
-        <DiscoverCarousel id="thriller" />
+      <PopularCarousel title="Top Popular Movies" />
+      <DiscoverCarousel id="war" />
+      <DiscoverCarousel id="comedy" />
+      <DiscoverCarousel id="history" />
+      <DiscoverCarousel id="thriller" />
+      <Footbar/>
     </div>
+    //</HomePage>
   );
 };
 

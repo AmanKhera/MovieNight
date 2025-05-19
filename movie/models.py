@@ -11,9 +11,14 @@ class Movie(models.Model):
     rating = models.CharField(max_length=10)
     plot = models.TextField(blank=True, null=True)
     director = models.CharField(max_length=100, blank=True, null=True)
+    plot_overwritten = models.BooleanField(default=False)
 
+
+    def __str__(self):
+        return self.title
+    
     class Meta:
-        managed = False
+        #managed = False
         db_table = 'movie_movie'
 
 
@@ -65,6 +70,7 @@ class WatchlistItem(models.Model):
     
     #links to movie
     movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE, related_name='watchlist_items')
+
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -79,13 +85,38 @@ class UserMovieJournal(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='movie_journals')
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='user_journals')
     date_watched = models.DateField(auto_now_add=True)
-    rating = models.IntegerField()
+    rating = models.FloatField()
     review = models.TextField(max_length=2000, blank=True, null=True)
+
+    favorite = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'user_movie_journal'
+        #unique_together = ('title', 'year')
 
     def __str__(self):
         return f'{self.user} - {self.movie} ({self.date_watched})'
 
 
+class RecommendationFeedback(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='recommendation_feedbacks'
+    )
+    movie = models.ForeignKey(
+        Movie,
+        on_delete=models.CASCADE,
+        related_name='feedback_entries'
+    )
+    liked = models.BooleanField(
+        help_text="True = liked, False = disliked"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        db_table = 'recommendation_feedback'
+        unique_together = ('user', 'movie')

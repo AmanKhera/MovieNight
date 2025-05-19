@@ -1,0 +1,229 @@
+const handleResponse = async (response) => {
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+};
+
+export const fetchUserInfo = async () => {
+  const response = await fetch("http://localhost:8000/user_info/", {
+    credentials: "include",
+  });
+  return handleResponse(response);
+};
+
+export const fetchUserGroups = async (username) => {
+  const response = await fetch(
+    `http://localhost:8000/get_user_groups/?username=${username}`,
+    { credentials: "include" }
+  );
+  const data = await handleResponse(response);
+  return data.groups || [];
+};
+
+export const fetchGroupMembers = async (groupId) => {
+  const response = await fetch(
+    `http://localhost:8000/get_group_members/?group_id=${groupId}`,
+    { credentials: "include" }
+  );
+  const data = await handleResponse(response);
+  return data.members || [];
+};
+
+export const createGroup = async (csrfToken, { group_name, leader_id, genre }) => {
+  const response = await fetch("http://localhost:8000/create_group/", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+    },
+    body: JSON.stringify({ group_name, leader_id, genre }),
+  });
+  return handleResponse(response);
+};
+
+export const addGroupMember = async (csrfToken, { group_id, user_id }) => {
+  const response = await fetch("http://localhost:8000/add_group_member/", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+    },
+    body: JSON.stringify({ group_id, user_id }),
+  });
+  return handleResponse(response);
+};
+
+export const removeGroupMember = async (csrfToken, { group_id, user_id }) => {
+  const response = await fetch("http://localhost:8000/remove_group_member/", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+    },
+    body: JSON.stringify({ group_id, user_id }),
+  });
+  return handleResponse(response);
+};
+
+export const fetchMutualFriends = async (userId) => {
+  const response = await fetch(
+    `http://localhost:8000/get_mutual_friends/?id=${userId}`,
+    { credentials: "include" }
+  );
+  const data = await handleResponse(response);
+  return data.friends || [];
+};
+
+export const addFriend = async (csrfToken, { friend_id }) => {
+  const response = await fetch("http://localhost:8000/add_friend/", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrfToken,
+    },
+    body: JSON.stringify({ friend_id }),
+  });
+  return handleResponse(response);
+};
+
+export const fetchMovieRecommendations = async (userId) => {
+  const response = await fetch("http://localhost:8000/movie_rec/", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  return handleResponse(response);
+};
+
+export const fetchMovieDetailsByTitle = async (title) => {
+  const response = await fetch(
+    `http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}`,
+    { credentials: "include" }
+  );
+  const data = await handleResponse(response);
+  return data.movies?.[0] || null;
+};
+
+export const fetchMoviePoster = async (title) => {
+  const response = await fetch(
+    `http://localhost:8000/movie_poster/?title=${encodeURIComponent(title)}`,
+    { credentials: "include" }
+  );
+  const data = await handleResponse(response);
+  return data.poster;
+};
+
+export const fetchWatchlistItems = async () => {
+  const response = await fetch("http://localhost:8000/watchlist_items/", {
+    credentials: "include",
+  });
+  return handleResponse(response);
+};
+
+export const fetchMovieDetails = async (movieId) => {
+  const response = await fetch(`http://localhost:8000/search/?id=${movieId}`, {
+    credentials: "include",
+  });
+  const data = await handleResponse(response);
+  return data.movies?.[0] || null;
+};
+
+export const fetchWatchlistMovies = async () => {
+  const watchlistData = await fetchWatchlistItems();
+  if (watchlistData.status !== "success") {
+    throw new Error(watchlistData.message || "Invalid watchlist data");
+  }
+  const moviePromises = watchlistData.watchlist.map(item => 
+    fetchMovieDetails(item.movie_id)
+  );
+  const detailedMovies = await Promise.all(moviePromises);
+  const validMovies = detailedMovies.filter(Boolean);
+  const moviesWithPosters = await Promise.all(
+    validMovies.map(async (movie) => {
+      if (!movie.poster_path || movie.poster_path === "N/A") {
+        try {
+          const poster = await fetchMoviePoster(movie.title || movie.original_title);
+          return { ...movie, poster };
+        } catch (err) {
+          return movie;
+        }
+      }
+      return movie;
+    })
+  );
+  return moviesWithPosters.slice(0, 7);
+};
+
+export const fetchRecentlyWatched = async () => {
+  const userInfo = await fetchUserInfo();
+  if (!userInfo.id) {
+    throw new Error("User ID not found");
+  }
+  const response = await fetch(
+    `http://localhost:8000/recently_watched/?user_id=${userInfo.id}`,
+    { credentials: "include" }
+  );
+  const watchedData = await handleResponse(response);
+  const enhancedMovies = await Promise.all(
+    watchedData.map(async (journalEntry) => {
+      try {
+        const movieDetails = await fetchMovieDetails(journalEntry.movie);
+        const enhancedMovie = {
+          ...journalEntry,
+          ...movieDetails,
+        };
+        const posterPath = movieDetails.poster_path;
+        if (posterPath && posterPath !== "N/A") {
+          enhancedMovie.poster = `https://image.tmdb.org/t/p/w500${posterPath}`;
+        } else {
+          const fallbackPoster = await fetchMoviePoster(journalEntry.title).catch(() => null);
+          if (fallbackPoster !== null) {
+            enhancedMovie.poster = fallbackPoster;
+          }
+        }
+        return enhancedMovie;
+      } catch (error) {
+        return { ...journalEntry };
+      }
+    })
+  );
+  return enhancedMovies;
+};
+
+export const addToWatchlistAPI = async (movie) => {
+  const titleParam = movie.title || movie.original_title;
+  if (!titleParam) {
+    throw new Error("Invalid movie title");
+  }
+  const releaseDate = movie.release_date || "";
+  const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
+  const params = ["q=" + titleParam];
+  if (releaseYear) {
+    params.push("year=" + releaseYear);
+  }
+  const searchUrl = "http://localhost:8000/search/?" + params.join("&");
+  const searchResponse = await fetch(searchUrl, {
+    method: "GET",
+    credentials: "include",
+  });
+  const searchData = await handleResponse(searchResponse);
+  if (!searchData.movies || searchData.movies.length === 0) {
+    throw new Error("Movie not found in search");
+  }
+  const foundMovieId = searchData.movies[0].id;
+  const addResponse = await fetch(
+    "http://localhost:8000/add_movie/?movie_id=" + foundMovieId,
+    {
+      method: "GET",
+      credentials: "include",
+    }
+  );
+  return handleResponse(addResponse);
+};

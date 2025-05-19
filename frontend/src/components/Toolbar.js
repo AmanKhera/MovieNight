@@ -9,7 +9,7 @@ import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
-function Toolbar() {
+function  Toolbar() {
   // Get the 'navigate' function from react-router-dom
   const navigate = useNavigate();
 
@@ -19,14 +19,24 @@ function Toolbar() {
   };
 
   // Keep the alerts for the other actions as-is
-  const searchButtonAction = () => alert('Search button clicked!');
-  const discoverButtonAction = () => alert('Discover button clicked!');
-  const ratingButtonAction = () => alert('Rating button clicked!');
-  const messageButtonAction = () => {
-    navigate("groups");
+  const searchButtonAction = () => {
+    navigate("/search");
   };
-  const friendsButtonAction = () => alert('Friends button clicked!');
-  const profileButtonAction = () => alert('Profile button clicked!');
+  const discoverButtonAction = () => {
+    navigate("/DiscoverPage");
+  };
+  const ratingButtonAction = () => {
+    navigate("/ReviewedPage");
+  };
+  const messageButtonAction = () => {
+    navigate("/groups");
+  };
+  const friendsButtonAction = () => {
+    navigate("/UserWatchlists");
+  };
+  const profileButtonAction = () => {
+    navigate("/UserProfile");
+  };
 
   return (
     <nav>
@@ -34,7 +44,6 @@ function Toolbar() {
         <button>
           <img src={logo} alt="Movie Night logo" className="responsive-image" />
         </button>
-        <span className="hover-text-logo">Homepage</span>
       </div>
       <div className="buttons">
         <div className="button" id="search-button" onClick={searchButtonAction}>
@@ -53,7 +62,7 @@ function Toolbar() {
           <button>
             <img src={ratingImage} alt="rating button" />
           </button>
-          <span className="hover-text">Rating Page</span>
+          <span className="hover-text">User Journal</span>
         </div>
         <div className="button" id="message-button" onClick={messageButtonAction}>
           <button>
@@ -65,7 +74,7 @@ function Toolbar() {
           <button>
             <img src={friendsImage} alt="friends button" />
           </button>
-          <span className="hover-text">Friends Page</span>
+          <span className="hover-text">Watchlists</span>
         </div>
         <div className="button" id="profile-button" onClick={profileButtonAction}>
           <button>
