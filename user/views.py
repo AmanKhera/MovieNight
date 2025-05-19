@@ -162,6 +162,7 @@ def add_movie(request):
             return JsonResponse({'error': str(e)}, status=500)
     
 
+
 #Create_relationship method
 #Requires 2 params in url, creates relationship in database
 #For a pair to be friends this url must be called twice, the second time the ids must be flipped
@@ -332,6 +333,7 @@ def grab_watchlist_items(request):
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+
 #Add to watched method
 #Param: user_id, movie_id
 #Optional Params: Rating and review
@@ -365,6 +367,11 @@ def add_to_watched(request):
         user = User.objects.get(id=user_id)
         movie = Movie.objects.get(id=movie_id)
 
+        user_watchlists = Watchlist.objects.filter(user=user)
+        WatchlistItem.objects.filter(watchlist__in=user_watchlists, movie_id=movie_id).delete()
+
+
+
         #add entry to the UserMovieJournal table
         journal_entry, created = UserMovieJournal.objects.get_or_create(
             user=user,
@@ -391,7 +398,10 @@ def add_to_watched(request):
 
 
 
+
 #Recommend Movie
+#Desc: Allows users to recommend movies to users and groups
+#Checks are in place to make sure the user_receiving has not already seen the movie, have it in their watchlist, and this user has not recommended the movie before
 #params: Must send post request,
 #member_suggested: User id of who suggested movie,
 #user_recieving: user id of who is recieving rec,
@@ -418,8 +428,9 @@ def recommend_movie(request):
                 't': movie.title,
                 'y': movie.year
             }
-            #print(movie.title, "\n", movie.year)
 
+
+            #Checks to see if genre matches group preferences
             OMDB_API_KEY = os.getenv("OMDB_API_KEY")
             omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}"
 
@@ -433,15 +444,14 @@ def recommend_movie(request):
             genres = movie_genre.split(',')
             genres = [genre.strip() for genre in genres]
                 
-            #print(genres)
 
-            # Check if required fields are provided
+            #Check if required fields are provided
             if not all([member_suggested_id, user_receiving_id, movie_id]):
                 return JsonResponse({"error": "Missing required fields."}, status=400)
             
            
 
-            # Validate if users exist before proceeding
+            #Validate if users exist before proceeding
             try:
                 member_suggested = User.objects.get(id=member_suggested_id)
             except User.DoesNotExist:
@@ -457,7 +467,24 @@ def recommend_movie(request):
                 if group.genre and group.genre not in genres:
                     return JsonResponse({"error": "Movie doesn't fit group genre"}, status=400)
 
-            # Create the recommendation record
+            # Check if movie is already in user's journal
+            if UserMovieJournal.objects.filter(user_id=user_receiving_id, movie_id=movie_id).exists():
+                return JsonResponse({"error": "User has already watched this movie."}, status=400)
+
+            # Check if movie is already in user's watchlist
+            if WatchlistItem.objects.filter(watchlist__user_id=user_receiving_id, movie_id=movie_id).exists():
+                return JsonResponse({"error": "Movie is already in the user's watchlist."}, status=400)
+
+            # Check if the movie was already recommended by this member to this user
+            if MemberRecommendation.objects.filter(
+                member_suggested_id=member_suggested_id,
+                user_receiving_id=user_receiving_id,
+                movie_id=movie_id
+            ).exists():
+                return JsonResponse({"error": "This movie has already been recommended to this user by you."}, status=400)
+
+
+            #Create the recommendation record
             recommendation = MemberRecommendation.objects.create(
                 member_suggested=member_suggested,
                 user_receiving=user_receiving,

@@ -19,6 +19,7 @@ import os
 from django.db.models import Max, OuterRef, Subquery
 from django.db.models import Subquery, OuterRef
 from math import ceil
+from django.shortcuts import get_object_or_404
 
 
 load_dotenv()
@@ -315,11 +316,6 @@ def get_user_groups(request):
 #Retrieves recent movie recommendations for the group/user within last 7 days
 #params: group_id which can be group or user
 #returns: JsonResponse containing recommendations as a list
-
-from django.utils import timezone
-from datetime import timedelta
-from django.http import JsonResponse
-
 def group_recommendation(request):
     group_id = request.GET.get('group_id')
     try:
@@ -410,7 +406,10 @@ def group_recommendation(request):
 
 #     return JsonResponse({"error": "Invalid request method"}, status=405)
         
-        
+#Retrieve Group Messages Method
+#Desc: Retreives groups most recent messages
+#Params: Group_id (group requesting the messages), num_messages(# of messages should be retrieved)
+#Return: msg.id, user_sending:Who sent message, user_recieving: User recieving message, message_content: content of message, date_sent, status: Sent,Pending, Deleted        
 def retrieve_group_messages(request):
 
     group_id = request.GET.get('group_id')
@@ -438,7 +437,11 @@ def retrieve_group_messages(request):
     return JsonResponse({'messages': messages_data})
 
 
-from django.shortcuts import get_object_or_404
+
+#Update Recommendation Method
+#Desc: Updates recommendation given in group, allows for tracking of votes by updated RecommendationVote table
+#Params: user_id(id of user voting), recommendation_id(recommendation the user is voting for), vote_value(1 for true, -1 for false, and 0 by default if the user has not voted)
+#returns: total number of upvotes, downvotes, threshold needed to be added to watchlist, recommended: 1 if it should be added to watchlist, 0 if it shouldnt
 @csrf_exempt
 @require_POST
 def update_recommendation(request):
@@ -503,7 +506,11 @@ def update_recommendation(request):
 
 
 
-
+#Generate Group Recommendations
+#Desc: Called via retrieve_model_recommendations when # of recs is below 20
+#Generates recs by calling OpenAI with prompt
+#Params: Group_id(id of group looking for recs), num_of_recs(Number of recs needed to reach 20)
+#returns: Dictionary with movie title, rec id, and date suggested
 def generate_group_recommendations(group_id, num_of_recs):
 
     group = User.objects.get(pk=group_id)
@@ -612,57 +619,130 @@ def generate_group_recommendations(group_id, num_of_recs):
 
 
 
+# @csrf_exempt
+# def retrieve_model_recommendations(request):
+#     group_id = request.GET.get("group_id")
+#     user = User.objects.get(pk=group_id)
+#     model_id = 7648
+
+#     latest_ids = (
+#         MemberRecommendation.objects
+#         .filter(user_receiving=user, member_suggested = model_id ,recommended=0)
+#         .values('movie_id')
+#         .annotate(latest_id=Max('id'))
+#         .values_list('latest_id', flat=True)
+#     )
+
+#     movie_title_sq = Movie.objects.filter(pk=OuterRef('movie_id')).values('title')[:1]
+
+#     rows = (
+#         MemberRecommendation.objects
+#         .filter(id__in=latest_ids)
+#         .annotate(movie_title=Subquery(movie_title_sq))
+#         .order_by('-date_suggested')
+#         .values('id', 'member_suggested','movie_id', 'movie_title', 'date_suggested')[:20]
+#     )
+
+#     if rows.count() < 20:
+#         num_needed = 20 - rows.count()
+#         generate_group_recommendations(group_id, num_needed)
+
+#         latest_ids = (
+#             MemberRecommendation.objects
+#             .filter(user_receiving=user, member_suggested = model_id, recommended=0)
+#             .values('movie_id')
+#             .annotate(latest_id=Max('id'))
+#             .values_list('latest_id', flat=True)
+#         )
+
+#         rows = (
+#             MemberRecommendation.objects
+#             .filter(id__in=latest_ids)
+#             .annotate(movie_title=Subquery(movie_title_sq))
+#             .order_by('-date_suggested')
+#             .values('id', 'member_suggested' 'movie_id', 'movie_title', 'date_suggested')[:20]
+#         )
+
+
+#     return JsonResponse({"recommendations": list(rows)})
+
+
 @csrf_exempt
 def retrieve_model_recommendations(request):
     group_id = request.GET.get("group_id")
     user = User.objects.get(pk=group_id)
     model_id = 7648
 
+    #Get latest rec per movie
     latest_ids = (
         MemberRecommendation.objects
-        .filter(user_receiving=user, member_suggested = model_id ,recommended=0)
+        .filter(user_receiving=user, member_suggested=model_id, recommended=0)
         .values('movie_id')
         .annotate(latest_id=Max('id'))
         .values_list('latest_id', flat=True)
     )
 
+    #subquery to pull in movie title
     movie_title_sq = Movie.objects.filter(pk=OuterRef('movie_id')).values('title')[:1]
 
-    rows = (
+    #Retrieve 20 most recent recs
+    recommendations = (
         MemberRecommendation.objects
         .filter(id__in=latest_ids)
+        .select_related('member_suggested')  
         .annotate(movie_title=Subquery(movie_title_sq))
-        .order_by('-date_suggested')
-        .values('id', 'member_suggested','movie_id', 'movie_title', 'date_suggested')[:20]
+        .order_by('-date_suggested')[:20]
     )
 
-    if rows.count() < 20:
-        num_needed = 20 - rows.count()
+    #If fewer than 20, generate more and requery
+    if recommendations.count() < 20:
+        num_needed = 20 - recommendations.count()
         generate_group_recommendations(group_id, num_needed)
 
         latest_ids = (
             MemberRecommendation.objects
-            .filter(user_receiving=user, member_suggested = model_id, recommended=0)
+            .filter(user_receiving=user, member_suggested=model_id, recommended=0)
             .values('movie_id')
             .annotate(latest_id=Max('id'))
             .values_list('latest_id', flat=True)
         )
 
-        rows = (
+        recommendations = (
             MemberRecommendation.objects
             .filter(id__in=latest_ids)
+            .select_related('member_suggested')
             .annotate(movie_title=Subquery(movie_title_sq))
-            .order_by('-date_suggested')
-            .values('id', 'member_suggested' 'movie_id', 'movie_title', 'date_suggested')[:20]
+            .order_by('-date_suggested')[:20]
         )
 
 
-    return JsonResponse({"recommendations": list(rows)})
+    recommendation_ids = [rec.id for rec in recommendations]
 
+    #Get votes on those recommendations with user
+    votes = RecommendationVote.objects.filter(
+        recommendation_id__in=recommendation_ids
+    ).select_related('user')
 
+    vote_map = {}
+    for vote in votes:
+        vote_map.setdefault(vote.recommendation_id, []).append({
+            "user_id": vote.user_id,
+            "username": vote.user.username,
+            "vote": vote.value,
+        })
 
+    # Format output
+    rec_data = []
+    for rec in recommendations:
+        rec_data.append({
+            "id": rec.id,
+            "movie_id": rec.movie_id,
+            "movie_title": rec.movie_title,
+            "date_suggested": rec.date_suggested.isoformat(),
+            "votes": vote_map.get(rec.id, [])
+        })
 
-
+    return JsonResponse({"recommendations": rec_data})
 
 
 
