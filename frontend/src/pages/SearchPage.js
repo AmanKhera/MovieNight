@@ -217,7 +217,8 @@ const SearchPage = () => {
   const searchButtonAction = async (query) => {
 
     if (document.getElementById("filter-content-rating-button").classList.contains("clicked") ||
-        document.getElementById("filter-runtime-button").classList.contains("clicked")) {
+      document.getElementById("filter-runtime-button").classList.contains("clicked") ||
+      document.getElementById("filter-genre-button").classList.contains("clicked")) {
       query = {
         Rated: {
           G: (document.getElementById("g-rated-button").classList.contains("clicked")),
@@ -420,9 +421,9 @@ const SearchPage = () => {
           navigate("/groups", {
             state: {
               chatUser: {
-                id: user.id,
-                name: user.name,
-                username: user.username
+                id: result[i].id,
+                name: result[i].name,
+                username: result[i].username
               }
             }
           });
@@ -449,8 +450,8 @@ const SearchPage = () => {
   const displayMovieSearchResult = async (result) => {
     document.getElementById("spinner").classList.add("hidden");
     if ((!result || result.length === 0) &&
-        (!document.getElementById("filter-runtime-button").classList.contains("clicked") ||
-         !document.getElementById("filter-content-rating-button").classList.contains("clicked"))) {
+      (!document.getElementById("filter-runtime-button").classList.contains("clicked") ||
+        !document.getElementById("filter-content-rating-button").classList.contains("clicked"))) {
       document.getElementById("search-result-movie").innerHTML = "No movies found by that search term";
       return;
     }
