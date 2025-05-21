@@ -1,5 +1,5 @@
 // src/pages/GroupPage.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import Toolbar from "../components/Toolbar";
 import MainLayout from "../components/MainLayout";
@@ -19,6 +19,7 @@ const GroupPage = () => {
   // ChatSection state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+   const socketRef = useRef(null);
 
   useEffect(() => {
     if (location.state?.chatUser) {
@@ -26,6 +27,25 @@ const GroupPage = () => {
       setActiveTab("friends"); // Optional: auto-switch to friends tab
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (selectedChat?.id) {
+      const roomName = `dm_${selectedChat.id}`;
+      const wsUrl = `ws://localhost:8000/ws/chat/${roomName}/`;
+      socketRef.current = new WebSocket(wsUrl);
+
+      socketRef.current.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        setMessages(prev => [...prev, data]);
+      };
+
+      socketRef.current.onclose = () => console.log("WebSocket disconnected");
+    }
+
+    return () => {
+      if (socketRef.current) socketRef.current.close();
+    };
+  }, [selectedChat]);
 
   const handleSelectChat = (chat) => {
     setSelectedChat(chat);

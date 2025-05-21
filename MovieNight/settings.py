@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'group', #group app
     'user_login', #takes care of user login and authentication
     'corsheaders', #Security Feature,pip install django-cors-headers - Aman
+    "channels",
 ]
 
 MIDDLEWARE = [
@@ -176,3 +177,14 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+ASGI_APPLICATION = "MovieNight.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("localhost", 6379)],
+        },
+    },
+}
