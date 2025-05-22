@@ -83,7 +83,7 @@ const PopularCarousel = ({ title = "" }) => {
           width: 100%;
           overflow: hidden;
           margin: 0; /* Remove margins to fill full width */
-          height: 95vh; /* Full viewport height */
+          height: 100vh; /* Full viewport height */
         }
         
         .carousel-title {
