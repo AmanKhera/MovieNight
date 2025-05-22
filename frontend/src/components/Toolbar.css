@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Patua+One&display=swap');
 
-
 body {
   margin: 0;
   padding: 0;
@@ -12,26 +11,26 @@ body {
   font-family: 'Outfit', sans-serif;
   font-optical-sizing: auto;
   font-weight: 300;
-   font-style:normal;
+  font-style: normal;
 }
 
 nav {
-  /* Make the toolbar taller to fit a bigger logo/poster */
-
-  position: sticky;
-  height: 105px; /* Increase if your logo is taller */
-
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 105px;
   padding: 0;
-  top:0;
   box-sizing: border-box;
-  z-index:1000;
-  background-color:#10002B;
-  /* background-image: radial-gradient(circle at center center, rgb(42,0,46),rgb(16,0,43)); */
-  /* opacity: .97; */
+  z-index: 1000;
+  background-color: transparent;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
 }
- main {
+
+main {
   padding-top: 105px;
-} 
+}
 
 /* LOGO/POSTER AREA */
 #logo {
@@ -42,19 +41,23 @@ nav {
 }
 
 #logo button {
-  background-color: #10002b00;
+  background-color: transparent;
   border: none;
   cursor: pointer;
   padding: 0;
-  /* No extra padding around the image */
+  transition: transform 0.2s ease;
+}
+
+#logo button:hover {
+  transform: scale(1.05);
 }
 
 .responsive-image {
   display: block;
   width: auto;
   max-height: 95px;
-  /* Constrain logo height so it doesn't overflow the nav */
   margin: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 /* ICON BUTTONS AT THE BOTTOM-RIGHT */
@@ -72,34 +75,35 @@ nav {
 
 .buttons button {
   padding: 10px;
-  background-color: #10002b00;
+  background-color: transparent;
   border: none;
   cursor: pointer;
   border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.buttons button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
 .buttons button img {
   height: 50px;
   width: 50px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
-/* .buttons button:hover {
-  background-color: #240046;
-} */
-
 /* HOVER TEXT (TOOLTIP) */
-/* General button class that wraps each icon */
 .button {
   position: relative;
   display: inline-block;
 }
 
-/* HOVER TEXT FOR LOGO (if you want a tooltip on the logo) */
+/* HOVER TEXT FOR LOGO */
 .hover-text-logo {
   visibility: hidden;
   position: absolute;
   bottom: 100%;
-  /* Show tooltip above the logo */
   left: 50%;
   transform: translateX(-50%);
   background-color: #240046;
@@ -111,6 +115,7 @@ nav {
   opacity: 0;
   transition: opacity 0.3s;
   z-index: 1;
+  white-space: nowrap;
 }
 
 /* HOVER TEXT FOR ICON BUTTONS */
@@ -118,7 +123,6 @@ nav {
   visibility: hidden;
   position: absolute;
   bottom: -50%;
-  /* Position above the icon */
   left: 50%;
   transform: translateX(-50%);
   background-color: #240046;
@@ -130,15 +134,15 @@ nav {
   opacity: 0;
   transition: opacity 0.3s;
   z-index: 1;
+  white-space: nowrap;
 }
 
-/* Tooltip arrow pointing DOWN (from the tooltip to the icon) */
+/* Tooltip arrow pointing DOWN */
 .hover-text::after,
 .hover-text-logo::after {
   content: '';
   position: absolute;
   top: 0%;
-  /* Arrow at the bottom edge of the tooltip */
   left: 50%;
   transform: translateX(-50%);
   border-width: 5px;
@@ -153,10 +157,40 @@ nav {
   opacity: 1;
 }
 
-/* FOOTER (optional) */
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  nav {
+    height: 80px;
+  }
+  
+  main {
+    padding-top: 80px;
+  }
+  
+  .responsive-image {
+    max-height: 70px;
+  }
+  
+  .buttons {
+    bottom: 8px;
+    right: 15px;
+    gap: 8px;
+  }
+  
+  .buttons button img {
+    height: 40px;
+    width: 40px;
+  }
+  
+  .hover-text,
+  .hover-text-logo {
+    display: none; /* Hide tooltips on mobile */
+  }
+}
+
+/* FOOTER */
 footer {
   margin: 0;
-  /* padding: 10px; */
   background-color: #10002B;
   color: #fff;
   text-align: center;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const PopularCarousel = ({ title = "Top Popular Movies" }) => {
+const PopularCarousel = ({ title = "" }) => {
   const [movies, setMovies] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [message, setMessage] = useState(null);
@@ -82,68 +82,70 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
           position: relative;
           width: 100%;
           overflow: hidden;
-          margin-bottom: 20px;
+          margin: 0; /* Remove margins to fill full width */
+          height: 95vh; /* Full viewport height */
         }
+        
         .carousel-title {
+          position: absolute;
+          top: 80px; /* Position below the toolbar */
+          left: 20px;
           color: white;
-          margin-bottom: 8px;
           text-transform: uppercase;
           font-weight: 450;
           font-size: 0.9rem;
-          padding-top: 5px;
-          padding-left: 15px;
+          z-index: 10;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
         }
+        
         .carousel-slide {
           position: relative;
           width: 100%;
-          height: 900px;
+          height: 100vh; /* Full viewport height */
           cursor: pointer;
-          border-radius: 8px;
           overflow: hidden;
         }
-        @media (max-width: 1024px) {
-          .carousel-slide {
-            height: 450px;
-          }
-        }
-        @media (max-width: 768px) {
-          .carousel-slide {
-            height: 320px;
-          }
-        }
+        
         .carousel-slide img {
           width: 100%;
-          height: 140%;
+          height: 100%;
           object-fit: cover;
+          object-position: center top;
           display: block;
           opacity: 0;
           transition: opacity 0.8s ease, transform 0.3s ease;
         }
+        
         .carousel-slide img.loaded {
           opacity: 1;
         }
+        
         .carousel-slide img.fade-out {
           opacity: 0;
         }
+        
         .carousel-slide img:hover {
           transform: scale(1.03);
         }
+        
         .carousel-overlay {
           position: absolute;
           bottom: 0;
           left: 0;
           width: 100%;
-          padding: 20px;
-          background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+          padding: 40px 20px;
+          background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
           color: white;
           text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
           z-index: 1;
         }
+        
         .carousel-overlay h2 {
           margin: 0;
           font-size: 4rem !important;
           font-weight: bold;
         }
+        
         .carousel-button {
           position: absolute;
           top: 50%;
@@ -163,15 +165,23 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
           justify-content: center;
           transition: background 0.3s;
         }
+        
         .carousel-button:hover {
           background-color: rgb(69, 0, 134);
         }
+        
         .prev-button { left: 15px; }
         .next-button { right: 20px; }
+        
         .carousel-dots {
+          position: absolute;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
           text-align: center;
-          margin-top: 8px;
+          z-index: 10;
         }
+        
         .dot {
           display: inline-block;
           width: 10px;
@@ -182,8 +192,42 @@ const PopularCarousel = ({ title = "Top Popular Movies" }) => {
           cursor: pointer;
           transition: background-color 0.3s;
         }
+        
         .dot.active {
           background-color: white;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 1024px) {
+          .carousel-slide {
+            height: 80vh;
+          }
+          .popular-carousel {
+            height: 80vh;
+          }
+          .carousel-overlay h2 {
+            font-size: 2.5rem !important;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .carousel-slide {
+            height: 60vh;
+          }
+          .popular-carousel {
+            height: 60vh;
+          }
+          .carousel-overlay h2 {
+            font-size: 1.8rem !important;
+          }
+          .carousel-title {
+            top: 60px;
+            left: 15px;
+            font-size: 0.8rem;
+          }
+          .carousel-overlay {
+            padding: 20px 15px;
+          }
         }
       `}</style>
 
