@@ -106,13 +106,13 @@ urlpatterns = [
     #path('leave_group/', group_views.leave_group, name = 'leave_group'),
     path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
     path('group_messages/', group_views.retrieve_group_messages, name='group_messages'),
-    path('movie_rec/', movie_views.generate_recommendations, name='group_messages'),
-    path('movie_review/', movie_views.review_recommendations, name='group_messages'),
-    path('group_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
-    path('generate_group_recommendations/', group_views.generate_group_recommendations, name='group_messages'),
-    path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
-    path('retrieve_feed/', user_views.retrieve_feed, name='group_messages'),
-    path('get_following_watch_status/', user_views.get_following_watch_status, name='group_messages'),
+    path('movie_rec/', movie_views.generate_recommendations, name='movie_rec'),
+    path('movie_review/', movie_views.review_recommendations, name='movie_review'),
+    path('group_recs/', group_views.retrieve_model_recommendations, name='group_recs'),
+    path('generate_group_recommendations/', group_views.generate_group_recommendations, name='generate_group_recommendations'),
+    path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='retrieve_model_recs'),
+    path('retrieve_feed/', user_views.retrieve_feed, name='retrieve_feed'),
+    path('get_following_watch_status/', user_views.get_following_watch_status, name='get_following_watch_status'),
     ]
 
 
