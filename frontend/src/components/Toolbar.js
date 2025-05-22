@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useNavigate } from 'react-router-dom'; // <-- Import from react-router-dom
 import './Toolbar.css';
 import logo from '../images/logo.png';
 import searchImage from '../images/search-btn.png';
@@ -9,58 +9,37 @@ import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
-function Toolbar() {
-  const [scrollOpacity, setScrollOpacity] = useState(0);
+function  Toolbar() {
+  // Get the 'navigate' function from react-router-dom
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      const maxScroll = 300; // Distance over which to transition from transparent to opaque
-      const opacity = Math.min(scrollTop / maxScroll, 1); // Calculate opacity (0 to 1)
-      setScrollOpacity(opacity);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
+  // Use navigate("/") to redirect to the home page
   const homeButtonAction = () => {
     navigate("/");
   };
 
+  // Keep the alerts for the other actions as-is
   const searchButtonAction = () => {
     navigate("/search");
   };
-  
   const discoverButtonAction = () => {
     navigate("/DiscoverPage");
   };
-  
   const ratingButtonAction = () => {
     navigate("/ReviewedPage");
   };
-  
   const messageButtonAction = () => {
     navigate("/groups");
   };
-  
   const friendsButtonAction = () => {
     navigate("/UserWatchlists");
   };
-  
   const profileButtonAction = () => {
     navigate("/UserProfile");
   };
 
   return (
-    <nav 
-      className="toolbar" 
-      style={{
-        backgroundColor: `rgba(16, 0, 43, ${scrollOpacity * 0.95})`,
-        boxShadow: scrollOpacity > 0.1 ? `0 2px 10px rgba(0, 0, 0, ${scrollOpacity * 0.3})` : 'none'
-      }}
-    >
+    <nav>
       <div id="logo" className="button" onClick={homeButtonAction}>
         <button>
           <img src={logo} alt="Movie Night logo" className="responsive-image" />
