@@ -3,8 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-
-import { 
+import {
   fetchUserInfo,
   fetchUserGroups,
   fetchGroupMembers,
@@ -73,7 +72,7 @@ export const GroupsSidebar = ({
   const [selectedMember, setSelectedMember] = useState("");
 
   const createGroupMutation = useMutation({
-    mutationFn: ({ groupName, leaderId, genre }) => 
+    mutationFn: ({ groupName, leaderId, genre }) =>
       createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
     onMutate: async (newGroup) => {
       await queryClient.cancelQueries(['userGroups', username]);
@@ -100,7 +99,7 @@ export const GroupsSidebar = ({
   });
 
   const addFriendMutation = useMutation({
-    mutationFn: (friendId) => 
+    mutationFn: (friendId) =>
       addFriend(getCookie("csrftoken"), { friend_id: friendId }),
     onMutate: async (friendId) => {
       await queryClient.cancelQueries(['mutualFriends', leaderId]);
@@ -127,7 +126,7 @@ export const GroupsSidebar = ({
 
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ groupId, userId }) => 
+    mutationFn: ({ groupId, userId }) =>
       addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
@@ -155,12 +154,12 @@ export const GroupsSidebar = ({
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: ({ groupId, userId }) => 
+    mutationFn: ({ groupId, userId }) =>
       removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
       const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
-      queryClient.setQueryData(['groupMembers', groupId], (old) => 
+      queryClient.setQueryData(['groupMembers', groupId], (old) =>
         old?.filter(member => member.id !== userId) || []
       );
       return { previousMembers, groupId };
@@ -330,42 +329,42 @@ export const GroupsSidebar = ({
       <div style={listContainerStyle}>
         {activeTab === "groups"
           ? userGroups.map((group) => (
-              <div
-                key={group.group_id}
-                style={listItemStyle(selectedChat?.group_id === group.group_id)}
-                onClick={() => handleGroupClick(group)}
-              >
-                <span>{group.group_name}</span>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <span style={{ color: "#888", marginRight: "0.5rem" }}>
-                    {group.role}
-                  </span>
-                  <button
-                    style={menuButtonStyle}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
-                      setActionType(null);
-                    }}
-                  >
-                    ⋯
-                  </button>
-                </div>
+            <div
+              key={group.group_id}
+              style={listItemStyle(selectedChat?.group_id === group.group_id)}
+              onClick={() => handleGroupClick(group)}
+            >
+              <span>{group.group_name}</span>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <span style={{ color: "#888", marginRight: "0.5rem" }}>
+                  {group.role}
+                </span>
+                <button
+                  style={menuButtonStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
+                    setActionType(null);
+                  }}
+                >
+                  ⋯
+                </button>
               </div>
-            ))
+            </div>
+          ))
           : userFriends.map((friend) => (
-              <div
-                key={friend.id}
-                style={listItemStyle(selectedChat?.id === friend.id)}
-                onClick={() => onSelectChat(friend)}
-              >
-                {friend.username}
-              </div>
-            ))}
+            <div
+              key={friend.id}
+              style={listItemStyle(selectedChat?.id === friend.id)}
+              onClick={() => onSelectChat(friend)}
+            >
+              {friend.username}
+            </div>
+          ))}
       </div>
 
       {showGroupMenu && (
-        <div 
+        <div
           style={{
             position: "fixed",
             top: 0,
@@ -383,7 +382,7 @@ export const GroupsSidebar = ({
             setActionType(null);
           }}
         >
-          <div 
+          <div
             style={{
               backgroundColor: "#3a1f5c",
               padding: "1.5rem",
@@ -403,10 +402,10 @@ export const GroupsSidebar = ({
               marginBottom: "1rem",
             }}>
               <h3 style={{ margin: 0 }}>
-                {!actionType 
-                  ? "Manage Group Members" 
-                  : actionType === "add" 
-                    ? "Add Member" 
+                {!actionType
+                  ? "Manage Group Members"
+                  : actionType === "add"
+                    ? "Add Member"
                     : "Remove Member"}
               </h3>
               <button
@@ -503,7 +502,7 @@ export const GroupsSidebar = ({
                       backgroundColor: "#333",
                     }}
                     onClick={() => setActionType(null)}
-                    >
+                  >
                     Back
                   </button>
                 </div>
@@ -744,68 +743,15 @@ export const GroupsSidebar = ({
 
 
 
+
+//***********CHAT SECTION************ */
 //*********************************** */
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-
-
-  const chatStyle = {
-    width: "75%",
-    height: "90vh",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#2a0252",
-    color: "white",
-    position: "relative",
-  };
-
-
-  const headerStyle = {
-    padding: "1.5rem",
-    backgroundColor: "#240046",
-    borderBottom: "2px solid #3a1f5c",
-    flexShrink: 0,
-  };
-
-  const messagesStyle = {
-    flex: 1,
-    overflowY: "auto",
-    padding: "1.5rem",
-    minHeight: 0,
-  };
-
-  const inputContainerStyle = {
-    padding: "1.5rem",
-    borderTop: "2px solid #3a1f5c",
-    display: "flex",
-    gap: "1rem",
-    backgroundColor: "#2a0252",
-    flexShrink: 0,
-  };
-
-  const inputStyle = {
-    flex: 1,
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid #6a0dad",
-    backgroundColor: "#1a0133",
-    color: "white",
-    outline: "none",
-  };
-
-  const buttonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "white",
-    border: "none",
-    padding: "1rem 1.5rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -827,127 +773,156 @@ export const ChatSection = ({ selectedChat }) => {
   }, []);
 
   useEffect(() => {
-    setMessages([]);
+    if (!selectedChat || !currentUser) return;
 
-    const fetchMessages = async () => {
-      if (!selectedChat) return;
-      try {
-        const endpoint = selectedChat.group_id
-          ? `group_messages/?group_id=${selectedChat.group_id}`
-          : `group_messages/?group_id=${selectedChat.id}`;
+    const chatType = selectedChat.group_id ? "group" : "dm";
+    const chatId = selectedChat.group_id || selectedChat.id;
 
-        const res = await fetch(`http://localhost:8000/${endpoint}`, {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setMessages(data.messages || []);
-        }
-      } catch (error) {
-        console.error("Error fetching messages:", error);
+    // Close old socket if it exists
+    if (socketRef.current) socketRef.current.close();
+
+    // Create new socket
+    socketRef.current = new WebSocket(`ws://localhost:8000/ws/chat/${chatType}_${chatId}/`);
+
+    socketRef.current.onopen = () => {
+      console.log("WebSocket connected");
+
+      // Optionally request message history if your consumer supports it
+      socketRef.current.send(JSON.stringify({
+        type: "fetch_messages"
+      }));
+    };
+
+    socketRef.current.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === "chat.message") {
+        setMessages((prev) => [...prev, data.message]);
+        scrollToBottom();
+      }
+
+      if (data.type === "chat.history") {
+        setMessages(data.messages);
+        scrollToBottom();
       }
     };
 
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
-  }, [selectedChat]);
+    socketRef.current.onerror = (e) => {
+      console.error("WebSocket error", e);
+    };
 
-  const handleSendMessage = async () => {
-    if (!selectedChat || !newMessage.trim() || !currentUser) return;
+    socketRef.current.onclose = () => {
+      console.log("WebSocket closed");
+    };
 
-    try {
-      const csrfToken = getCookie("csrftoken");
-      await fetch("http://localhost:8000/send_message/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          ...(selectedChat.group_id
-            ? {
-                user_sending: currentUser.id,
-                user_recieving: selectedChat.group_id,
-              }
-            : {
-                sender_id: currentUser.id,
-                receiver_id: selectedChat.id,
-              }),
-          message: newMessage.trim(),
-        }),
-      });
+    return () => {
+      socketRef.current?.close();
+    };
+  }, [selectedChat, currentUser]);
 
-      setNewMessage("");
-      scrollToBottom(); // Only scroll after sending
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+  const sendMessage = () => {
+    if (!newMessage.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
+
+    const payload = {
+      type: "chat.message",
+      message: newMessage.trim(),
+      sender_id: currentUser.id,
+      receiver_id: selectedChat.id,  // if DM
+      group_id: selectedChat.group_id  // if group
+    };
+
+    socketRef.current.send(JSON.stringify(payload));
+    setNewMessage("");
   };
 
   return (
-    <div style={chatStyle}>
-      <div style={headerStyle}>
-        <h2>
-          {selectedChat?.group_name ||
-            selectedChat?.username ||
-            "Select a chat"}
-        </h2>
+    <div style={styles.chat}>
+      <div style={styles.header}>
+        <h2>{selectedChat?.group_name || selectedChat?.username || "Select a chat"}</h2>
       </div>
 
-      <div style={messagesStyle} ref={messagesContainerRef}>
+      <div style={styles.messages}>
         {messages.length > 0 ? (
-          <>
-            {messages.slice().reverse().map((message, index) => (
-              <div key={index} style={{ marginBottom: "1rem" }}>
-                <strong>
-                  {message.sender_id === currentUser?.id
-                    ? "You"
-                    : message.user_sending || `User ${message.sender_id}`}
-                  :
-                </strong>{" "}
-                {message.message_content}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </>
+          messages.map((msg, index) => (
+            <div key={index} style={{ marginBottom: "1rem" }}>
+              <strong>{msg.sender_id === currentUser?.id ? "You" : `User ${msg.sender_id}`}:</strong> {msg.message_content}
+            </div>
+          ))
         ) : (
-          <div
-            style={{
-              textAlign: "center",
-              marginTop: "2rem",
-              color: "#aaa",
-            }}
-          >
-            {selectedChat
-              ? "No messages yet"
-              : "Select a chat to start messaging"}
-
+          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+            {selectedChat ? "No messages yet" : "Select a chat to start messaging"}
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
+
       {selectedChat && (
-        <div style={inputContainerStyle}>
+        <div style={styles.inputContainer}>
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
-            style={inputStyle}
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+            style={styles.input}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <button
-            onClick={handleSendMessage}
-            style={buttonStyle}
-            disabled={!newMessage.trim()}
-          >
+          <button onClick={sendMessage} style={styles.button} disabled={!newMessage.trim()}>
             Send
           </button>
         </div>
       )}
     </div>
   );
+};
+
+const styles = {
+  chat: {
+    width: "75%",
+    height: "90vh",
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#2a0252",
+    color: "white",
+    position: "relative",
+  },
+  header: {
+    padding: "1.5rem",
+    backgroundColor: "#240046",
+    borderBottom: "2px solid #3a1f5c",
+    flexShrink: 0,
+  },
+  messages: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "1.5rem",
+    minHeight: 0,
+  },
+  inputContainer: {
+    padding: "1.5rem",
+    borderTop: "2px solid #3a1f5c",
+    display: "flex",
+    gap: "1rem",
+    backgroundColor: "#2a0252",
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid #6a0dad",
+    backgroundColor: "#1a0133",
+    color: "white",
+    outline: "none",
+  },
+  button: {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    padding: "1rem 1.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
 };
 
 
@@ -966,7 +941,7 @@ export const ChatSection = ({ selectedChat }) => {
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 
-const fetchMovieDetails = async (title,year) => {
+const fetchMovieDetails = async (title, year) => {
   try {
     const searchRes = await fetch(
       `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie&year=${encodeURIComponent(year)}`
@@ -1065,7 +1040,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       } else {
 
         const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
-        
+
       }
       const { upvotes, downvotes } = await resp.json();
 
@@ -1112,7 +1087,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         let finalList = [...enrichedExisting];
 
-       // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
+        // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
 
         if (finalList.length < 20) {
           const needed = 20 - finalList.length;
@@ -1172,11 +1147,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             .map((d, i) =>
               d
                 ? {
-                    ...d,
-                    recId: recs[i].id,
-                    upvotes: 0,
-                    downvotes: 0,
-                  }
+                  ...d,
+                  recId: recs[i].id,
+                  upvotes: 0,
+                  downvotes: 0,
+                }
                 : null
             )
             .filter(Boolean)
