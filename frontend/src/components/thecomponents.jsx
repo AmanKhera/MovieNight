@@ -795,7 +795,7 @@ export const ChatSection = ({ selectedChat }) => {
 
     socketRef.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
-
+      console.log("WS MESSAGE RECEIVED:", data);
       if (data.type === "chat.message") {
         setMessages((prev) => [...prev, data.message]);
         scrollToBottom();
@@ -821,14 +821,19 @@ export const ChatSection = ({ selectedChat }) => {
   }, [selectedChat, currentUser]);
 
   const sendMessage = () => {
-    if (!newMessage.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
+    if (
+      !newMessage.trim() ||
+      !socketRef.current ||
+      socketRef.current.readyState !== WebSocket.OPEN
+    )
+      return;
 
     const payload = {
       type: "chat.message",
-      message: newMessage.trim(),
-      sender_id: currentUser.id,
-      receiver_id: selectedChat.id,  // if DM
-      group_id: selectedChat.group_id  // if group
+      message: {
+        sender_id: currentUser.id,
+        content: newMessage.trim(),
+      },
     };
 
     socketRef.current.send(JSON.stringify(payload));
