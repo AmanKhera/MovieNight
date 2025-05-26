@@ -13,6 +13,7 @@ import UserPage from './pages/UserPage';
 import FriendsPage from './pages/FriendsPage';
 import DiscoverPage from './pages/DiscoverPage';
 import ReviewPage from './pages/ReviewPage';
+import ProtectedRoute from "./components/ProtectedRoute";
 import {
   fetchUserInfo,
   fetchRecentlyWatched,
@@ -73,7 +74,7 @@ function App() {
             const groups = queryClient.getQueryData(['userGroups', userInfo.username]);
             if (groups?.length) {
               await Promise.all(
-                groups.map(group => 
+                groups.map(group =>
                   queryClient.prefetchQuery({
                     queryKey: ['groupMembers', group.group_id],
                     queryFn: () => fetchGroupMembers(group.group_id),
@@ -168,13 +169,48 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/movie/:id" element={<MovieDetailsPage />} />
-            <Route path="/groups" element={<GroupPage />} />
-            <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/UserProfile" element={<UserPage />} />
-            <Route path="/FriendsPage" element={<FriendsPage />} />
-            <Route path="/DiscoverPage" element={<DiscoverPage />} />
-            <Route path="/ReviewedPage" element={<ReviewPage />} />
+
+            <Route path="/groups" element={
+              <ProtectedRoute>
+                <GroupPage />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/UserWatchlists" element={
+              <ProtectedRoute>
+                <UserWatchlistPage />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/search" element={
+              <ProtectedRoute>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/UserProfile" element={
+              <ProtectedRoute>
+                <UserPage />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/FriendsPage" element={
+              <ProtectedRoute>
+                <FriendsPage />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/DiscoverPage" element={<ProtectedRoute>
+              <DiscoverPage />
+            </ProtectedRoute>
+            }
+            />
+            <Route path="/ReviewedPage" element={
+              <ProtectedRoute>
+                <ReviewPage />
+              </ProtectedRoute>
+            }
+            />
           </Routes>
         </BrowserRouter>
       </div>

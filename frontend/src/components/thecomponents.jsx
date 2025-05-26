@@ -776,7 +776,13 @@ export const ChatSection = ({ selectedChat }) => {
     if (!selectedChat || !currentUser) return;
 
     const chatType = selectedChat.group_id ? "group" : "dm";
-    const chatId = selectedChat.group_id || selectedChat.id;
+    let chatId;
+    if (selectedChat.group_id) {
+      chatId = selectedChat.group_id;
+    } else {
+      const ids = [currentUser.id, selectedChat.id].sort((a, b) => a - b); // sort ensures symmetry
+      chatId = `${ids[0]}_${ids[1]}`;
+    }
 
     // Close old socket if it exists
     if (socketRef.current) socketRef.current.close();
