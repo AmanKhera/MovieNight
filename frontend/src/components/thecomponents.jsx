@@ -914,11 +914,11 @@ export const ChatSection = ({ selectedChat }) => {
 
 const styles = {
   chat: {
-    width: "75%",
+    width: "45%",
     height: "90vh",
     display: "flex",
     flexDirection: "column",
-    backgroundColor: "#2a0252",
+    backgroundImage: "radial-gradient( circle farthest-corner at 50.3% 47.3%,  rgb(47, 0, 85) 0.1%, rgb(21, 0, 46) 90% )",
     color: "white",
     position: "relative",
   },
@@ -975,15 +975,32 @@ const styles = {
   },
   sent: {
     alignSelf: "flex-end",
-    backgroundColor: "#6a0dad",
+    background: "radial-gradient( circle farthest-corner at -5.6% -6.8%,  rgba(103,49,145,1) 37.3%, rgba(50,0,129,1) 73.5% )",
+    backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
     color: "white",
-    borderTopRightRadius: 0,
+    border: "1px solid rgb(161, 79, 255)",
+    borderRadius: "20px",
+    borderTopRightRadius: "5px", // sharper corner
+    borderTopLeftRadius: "20px",
+    borderBottomRightRadius: "20px",
+    borderBottomLeftRadius: "20px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
+    maxWidth: "70%",
   },
   received: {
     alignSelf: "flex-start",
-    backgroundColor: "#3a1f5c",
-    color: "white",
-    borderTopLeftRadius: 0,
+    backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
+    color: "black",
+    border: "1px solid rgb(90, 0, 192)",
+    borderRadius: "20px",
+    borderTopLeftRadius: "5px", // sharper corner
+    borderTopRightRadius: "20px",
+    borderBottomRightRadius: "20px",
+    borderBottomLeftRadius: "20px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
+    maxWidth: "70%",
   },
 };
 

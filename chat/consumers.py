@@ -85,7 +85,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, sender_id, content):
         room_type, room_id = self.room_name.split("_", 1)
-        receiver_id = int(room_id.split("_")[1] if room_type == "dm" else room_id)
+
+        if room_type == "dm":
+            user1_id, user2_id = map(int, room_id.split("_"))
+
+            # Determine the receiver as the "other" user in the room
+            receiver_id = user2_id if sender_id == user1_id else user1_id
+
+        elif room_type == "group":
+            receiver_id = int(room_id)
+
+        else:
+            return None
 
         return Message.objects.create(
             user_sending_id=sender_id,
