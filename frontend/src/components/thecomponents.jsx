@@ -746,15 +746,27 @@ export const GroupsSidebar = ({
 
 //***********CHAT SECTION************ */
 //*********************************** */
+
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const isAtBottomRef = useRef(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const preserveScroll = (prevHeight) => {
+    const container = messagesContainerRef.current;
+    if (container && prevHeight != null) {
+      container.scrollTop = container.scrollHeight - prevHeight;
+    }
   };
 
   useEffect(() => {
@@ -780,41 +792,39 @@ export const ChatSection = ({ selectedChat }) => {
     if (selectedChat.group_id) {
       chatId = selectedChat.group_id;
     } else {
-      const ids = [currentUser.id, selectedChat.id].sort((a, b) => a - b); // sort ensures symmetry
+      const ids = [currentUser.id, selectedChat.id].sort((a, b) => a - b);
       chatId = `${ids[0]}_${ids[1]}`;
     }
 
-    // Close old socket if it exists
     if (socketRef.current) socketRef.current.close();
 
-    // Create new socket
     socketRef.current = new WebSocket(`ws://localhost:8000/ws/chat/${chatType}_${chatId}/`);
 
     socketRef.current.onopen = () => {
       console.log("WebSocket connected");
-
-      // Optionally request message history if your consumer supports it
-      socketRef.current.send(JSON.stringify({
-        type: "fetch_messages"
-      }));
+      setMessages([]);
+      setPage(1);
+      setHasMore(true);
+      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
     };
 
     socketRef.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      console.log("WS MESSAGE RECEIVED:", data);
+
       if (data.type === "chat.message") {
         setMessages((prev) => [...prev, data.message]);
-        scrollToBottom();
+        if (isAtBottomRef.current) scrollToBottom();
       }
 
       if (data.type === "chat.history") {
-        setMessages(data.messages);
-        scrollToBottom();
+        if (data.messages.length === 0) {
+          setHasMore(false);
+          return;
+        }
+        const prevHeight = messagesContainerRef.current?.scrollHeight;
+        setMessages((prev) => [...data.messages, ...prev]);
+        setTimeout(() => preserveScroll(prevHeight), 50);
       }
-    };
-
-    socketRef.current.onerror = (e) => {
-      console.error("WebSocket error", e);
     };
 
     socketRef.current.onclose = () => {
@@ -827,12 +837,7 @@ export const ChatSection = ({ selectedChat }) => {
   }, [selectedChat, currentUser]);
 
   const sendMessage = () => {
-    if (
-      !newMessage.trim() ||
-      !socketRef.current ||
-      socketRef.current.readyState !== WebSocket.OPEN
-    )
-      return;
+    if (!newMessage.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
 
     const payload = {
       type: "chat.message",
@@ -846,21 +851,42 @@ export const ChatSection = ({ selectedChat }) => {
     setNewMessage("");
   };
 
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    isAtBottomRef.current = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+
+    if (container.scrollTop < 50 && hasMore && socketRef.current) {
+      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: page + 1 }));
+      setPage((prev) => prev + 1);
+    }
+  };
+
   return (
     <div style={styles.chat}>
       <div style={styles.header}>
         <h2>{selectedChat?.group_name || selectedChat?.username || "Select a chat"}</h2>
       </div>
 
-      <div style={styles.messages}>
+      <div style={styles.messages} onScroll={handleScroll} ref={messagesContainerRef}>
         {messages.length > 0 ? (
-          messages.map((msg, index) => (
-            <div key={index} style={{ marginBottom: "1rem" }}>
-              <strong>{msg.sender_id === currentUser?.id ? "You" : `User ${msg.sender_id}`}:</strong> {msg.message_content}
-            </div>
-          ))
+          messages.map((msg, index) => {
+            const isSent = msg.sender_id === currentUser?.id;
+            return (
+              <div
+                key={index}
+                style={{
+                  ...styles.messageBubble,
+                  ...(isSent ? styles.sent : styles.received),
+                }}
+              >
+                <div>{msg.message_content}</div>
+              </div>
+            );
+          })
         ) : (
-          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+          <div style={styles.placeholder}>
             {selectedChat ? "No messages yet" : "Select a chat to start messaging"}
           </div>
         )}
@@ -906,7 +932,13 @@ const styles = {
     flex: 1,
     overflowY: "auto",
     padding: "1.5rem",
-    minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
+  },
+  placeholder: {
+    textAlign: "center",
+    marginTop: "2rem",
+    color: "#aaa",
   },
   inputContainer: {
     padding: "1.5rem",
@@ -934,7 +966,27 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
   },
+  messageBubble: {
+    maxWidth: "70%",
+    padding: "0.75rem 1rem",
+    marginBottom: "0.75rem",
+    borderRadius: "12px",
+    wordBreak: "break-word",
+  },
+  sent: {
+    alignSelf: "flex-end",
+    backgroundColor: "#6a0dad",
+    color: "white",
+    borderTopRightRadius: 0,
+  },
+  received: {
+    alignSelf: "flex-start",
+    backgroundColor: "#3a1f5c",
+    color: "white",
+    borderTopLeftRadius: 0,
+  },
 };
+
 
 
 
