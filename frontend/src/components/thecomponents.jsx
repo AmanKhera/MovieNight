@@ -992,7 +992,7 @@ const styles = {
     alignSelf: "flex-start",
     backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
     color: "black",
-    border: "1px solid rgb(90, 0, 192)",
+    border: "1px solid rgb(248, 253, 255)",
     borderRadius: "20px",
     borderTopLeftRadius: "5px", // sharper corner
     borderTopRightRadius: "20px",
