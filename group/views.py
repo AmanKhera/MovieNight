@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 import json
 import logging
 from django.views.decorators.http import require_POST
@@ -743,6 +743,11 @@ def retrieve_model_recommendations(request):
         })
 
     return JsonResponse({"recommendations": rec_data})
+
+
+
+    
+
 
 
 

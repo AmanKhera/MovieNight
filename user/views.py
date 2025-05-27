@@ -1,21 +1,18 @@
 from django.shortcuts import render
 from user_login.utils import get_cognito_client
 from django.http import JsonResponse
-from movie.models import Watchlist
-from user.models import User, Relationship, MemberRecommendation, Message, BlockList
+from user.models import User, Relationship, MemberRecommendation, Message, BlockList, UserEventProposal,UserEventVote
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
 from group.models import Group
-from django.shortcuts import get_object_or_404
-from django.db.models import Max
 from django.core.exceptions import ObjectDoesNotExist
 import json
 import os
 import requests
 from django.views.decorators.csrf import csrf_exempt
 import jwt
-from django.core import serializers
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
+from django.views.decorators.http import require_POST
 
 
 
@@ -892,4 +889,190 @@ def get_following_watch_status(request):
 
 
     return JsonResponse({"Followers_watched": feed})
+
+
+
+
+
+
+#Create Movie Proposal
+#Definition: Allows groups to plan movie events for a specific date and time
+#Requires post request
+#Params: user_proposing_id: User in group that is proposing the event, user_receiving: Currently only for groups but group receiving event, movie_id: movie being recommended
+#proposed_date: future date in this format '2025-05-27 14:30:00'
+#Returns: proposal.id, success message, and status 200 
+@csrf_exempt
+@require_POST
+def create_movie_proposal(request):
+    try:
+        data = json.loads(request.body)
+
+        user_proposing_id = data["user_proposing_id"]
+        user_receiving = data["user_receiving"]
+        movie_id = data["movie_id"]
+        proposed_datetime = datetime.fromisoformat(data["proposed_date"])
+
+        user = User.objects.get(id=user_proposing_id)
+        movie = Movie.objects.get(id=movie_id)
+        group = User.objects.get(id=user_receiving)
+
+        # Check if the user has an accepted proposal (status=1) in the future
+        active_proposal_exists = UserEventProposal.objects.filter(
+            recipient=group,
+            status=1,
+            proposed_datetime__gt=timezone.now()
+        ).exists()
+
+        if active_proposal_exists:
+            return JsonResponse({
+                "error": "You already have an active accepted proposal scheduled in the future."
+            }, status=400)
+
+        #Creates the proposal
+        proposal = UserEventProposal.objects.create(
+            proposed_by=user,
+            recipient=group,
+            movie=movie,
+            proposed_datetime=proposed_datetime
+        )
+
+        return JsonResponse({
+            "message": "Proposal created successfully.",
+            "proposal_id": proposal.id
+        }, status=200)
+
+    except (KeyError, ValueError) as e:
+        return JsonResponse({"error": "Invalid input format or missing field.", "details": str(e)}, status=400)
+    except (User.DoesNotExist, Movie.DoesNotExist) as e:
+        return JsonResponse({"error": "Invalid user, group, or movie ID.", "details": str(e)}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": "Something went wrong.", "details": str(e)}, status=500)
+
+
+
+
+#Retrieve Group Event Proposals
+#Retrieves all proposals for the group by when they were created
+#Params: id_retrieving: Id of the user we are retrieving proposal from
+#returns: proposals, and status = 200
+@csrf_exempt
+def retrieve_group_event_proposals(request):
+
+    try:
+        id_retrieving = request.GET.get('id_retrieving')
+
+
+        proposals = UserEventProposal.objects.filter(recipient=User.objects.get(id=id_retrieving)).order_by('-created_at')
+
+        result = []
+        for proposal in proposals:
+            result.append({
+                "proposal_id": proposal.id,
+                "movie_id": proposal.movie.id,
+                "movie_title": proposal.movie.title,
+                "proposed_by": proposal.proposed_by.username,
+                "proposed_datetime": proposal.proposed_datetime.isoformat(),
+                "status": proposal.status,
+                "created_at": proposal.created_at.isoformat(),
+            })
+
+        return JsonResponse({"proposals": result}, status=200)
+
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found."}, status=404)
+    except KeyError:
+        return JsonResponse({"error": "Missing group_id in request."}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": "Something went wrong.", "details": str(e)}, status=500)
+    
+
+
+
+#Vote On Proposal
+#Desc: How users vote on already created proposals
+#Params: user_voting_id: users id in group who is voting, proposal_id: proposal being voted on, voting_value: either true or false
+#Return: Proposal accepted or not and status = 200
+@csrf_exempt
+@require_POST
+def vote_on_proposal(request):
+    try:
+        data = json.loads(request.body)
+
+        user_voting_id = data["user_voting_id"]
+        proposal_id = data["proposal_id"]
+        voting_value = data["voting_value"]
+
+        user = User.objects.get(id=user_voting_id)
+        proposal = UserEventProposal.objects.get(id=proposal_id)
+
+        #Prevent duplicate vote
+        vote, created = UserEventVote.objects.update_or_create(
+            user=user,
+            proposal=proposal,
+            vote=voting_value
+        )
+
+
+        true_votes = UserEventVote.objects.filter(
+            proposal=proposal,
+            vote= True
+        )
+
+        true_vote_count = true_votes.count()
+
+        proposal_accepted = False 
+        group = Group.objects.get(group_id=proposal.recipient)
+
+
+        if true_vote_count >= group.voting_limit:
+            proposal.status = 1
+            proposal.save()
+            proposal_accepted = True
+
+        return JsonResponse({
+            "message": "Vote recorded successfully",
+            "created": created,
+            "proposal_accepted": proposal_accepted
+        }, status=200)
+
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found."}, status=404)
+    except UserEventProposal.DoesNotExist:
+        return JsonResponse({"error": "Proposal not found."}, status=404)
+    except KeyError as e:
+        return JsonResponse({"error": f"Missing key: {str(e)}"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": "Something went wrong.", "details": str(e)}, status=500)
+
+
+
+
+
+#Retrieve Votes For Recipient
+#params: recipient_id: User we are retrieving all votes for
+#Returns: All users who have voted and which proposal they have voted for, and status = 200
+@csrf_exempt
+def retrieve_votes_for_recipient(request):
+    recipient_id = request.GET.get('recipient_id')
+
+    if not recipient_id:
+        return JsonResponse({"error": "Missing recipient_id parameter."}, status=400)
+
+    votes = UserEventVote.objects.filter(
+        proposal__recipient_id=recipient_id
+    ).select_related('user', 'proposal')
+
+    data = []
+    for v in votes:
+        data.append({
+            "vote_id":      v.id,
+            "proposal_id":  v.proposal.id,
+            "voter_id":     v.user.id,
+            "voter_name":   v.user.username,
+            "vote":         v.vote,
+            "voted_at":     v.voted_at.isoformat(),
+        })
+
+    return JsonResponse({"votes": data}, status=200)
+
 
