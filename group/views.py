@@ -749,8 +749,33 @@ def retrieve_model_recommendations(request):
 
 
 
+@csrf_exempt
+def members_in_group(request):
     
+    group_id = request.GET.get("group_id")
 
+    try:
+        group = Group.objects.get(group_id=group_id)
+    except Group.DoesNotExist:
+        return JsonResponse({"error": "Group not found"}, status=404)
+    
+    members = group.members.select_related('member').all()
+
+    member_data = [
+        {
+            "id":m.member.id,
+            "username": m.member.username,
+            "role": m.role,
+            "joined_at": m.joined_at
+        }
+        for m in members
+    ]
+
+    return JsonResponse({
+        "group_id": group.group_id.id,
+        "group_name": group.group_name,
+        "members": member_data
+    }, status=200)    
 
 
 

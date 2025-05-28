@@ -103,7 +103,7 @@ urlpatterns = [
 
     path('get_user_groups/', group_views.get_user_groups, name = 'get_user_groups'),
     path('frontend_user/', user_views.frontend_username, name = 'frontend_user'),
-    #path('leave_group/', group_views.leave_group, name = 'leave_group'),
+
     path('generate-movie-summary/', movie_views.generate_movie_summary, name='generate_movie_summary'),
     path('group_messages/', group_views.retrieve_group_messages, name='group_messages'),
     path('movie_rec/', movie_views.generate_recommendations, name='group_messages'),
@@ -117,6 +117,7 @@ urlpatterns = [
     path('retrieve_group_event_proposals/', user_views.retrieve_group_event_proposals, name='retrieve_group_event_proposals'),
     path('vote_on_proposal/', user_views.vote_on_proposal, name='vote_on_proposal'),
     path('retrieve_vote_proposals/', user_views.retrieve_votes_for_recipient, name='retrieve_vote_proposals'),
+    path('get_group_members/', group_views.members_in_group, name='get_group_memberes'),
     ]
 
 
