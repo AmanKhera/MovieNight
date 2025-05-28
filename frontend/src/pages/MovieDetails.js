@@ -3,13 +3,13 @@ import MovieCarousel from '../components/Carousel'
 import PopularCarousel from '../components/PopularCarousel'
 import Toolbar from '../components/Toolbar'
 import MovieDetails from '../components/MovieDetails';
-const MovieDetailsPage = () => {
+const MovieDetailsParentPage = () => {
   return (
     <div>
-      <Toolbar/>
-      <MovieDetails/>
+        <Toolbar />
+        <MovieDetails />
     </div>
   );
 };
 
-export default MovieDetailsPage;
+export default MovieDetailsParentPage;

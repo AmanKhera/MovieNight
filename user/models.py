@@ -1,5 +1,6 @@
 from django.db import models
 
+
 #User table
 #Users are added to the table when they sign up for webapp
 #   retrieving user via name
@@ -191,3 +192,56 @@ class RecommendationVote(models.Model):
     def __str__(self):
         verb = "upvoted" if self.value == self.UP_VOTE else "downvoted"
         return f"{self.user} {verb} recommendation #{self.recommendation_id}"
+    
+
+
+
+
+
+class UserEventProposal(models.Model):
+    STATUS_CHOICES = [
+        (0, 'Pending'),
+        (1, 'Accepted'),
+        (-1, 'Rejected'),
+    ]
+
+    proposed_by = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        db_column='proposed_by',
+        related_name='proposals_sent'
+    )
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='proposals_received'
+    )
+
+    movie = models.ForeignKey('movie.Movie', on_delete=models.CASCADE)
+
+    proposed_datetime = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.SmallIntegerField(choices=STATUS_CHOICES, default=0)
+
+    class Meta:
+        db_table = 'user_event_proposal'
+        unique_together = ('recipient', 'movie', 'proposed_datetime')
+
+    def __str__(self):
+        return f"{self.proposed_by.username} → {self.recipient.username} for {self.movie.title}"
+
+
+
+
+class UserEventVote(models.Model):
+    proposal = models.ForeignKey(UserEventProposal, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    vote = models.BooleanField(null=True) 
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_event_vote'
+        unique_together = ('proposal', 'user')
+
+    def __str__(self):
+        return f"{self.user.username} voted for proposal {self.proposal.id}"
+

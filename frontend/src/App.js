@@ -1,11 +1,10 @@
-// src/App.js
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import HomePage from './pages/HomePage';
-import MovieDetailsPage from './pages/MovieDetails';
+import MovieDetailsParentPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
 import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
@@ -22,14 +21,18 @@ import {
   fetchMoviePoster,
   fetchUserGroups,
   fetchMutualFriends,
-  fetchGroupMembers
+  fetchGroupMembers,
+  fetchWatchlistItems,
+  fetchMovieDetails
 } from './api';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 1,
+      staleTime: 1000 * 60 * 5,
       gcTime: 1000 * 60 * 60 * 24,
+      retry: 3,
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });
@@ -44,6 +47,7 @@ persistQueryClient({
 });
 
 function App() {
+  //queryClient.clear();
   useEffect(() => {
     async function prefetchCriticalData() {
       try {
@@ -107,7 +111,8 @@ function App() {
                 })
               );
             }
-          })
+          }),
+          prefetchWatchlistDetails()
         ]);
 
         const originalFetch = window.fetch;
@@ -117,6 +122,7 @@ function App() {
           const isRecommend = typeof url === 'string' && url.includes('/recommend_movie/');
           const isWatchlistAdd = typeof url === 'string' && url.includes('/add_to_watchlist/');
           const isWatchedAdd = typeof url === 'string' && url.includes('/add_to_watched/');
+          const isWatchlistRemove = typeof url === 'string' && url.includes('/remove_from_watchlist/');
 
           const response = await originalFetch(...args);
 
@@ -127,8 +133,12 @@ function App() {
               queryClient.invalidateQueries(['recommendations', userInfo.id]);
             }
 
-            if (isWatchlistAdd) {
+            if (isWatchlistAdd || isWatchlistRemove) {
               queryClient.invalidateQueries(['watchlistMovies']);
+              queryClient.invalidateQueries(['watchlistItems']);
+              setTimeout(() => {
+                prefetchWatchlistDetails();
+              }, 100);
             }
 
             if (isWatchedAdd) {
@@ -145,6 +155,36 @@ function App() {
       }
     }
 
+    async function prefetchWatchlistDetails() {
+      try {
+        const watchlistData = queryClient.getQueryData(['watchlistMovies']);
+        if (watchlistData?.length) {
+          await Promise.all(
+            watchlistData.slice(0, 10).map(async (movie) => {
+              if (movie.id) {
+                await queryClient.prefetchQuery({
+                  queryKey: ['movieDetails', movie.id],
+                  queryFn: () => fetchMovieDetails(movie.id),
+                  staleTime: 1000 * 60 * 30
+                });
+              }
+              
+              const title = movie.title || movie.original_title;
+              if (title && (!movie.poster || movie.poster_path === "N/A")) {
+                await queryClient.prefetchQuery({
+                  queryKey: ['moviePoster', title],
+                  queryFn: () => fetchMoviePoster(title),
+                  staleTime: 1000 * 60 * 60
+                });
+              }
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Watchlist prefetch error:", error);
+      }
+    }
+
     prefetchCriticalData();
 
     const interval = setInterval(() => {
@@ -158,7 +198,14 @@ function App() {
       });
     }, 1000 * 60 * 5);
 
-    return () => clearInterval(interval);
+    const watchlistInterval = setInterval(() => {
+      prefetchWatchlistDetails();
+    }, 1000 * 60 * 10);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(watchlistInterval);
+    };
   }, []);
 
   return (
@@ -167,7 +214,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/movie/:id" element={<MovieDetailsPage />} />
+            <Route path="/movie/:id" element={<MovieDetailsParentPage />} />
             <Route path="/groups" element={<GroupPage />} />
             <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
             <Route path="/search" element={<SearchPage />} />

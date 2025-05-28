@@ -134,14 +134,14 @@ const DiscoverCarousel = ({
   // Inline CSS styles
   const styles = `
     /* Container for the entire carousel */
-    .popular-carousel {
+    .discover-carousel {
       width: 100vw;
       margin: 0 auto;
       overflow: hidden;
       position: relative;
-      background-color: #240046;
+      background-image: radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43));
     }
-    .popular-carousel h2 {
+    .discover-carousel h2 {
       font-size: 1.8rem;
       color: white;
       text-align: left;
@@ -313,7 +313,7 @@ const DiscoverCarousel = ({
 
   if (movies.length === 0) {
     return (
-      <div className="popular-carousel">
+      <div className="discover-carousel">
         <style>{styles}</style>
         <div>Loading movies...</div>
       </div>
@@ -321,7 +321,7 @@ const DiscoverCarousel = ({
   }
 
   return (
-    <div className="popular-carousel">
+    <div className="discover-carousel">
       <style>{styles}</style>
       <h2>{title}</h2>
       {message && (

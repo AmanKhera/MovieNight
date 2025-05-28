@@ -45,7 +45,7 @@ export const createGroup = async (csrfToken, { group_name, leader_id, genre }) =
 };
 
 export const addGroupMember = async (csrfToken, { group_id, user_id }) => {
-  const response = await fetch("http://localhost:8000/add_group_member/", {
+  const response = await fetch("http://localhost:8000/add_members/", {
     method: "POST",
     credentials: "include",
     headers: {
@@ -140,11 +140,23 @@ export const fetchWatchlistMovies = async () => {
   if (watchlistData.status !== "success") {
     throw new Error(watchlistData.message || "Invalid watchlist data");
   }
-  const moviePromises = watchlistData.watchlist.map(item => 
-    fetchMovieDetails(item.movie_id)
-  );
+  
+  if (!watchlistData.watchlist || watchlistData.watchlist.length === 0) {
+    return [];
+  }
+
+  const moviePromises = watchlistData.watchlist.map(async (item) => {
+    try {
+      return await fetchMovieDetails(item.movie_id);
+    } catch (error) {
+      console.error(`Error fetching movie ${item.movie_id}:`, error);
+      return null;
+    }
+  });
+  
   const detailedMovies = await Promise.all(moviePromises);
   const validMovies = detailedMovies.filter(Boolean);
+  
   const moviesWithPosters = await Promise.all(
     validMovies.map(async (movie) => {
       if (!movie.poster_path || movie.poster_path === "N/A") {
@@ -152,13 +164,15 @@ export const fetchWatchlistMovies = async () => {
           const poster = await fetchMoviePoster(movie.title || movie.original_title);
           return { ...movie, poster };
         } catch (err) {
+          console.error(`Error fetching poster for ${movie.title}:`, err);
           return movie;
         }
       }
       return movie;
     })
   );
-  return moviesWithPosters.slice(0, 7);
+  
+  return moviesWithPosters;
 };
 
 export const fetchRecentlyWatched = async () => {
@@ -171,6 +185,11 @@ export const fetchRecentlyWatched = async () => {
     { credentials: "include" }
   );
   const watchedData = await handleResponse(response);
+  
+  if (!watchedData || watchedData.length === 0) {
+    return [];
+  }
+
   const enhancedMovies = await Promise.all(
     watchedData.map(async (journalEntry) => {
       try {
@@ -179,17 +198,22 @@ export const fetchRecentlyWatched = async () => {
           ...journalEntry,
           ...movieDetails,
         };
-        const posterPath = movieDetails.poster_path;
+        const posterPath = movieDetails?.poster_path;
         if (posterPath && posterPath !== "N/A") {
           enhancedMovie.poster = `https://image.tmdb.org/t/p/w500${posterPath}`;
         } else {
-          const fallbackPoster = await fetchMoviePoster(journalEntry.title).catch(() => null);
-          if (fallbackPoster !== null) {
-            enhancedMovie.poster = fallbackPoster;
+          try {
+            const fallbackPoster = await fetchMoviePoster(journalEntry.title || movieDetails?.title);
+            if (fallbackPoster) {
+              enhancedMovie.poster = fallbackPoster;
+            }
+          } catch (posterError) {
+            console.error(`Error fetching fallback poster for ${journalEntry.title}:`, posterError);
           }
         }
         return enhancedMovie;
       } catch (error) {
+        console.error(`Error enhancing movie ${journalEntry.movie}:`, error);
         return { ...journalEntry };
       }
     })
@@ -204,7 +228,7 @@ export const addToWatchlistAPI = async (movie) => {
   }
   const releaseDate = movie.release_date || "";
   const releaseYear = releaseDate ? releaseDate.split("-")[0] : "";
-  const params = ["q=" + titleParam];
+  const params = ["q=" + encodeURIComponent(titleParam)];
   if (releaseYear) {
     params.push("year=" + releaseYear);
   }
@@ -227,3 +251,118 @@ export const addToWatchlistAPI = async (movie) => {
   );
   return handleResponse(addResponse);
 };
+
+export const removeFromWatchlistAPI = async (movieId) => {
+  const response = await fetch(
+    `http://localhost:8000/remove_from_watchlist/?movie_id=${movieId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    }
+  );
+  return handleResponse(response);
+};
+
+
+// Add these functions to your existing api.js file:
+
+// Fetch all watchlists
+export const fetchAllWatchlists = async () => {
+  const response = await fetch("http://localhost:8000/grab_watchlist/", {
+    credentials: "include",
+  });
+  const data = await handleResponse(response);
+  // Backend returns: {"status": "success", "watchlist": [...]}
+  return data.watchlist || [];
+};
+
+// Create new watchlist  
+export const createWatchlist = async (csrfToken, watchlistData) => {
+  // Backend expects: name parameter in GET request, not POST with JSON body
+  const params = new URLSearchParams({
+    name: watchlistData.watchlist_name
+  });
+  
+  const response = await fetch(`http://localhost:8000/watchlist/?${params}`, {
+    method: "GET", // Backend uses GET method for creation
+    credentials: "include",
+    headers: {
+      "X-CSRFToken": csrfToken,
+    },
+  });
+  return handleResponse(response);
+};
+
+// Fetch movies for specific watchlist by watchlist name
+export const fetchWatchlistMoviesByName = async (watchlistName) => {
+  const params = new URLSearchParams({
+    watchlist_name: watchlistName
+  });
+  
+  const response = await fetch(`http://localhost:8000/watchlist_items/?${params}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  const data = await handleResponse(response);
+  // Backend returns: {"status": "success", "watchlist": [...]}
+  return data.watchlist || [];
+};
+
+
+// Helper function to fetch movies by watchlist ID (converts ID to name first)
+export const fetchWatchlistMoviesById = async (watchlistId) => {
+  // First get all watchlists to find the name by ID
+  const watchlists = await fetchAllWatchlists();
+  const watchlist = watchlists.find(w => w.id === watchlistId);
+  
+  if (!watchlist) {
+    throw new Error('Watchlist not found');
+  }
+  
+  // Fetch basic watchlist items
+  const watchlistItems = await fetchWatchlistMoviesByName(watchlist.name);
+  
+  if (!watchlistItems || watchlistItems.length === 0) {
+    return [];
+  }
+
+
+  
+  // Fetch detailed movie information for each item (using your existing logic)
+  const moviePromises = watchlistItems.map(async (item) => {
+    try {
+      const movieDetails = await fetchMovieDetails(item.movie_id);
+      if (!movieDetails) return null;
+      
+      // Combine the watchlist item data with movie details
+      let enhancedMovie = {
+        ...item,
+        ...movieDetails,
+      };
+      
+      // Handle poster fetching (same logic as your existing fetchWatchlistMovies)
+      if (!movieDetails.poster_path || movieDetails.poster_path === "N/A") {
+        try {
+          const poster = await fetchMoviePoster(movieDetails.title || movieDetails.original_title);
+          if (poster) {
+            enhancedMovie.poster = poster;
+          }
+        } catch (err) {
+          console.error(`Error fetching poster for ${movieDetails.title}:`, err);
+        }
+      } else {
+        // Use TMDB poster path
+        enhancedMovie.poster = `https://image.tmdb.org/t/p/w500${movieDetails.poster_path}`;
+      }
+      
+      return enhancedMovie;
+    } catch (error) {
+      console.error(`Error fetching movie ${item.movie_id}:`, error);
+      return null;
+    }
+  });
+  
+  const detailedMovies = await Promise.all(moviePromises);
+  return detailedMovies.filter(Boolean);
+};
+

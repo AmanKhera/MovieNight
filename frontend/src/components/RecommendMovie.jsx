@@ -81,7 +81,7 @@ const RecommendMovie = () => {
 const styles = {
   container: {
     padding: "20px",
-    backgroundColor: "#1a0133",
+    backgroundColor: "#1D0037",
     color: "#fff",
     borderRadius: "8px",
     width: "300px",

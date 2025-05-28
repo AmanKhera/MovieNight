@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+
 import { 
   fetchUserInfo,
   fetchUserGroups,
@@ -14,6 +15,8 @@ import {
   removeGroupMember
 } from '../api';
 
+
+// Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -28,12 +31,6 @@ const getCookie = (name) => {
   }
   return cookieValue;
 };
-
-
-
-
-
-
 
 
 //Group Sidebar
@@ -115,6 +112,7 @@ export const GroupsSidebar = ({
           username: `user_${friendId}`,
           friend_id: friendId
         }
+
       ]);
       return { previousFriends };
     },
@@ -126,6 +124,7 @@ export const GroupsSidebar = ({
       queryClient.invalidateQueries(['mutualFriends', leaderId]);
     }
   });
+
 
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) => 
@@ -223,6 +222,7 @@ export const GroupsSidebar = ({
     position: "relative",
   };
 
+
   const tabContainerStyle = {
     display: "flex",
     justifyContent: "space-between",
@@ -230,6 +230,7 @@ export const GroupsSidebar = ({
     padding: "1.5rem",
     borderBottom: "1px solid #3a1f5c",
   };
+
 
   const tabButtonStyle = (isActive) => ({
     padding: "0.8rem 1.2rem",
@@ -240,6 +241,7 @@ export const GroupsSidebar = ({
     cursor: "pointer",
     borderRadius: "4px",
   });
+
 
   const listItemStyle = (active) => ({
     padding: "1rem",
@@ -285,6 +287,7 @@ export const GroupsSidebar = ({
 
   return (
     <div style={sidebarStyle}>
+
       <div style={tabContainerStyle}>
         <div>
           <button
@@ -322,6 +325,7 @@ export const GroupsSidebar = ({
           {error}
         </div>
       )}
+
 
       <div style={listContainerStyle}>
         {activeTab === "groups"
@@ -554,6 +558,7 @@ export const GroupsSidebar = ({
         </div>
       )}
 
+
       {showGroupForm && (
         <div
           style={{
@@ -600,6 +605,7 @@ export const GroupsSidebar = ({
                 ×
               </button>
             </div>
+
             <input
               type="text"
               placeholder="Group Name"
@@ -738,10 +744,6 @@ export const GroupsSidebar = ({
 
 
 
-
-
-
-
 //*********************************** */
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
@@ -749,6 +751,7 @@ export const ChatSection = ({ selectedChat }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+
 
   const chatStyle = {
     width: "75%",
@@ -759,6 +762,7 @@ export const ChatSection = ({ selectedChat }) => {
     color: "white",
     position: "relative",
   };
+
 
   const headerStyle = {
     padding: "1.5rem",
@@ -919,10 +923,10 @@ export const ChatSection = ({ selectedChat }) => {
             {selectedChat
               ? "No messages yet"
               : "Select a chat to start messaging"}
+
           </div>
         )}
       </div>
-
       {selectedChat && (
         <div style={inputContainerStyle}>
           <input
@@ -1035,6 +1039,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const [votedRecIds, setVotedRecIds] = useState(new Set());
 
+
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
       .then((r) => r.json())
@@ -1107,7 +1112,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         let finalList = [...enrichedExisting];
 
-       // 3) if fewer than 20, POST to generate_group_recommendations to fill remainder
+       // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
 
         if (finalList.length < 20) {
           const needed = 20 - finalList.length;
@@ -1187,6 +1192,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     pollView === "auto" ? loadRecommendations() : loadGroupMembers();
   }, [selectedItem, activeTab, pollView]);
 
+
   const list = pollView === "auto" ? recommendations : groupRecs;
   const titleText =
     pollView === "auto"
@@ -1244,6 +1250,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       <h3>{titleText}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
+
       {!loading && list.length === 0 && <p>No recommendations yet.</p>}
 
       <div
@@ -1396,7 +1403,6 @@ export const UserProfile = () => {
         setErrorMessage(error.toString());
       }
     };
-
     fetchUserInfo();
   }, []);
 
@@ -1439,8 +1445,7 @@ export const UserProfile = () => {
         <strong>Email:</strong> {userInfo.email}
       </p>
       <p>
-        <strong>Date Joined:</strong>{" "}
-        {new Date(userInfo.date_joined).toLocaleString()}
+        <strong>Date Joined:</strong> {new Date(userInfo.date_joined).toLocaleString()}
       </p>
     </div>
   );
