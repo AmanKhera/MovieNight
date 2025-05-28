@@ -262,3 +262,107 @@ export const removeFromWatchlistAPI = async (movieId) => {
   );
   return handleResponse(response);
 };
+
+
+// Add these functions to your existing api.js file:
+
+// Fetch all watchlists
+export const fetchAllWatchlists = async () => {
+  const response = await fetch("http://localhost:8000/grab_watchlist/", {
+    credentials: "include",
+  });
+  const data = await handleResponse(response);
+  // Backend returns: {"status": "success", "watchlist": [...]}
+  return data.watchlist || [];
+};
+
+// Create new watchlist  
+export const createWatchlist = async (csrfToken, watchlistData) => {
+  // Backend expects: name parameter in GET request, not POST with JSON body
+  const params = new URLSearchParams({
+    name: watchlistData.watchlist_name
+  });
+  
+  const response = await fetch(`http://localhost:8000/watchlist/?${params}`, {
+    method: "GET", // Backend uses GET method for creation
+    credentials: "include",
+    headers: {
+      "X-CSRFToken": csrfToken,
+    },
+  });
+  return handleResponse(response);
+};
+
+// Fetch movies for specific watchlist by watchlist name
+export const fetchWatchlistMoviesByName = async (watchlistName) => {
+  const params = new URLSearchParams({
+    watchlist_name: watchlistName
+  });
+  
+  const response = await fetch(`http://localhost:8000/watchlist_items/?${params}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  const data = await handleResponse(response);
+  // Backend returns: {"status": "success", "watchlist": [...]}
+  return data.watchlist || [];
+};
+
+
+// Helper function to fetch movies by watchlist ID (converts ID to name first)
+export const fetchWatchlistMoviesById = async (watchlistId) => {
+  // First get all watchlists to find the name by ID
+  const watchlists = await fetchAllWatchlists();
+  const watchlist = watchlists.find(w => w.id === watchlistId);
+  
+  if (!watchlist) {
+    throw new Error('Watchlist not found');
+  }
+  
+  // Fetch basic watchlist items
+  const watchlistItems = await fetchWatchlistMoviesByName(watchlist.name);
+  
+  if (!watchlistItems || watchlistItems.length === 0) {
+    return [];
+  }
+
+
+  
+  // Fetch detailed movie information for each item (using your existing logic)
+  const moviePromises = watchlistItems.map(async (item) => {
+    try {
+      const movieDetails = await fetchMovieDetails(item.movie_id);
+      if (!movieDetails) return null;
+      
+      // Combine the watchlist item data with movie details
+      let enhancedMovie = {
+        ...item,
+        ...movieDetails,
+      };
+      
+      // Handle poster fetching (same logic as your existing fetchWatchlistMovies)
+      if (!movieDetails.poster_path || movieDetails.poster_path === "N/A") {
+        try {
+          const poster = await fetchMoviePoster(movieDetails.title || movieDetails.original_title);
+          if (poster) {
+            enhancedMovie.poster = poster;
+          }
+        } catch (err) {
+          console.error(`Error fetching poster for ${movieDetails.title}:`, err);
+        }
+      } else {
+        // Use TMDB poster path
+        enhancedMovie.poster = `https://image.tmdb.org/t/p/w500${movieDetails.poster_path}`;
+      }
+      
+      return enhancedMovie;
+    } catch (error) {
+      console.error(`Error fetching movie ${item.movie_id}:`, error);
+      return null;
+    }
+  });
+  
+  const detailedMovies = await Promise.all(moviePromises);
+  return detailedMovies.filter(Boolean);
+};
+
