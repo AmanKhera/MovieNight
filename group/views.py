@@ -119,15 +119,18 @@ def create_group(request):
 #Add Member To Group
 #params: group_id (group the member will be added to), member_id (member to be added)
 #returns: Status 200 if success
+@require_POST
 @csrf_exempt
 def add_member_to_group(request):
     
     try:
-        group_id = request.GET.get("group_id")
-        username = request.GET.get("username")
+        data = json.loads(request.body)
+        group_id = data.get("group_id")
+        user_id = data.get("user_id")
+        user_id = int(user_id)
 
         group = Group.objects.get(group_id=group_id)
-        member = User.objects.get(username=username)
+        member = User.objects.get(id=user_id)
 
         if GroupMember.objects.filter(group=group, member=member).exists():
             return JsonResponse({'message': 'Member is already a part of this group'}, status=200)
@@ -151,7 +154,7 @@ def add_member_to_group(request):
 
 
         group_watchlist = Watchlist.objects.get(user=group_id)
-        new_member_watchlist = Watchlist.objects.get(user=member.id)
+        new_member_watchlist = Watchlist.objects.get(user=member.id, type = 'main')
 
         movies_in_watchlist = set(WatchlistItem.objects.filter(watchlist=group_watchlist).values_list('movie_id', flat=True))
 

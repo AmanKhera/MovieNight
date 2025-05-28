@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
-import { queryClient } from "../App";
+// ADDED: Import useQueryClient for cache invalidation
+import { useQueryClient } from "@tanstack/react-query";
+import FriendsWhoWatched from './FriendsWhoWatched';
 
 const MovieDetailsPage = () => {
   const { id } = useParams();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const release_date = queryParams.get("release_date");
+
+  // ADDED: Initialize queryClient for cache invalidation
+  const queryClient = useQueryClient();
 
   const [userId, setUserId] = useState(null);
   const [username, setUsername] = useState(null);
@@ -165,16 +170,26 @@ const MovieDetailsPage = () => {
     }
   };
 
+  // UPDATED: Added cache invalidation after successful watchlist addition
   const addToWatchlist = async () => {
     setLoadingAdd(true);
     try {
       const idToSend = movie.db_id || movie.id;
       const resp = await fetch(`http://localhost:8000/add_movie/?movie_id=${idToSend}`, { credentials: "include" });
       const d = await resp.json();
-      setMessage({ text: d.message || "Added to watchlist", type: "success" });
+      
+      if (resp.ok) {
+        // SUCCESS: Invalidate watchlist cache to show updated data immediately
+        await queryClient.invalidateQueries({ 
+          queryKey: ['watchlistMovies'] 
+        });
+        setMessage({ text: d.message || "Added to watchlist", type: "success" });
+      } else {
+        throw new Error(d.error || "Failed to add to watchlist");
+      }
     } catch (e) {
       console.error(e);
-      setMessage({ text: "Failed to add to watchlist", type: "error" });
+      setMessage({ text: e.message || "Failed to add to watchlist", type: "error" });
     } finally {
       setLoadingAdd(false);
       setShowAddMenu(false);
@@ -242,6 +257,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  // UPDATED: Enhanced cache invalidation for watched movies
   const addToWatched = async () => {
     if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
@@ -262,12 +278,15 @@ const MovieDetailsPage = () => {
       setMessage({ text: d.message, type: resp.ok ? "success" : "error" });
 
       if (resp.ok) {
+        // ENHANCED: Invalidate all relevant caches including watchlist
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['recentlyWatched'] }),
           queryClient.invalidateQueries({ queryKey: ['reviewedMovies', userId] }),
           queryClient.invalidateQueries({ queryKey: ['movieDetails', id] }),
           queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
           queryClient.invalidateQueries({ queryKey: ['watchedMovies'] }),
+          // ADDED: Also invalidate the specific watchlistMovies query key
+          queryClient.invalidateQueries({ queryKey: ['watchlistMovies'] }),
         ]);
       }
     } catch (e) {
@@ -295,76 +314,89 @@ const MovieDetailsPage = () => {
         </div>
       )}
 
-      <div style={styles.detailsWrapper}>
-        <div style={styles.posterContainer}>
-          <img src={posterURL || "https://via.placeholder.com/300x450"} alt={movie.title} style={styles.poster} />
+      <div style={styles.mainContentWrapper}>
+        <div style={styles.movieDetailsSection}>
+          <div style={styles.detailsWrapper}>
+            <div style={styles.posterContainer}>
+              <img src={posterURL || "https://via.placeholder.com/300x450"} alt={movie.title} style={styles.poster} />
 
-          <button
-            style={styles.addButton}
-            onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }}
-            disabled={loadingAdd}
-          >
-            {loadingAdd ? "…" : "+"}
-          </button>
+              <button
+                style={styles.addButton}
+                onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }}
+                disabled={loadingAdd}
+              >
+                {loadingAdd ? "…" : "+"}
+              </button>
 
-          {showAddMenu && (
-            <div style={styles.addMenu}>
-              <button 
-                style={styles.menuButton}
-                onClick={addToWatchlist}
-              >
-                Add to Watchlist
-              </button>
-              <button 
-                style={styles.menuButton}
-                onClick={() => {
-                  setShowGroupList(true);
-                  setShowAddMenu(false);
-                }}
-              >
-                Send to Group
-              </button>
-              <button 
-                style={styles.menuButton}
-                onClick={() => {
-                  setShowFriendList(true);
-                  setShowAddMenu(false);
-                }}
-              >
-                Send to Friend
-              </button>
-              <button 
-                style={styles.menuButton}
-                onClick={() => {
-                  setShowWatchedForm(true);
-                  setShowAddMenu(false);
-                }}
-              >
-                Mark as Watched
-              </button>
+              {showAddMenu && (
+                <div style={styles.addMenu}>
+                  <button 
+                    style={styles.menuButton}
+                    onClick={addToWatchlist}
+                  >
+                    Add to Watchlist
+                  </button>
+                  <button 
+                    style={styles.menuButton}
+                    onClick={() => {
+                      setShowGroupList(true);
+                      setShowAddMenu(false);
+                    }}
+                  >
+                    Send to Group
+                  </button>
+                  <button 
+                    style={styles.menuButton}
+                    onClick={() => {
+                      setShowFriendList(true);
+                      setShowAddMenu(false);
+                    }}
+                  >
+                    Send to Friend
+                  </button>
+                  <button 
+                    style={styles.menuButton}
+                    onClick={() => {
+                      setShowWatchedForm(true);
+                      setShowAddMenu(false);
+                    }}
+                  >
+                    Mark as Watched
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+
+            <div style={styles.info}>
+              <h1 style={styles.title}>{movie.title}</h1>
+              <div style={styles.metaBadges}>
+                <span style={styles.badge}>📅 {movie.year}</span>
+                <span style={styles.badge}>⭐ {movie.rating}</span>
+                <span style={styles.badge}>⏱ {movie.runtime}</span>
+                <span style={styles.badge}>
+                  🎬{" "}
+                  <Link to={`/search?filter=director&q=${encodeURIComponent(movie.director)}`} style={styles.link}>
+                    {movie.director}
+                  </Link>
+                </span>
+              </div>
+
+              <h2 style={styles.sectionTitle}>Plot</h2>
+              {loadingPlot
+                ? <div style={styles.plotLoading}>Generating enhanced description…</div>
+                : <p style={styles.plotText}>{enhancedPlot || movie.plot}</p>
+              }
+            </div>
+          </div>
         </div>
 
-        <div style={styles.info}>
-          <h1 style={styles.title}>{movie.title}</h1>
-          <div style={styles.metaBadges}>
-            <span style={styles.badge}>📅 {movie.year}</span>
-            <span style={styles.badge}>⭐ {movie.rating}</span>
-            <span style={styles.badge}>⏱ {movie.runtime}</span>
-            <span style={styles.badge}>
-              🎬{" "}
-              <Link to={`/search?filter=director&q=${encodeURIComponent(movie.director)}`} style={styles.link}>
-                {movie.director}
-              </Link>
-            </span>
-          </div>
-
-          <h2 style={styles.sectionTitle}>Plot</h2>
-          {loadingPlot
-            ? <div style={styles.plotLoading}>Generating enhanced description…</div>
-            : <p style={styles.plotText}>{enhancedPlot || movie.plot}</p>
-          }
+        <div style={styles.sidebarSection}>
+          {userId && movie && (
+            <FriendsWhoWatched 
+              movieId={movie.db_id || movie.id} 
+              userId={userId} 
+            />
+          )}
         </div>
       </div>
 
@@ -486,7 +518,7 @@ const styles = {
     backgroundSize: "cover", 
     backgroundPosition: "center", 
     backgroundRepeat: "no-repeat", 
-    minHeight: "100vh" 
+    minHeight: "81vh" 
   },
   backdropOverlay: { 
     position: "absolute", 
@@ -516,14 +548,29 @@ const styles = {
     position: "relative", 
     zIndex: 1 
   },
+  mainContentWrapper: {
+    display: "flex",
+    gap: "20px",
+    maxWidth: "1400px",
+    margin: "0 auto",
+    position: "relative",
+    zIndex: 1,
+  },
+  movieDetailsSection: {
+    flex: "0 0 80%",
+    width: "80%",
+  },
+  sidebarSection: {
+    flex: "0 0 20%",
+    width: "20%",
+    position: "sticky",
+    top: "20px",
+    alignSelf: "flex-start",
+  },
   detailsWrapper: { 
     display: "flex", 
     gap: "40px", 
-    alignItems: "flex-start", 
-    maxWidth: "1200px", 
-    margin: "0 auto", 
-    position: "relative", 
-    zIndex: 1,
+    alignItems: "center", 
   },
   posterContainer: { 
     position: "relative", 

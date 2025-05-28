@@ -6,8 +6,8 @@ import MovieCarousel from '../components/Carousel';
 import DiscoverCarousel from '../components/DiscoverCarousel';
 import PopularCarousel from '../components/PopularCarousel';
 import { fetchRecentlyWatched } from '../api';
-import Footbar from '../components/Footbar'
-
+import Footbar from '../components/Footbar';
+import PopularToolbar from '../components/PopularToobar';
 
 const HomePage = () => {
   const queryClient = useQueryClient();
@@ -30,13 +30,13 @@ const HomePage = () => {
 
   return (
     <div>
-      <Toolbar />
-      <PopularCarousel title="Top Popular Movies" />
+      <PopularToolbar />
+      <PopularCarousel title="" />
       <DiscoverCarousel id="war" />
       <DiscoverCarousel id="comedy" />
       <DiscoverCarousel id="history" />
       <DiscoverCarousel id="thriller" />
-      <Footbar/>
+      <Footbar />
     </div>
   );
 };
