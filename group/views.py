@@ -197,7 +197,7 @@ def remove_member_from_group(request):
         data = json.loads(request.body)
         username = data.get("username")
         current_user_id = User.objects.get(username=username).id  # Ensure leader is the one removing members
-        member_to_be_removed_id = data.get('remove_id')
+        member_to_be_removed_id = data.get('user_id')
         group_id = data.get("group_id")
 
 

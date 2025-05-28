@@ -58,7 +58,7 @@ export const addGroupMember = async (csrfToken, { group_id, user_id }) => {
 };
 
 export const removeGroupMember = async (csrfToken, { group_id, user_id }) => {
-  const response = await fetch("http://localhost:8000/remove_group_member/", {
+  const response = await fetch("http://localhost:8000/remove_member/", {
     method: "POST",
     credentials: "include",
     headers: {
