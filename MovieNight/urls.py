@@ -113,6 +113,10 @@ urlpatterns = [
     path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
     path('retrieve_feed/', user_views.retrieve_feed, name='group_messages'),
     path('get_following_watch_status/', user_views.get_following_watch_status, name='group_messages'),
+    path('create_movie_proposal/', user_views.create_movie_proposal, name='create_movie_proposal'),
+    path('retrieve_group_event_proposals/', user_views.retrieve_group_event_proposals, name='retrieve_group_event_proposals'),
+    path('vote_on_proposal/', user_views.vote_on_proposal, name='vote_on_proposal'),
+    path('retrieve_vote_proposals/', user_views.retrieve_votes_for_recipient, name='retrieve_vote_proposals'),
     ]
 
 
