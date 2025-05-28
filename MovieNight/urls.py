@@ -15,12 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from movie import views as movie_views
 from user_login import views as user_login_views
 from user import views as user_views
 from movie import views as movie_views
 from group import views as group_views
+from chat import views as chat_views
 
 
 
@@ -113,11 +114,15 @@ urlpatterns = [
     path('retrieve_model_recs/', group_views.retrieve_model_recommendations, name='group_messages'),
     path('retrieve_feed/', user_views.retrieve_feed, name='group_messages'),
     path('get_following_watch_status/', user_views.get_following_watch_status, name='group_messages'),
+
     path('create_movie_proposal/', user_views.create_movie_proposal, name='create_movie_proposal'),
     path('retrieve_group_event_proposals/', user_views.retrieve_group_event_proposals, name='retrieve_group_event_proposals'),
     path('vote_on_proposal/', user_views.vote_on_proposal, name='vote_on_proposal'),
     path('retrieve_vote_proposals/', user_views.retrieve_votes_for_recipient, name='retrieve_vote_proposals'),
     path('get_group_members/', group_views.members_in_group, name='get_group_memberes'),
+    path("user_status/", user_views.user_status, name="user_status"),
+    path("chat/", include("chat.urls")),
+
     ]
 
 

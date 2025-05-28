@@ -523,7 +523,9 @@ const styles = {
   backdropOverlay: { 
     position: "absolute", 
     inset: 0, 
+
     backgroundImage: "radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43))", 
+
     zIndex: 0 
   },
   loading: { 

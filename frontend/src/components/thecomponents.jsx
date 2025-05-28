@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 
-
-import { 
+import {
   fetchUserInfo,
   fetchUserGroups,
   fetchGroupMembers,
@@ -15,7 +16,15 @@ import {
   removeGroupMember
 } from '../api';
 
+dayjs.extend(relativeTime);
+export function formatRelativeTime(timestamp) {
+    if (!timestamp) return "unknown";
 
+    const parsed = dayjs(timestamp);
+    if (!parsed.isValid()) return "unknown";
+
+    return parsed.fromNow(); // e.g., "5 minutes ago"
+  }
 // Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
@@ -73,7 +82,7 @@ export const GroupsSidebar = ({
   const [selectedMember, setSelectedMember] = useState("");
 
   const createGroupMutation = useMutation({
-    mutationFn: ({ groupName, leaderId, genre }) => 
+    mutationFn: ({ groupName, leaderId, genre }) =>
       createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
     onMutate: async (newGroup) => {
       await queryClient.cancelQueries(['userGroups', username]);
@@ -100,7 +109,7 @@ export const GroupsSidebar = ({
   });
 
   const addFriendMutation = useMutation({
-    mutationFn: (friendId) => 
+    mutationFn: (friendId) =>
       addFriend(getCookie("csrftoken"), { friend_id: friendId }),
     onMutate: async (friendId) => {
       await queryClient.cancelQueries(['mutualFriends', leaderId]);
@@ -127,7 +136,7 @@ export const GroupsSidebar = ({
 
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ groupId, userId }) => 
+    mutationFn: ({ groupId, userId }) =>
       addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
@@ -155,12 +164,12 @@ export const GroupsSidebar = ({
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: ({ groupId, userId }) => 
+    mutationFn: ({ groupId, userId }) =>
       removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
       const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
-      queryClient.setQueryData(['groupMembers', groupId], (old) => 
+      queryClient.setQueryData(['groupMembers', groupId], (old) =>
         old?.filter(member => member.id !== userId) || []
       );
       return { previousMembers, groupId };
@@ -330,42 +339,42 @@ export const GroupsSidebar = ({
       <div style={listContainerStyle}>
         {activeTab === "groups"
           ? userGroups.map((group) => (
-              <div
-                key={group.group_id}
-                style={listItemStyle(selectedChat?.group_id === group.group_id)}
-                onClick={() => handleGroupClick(group)}
-              >
-                <span>{group.group_name}</span>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <span style={{ color: "#888", marginRight: "0.5rem" }}>
-                    {group.role}
-                  </span>
-                  <button
-                    style={menuButtonStyle}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
-                      setActionType(null);
-                    }}
-                  >
-                    ⋯
-                  </button>
-                </div>
+            <div
+              key={group.group_id}
+              style={listItemStyle(selectedChat?.group_id === group.group_id)}
+              onClick={() => handleGroupClick(group)}
+            >
+              <span>{group.group_name}</span>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <span style={{ color: "#888", marginRight: "0.5rem" }}>
+                  {group.role}
+                </span>
+                <button
+                  style={menuButtonStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowGroupMenu(showGroupMenu === group.group_id ? null : group.group_id);
+                    setActionType(null);
+                  }}
+                >
+                  ⋯
+                </button>
               </div>
-            ))
+            </div>
+          ))
           : userFriends.map((friend) => (
-              <div
-                key={friend.id}
-                style={listItemStyle(selectedChat?.id === friend.id)}
-                onClick={() => onSelectChat(friend)}
-              >
-                {friend.username}
-              </div>
-            ))}
+            <div
+              key={friend.id}
+              style={listItemStyle(selectedChat?.id === friend.id)}
+              onClick={() => onSelectChat(friend)}
+            >
+              {friend.username}
+            </div>
+          ))}
       </div>
 
       {showGroupMenu && (
-        <div 
+        <div
           style={{
             position: "fixed",
             top: 0,
@@ -383,7 +392,7 @@ export const GroupsSidebar = ({
             setActionType(null);
           }}
         >
-          <div 
+          <div
             style={{
               backgroundColor: "#3a1f5c",
               padding: "1.5rem",
@@ -403,10 +412,10 @@ export const GroupsSidebar = ({
               marginBottom: "1rem",
             }}>
               <h3 style={{ margin: 0 }}>
-                {!actionType 
-                  ? "Manage Group Members" 
-                  : actionType === "add" 
-                    ? "Add Member" 
+                {!actionType
+                  ? "Manage Group Members"
+                  : actionType === "add"
+                    ? "Add Member"
                     : "Remove Member"}
               </h3>
               <button
@@ -503,7 +512,7 @@ export const GroupsSidebar = ({
                       backgroundColor: "#333",
                     }}
                     onClick={() => setActionType(null)}
-                    >
+                  >
                     Back
                   </button>
                 </div>
@@ -744,71 +753,48 @@ export const GroupsSidebar = ({
 
 
 
+
+//***********CHAT SECTION************ */
 //*********************************** */
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
+  const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
-
-
-  const chatStyle = {
-    width: "75%",
-    height: "90vh",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#2a0252",
-    color: "white",
-    position: "relative",
-  };
-
-
-  const headerStyle = {
-    padding: "1.5rem",
-    backgroundColor: "#240046",
-    borderBottom: "2px solid #3a1f5c",
-    flexShrink: 0,
-  };
-
-  const messagesStyle = {
-    flex: 1,
-    overflowY: "auto",
-    padding: "1.5rem",
-    minHeight: 0,
-  };
-
-  const inputContainerStyle = {
-    padding: "1.5rem",
-    borderTop: "2px solid #3a1f5c",
-    display: "flex",
-    gap: "1rem",
-    backgroundColor: "#2a0252",
-    flexShrink: 0,
-  };
-
-  const inputStyle = {
-    flex: 1,
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid #6a0dad",
-    backgroundColor: "#1a0133",
-    color: "white",
-    outline: "none",
-  };
-
-  const buttonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "white",
-    border: "none",
-    padding: "1rem 1.5rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  };
+  const isAtBottomRef = useRef(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const preserveScroll = (prevHeight) => {
+    const container = messagesContainerRef.current;
+    if (container && prevHeight != null) {
+      container.scrollTop = container.scrollHeight - prevHeight;
+    }
+  };
+
+  const getRelativeDateLabel = (date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatRelativeTime = (timestamp) => {
+    return dayjs(timestamp).fromNow();
   };
 
   useEffect(() => {
@@ -819,129 +805,187 @@ export const ChatSection = ({ selectedChat }) => {
         });
         const data = await res.json();
         if (res.ok) setCurrentUser(data);
-      } catch (error) {
-        console.error("Error fetching user info:", error);
+      } catch (err) {
+        console.error("Failed to fetch user info:", err);
       }
     };
     fetchUserInfo();
   }, []);
 
   useEffect(() => {
-    setMessages([]);
+    if (!selectedChat || !currentUser) return;
 
-    const fetchMessages = async () => {
-      if (!selectedChat) return;
-      try {
-        const endpoint = selectedChat.group_id
-          ? `group_messages/?group_id=${selectedChat.group_id}`
-          : `group_messages/?group_id=${selectedChat.id}`;
+    const chatType = selectedChat.group_id ? "group" : "dm";
+    let chatId;
+    if (selectedChat.group_id) {
+      chatId = selectedChat.group_id;
+    } else {
+      const ids = [currentUser.id, selectedChat.id].sort((a, b) => a - b);
+      chatId = `${ids[0]}_${ids[1]}`;
+    }
 
-        const res = await fetch(`http://localhost:8000/${endpoint}`, {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setMessages(data.messages || []);
+    if (socketRef.current) socketRef.current.close();
+
+    socketRef.current = new WebSocket(
+      `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
+    );
+
+    socketRef.current.onopen = () => {
+      setMessages([]);
+      setPage(1);
+      setHasMore(true);
+      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
+    };
+
+    socketRef.current.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === "chat.message") {
+        if (
+          data.message.sender_id !== currentUser?.id ||
+          selectedChat.group_id != null
+        ) {
+          setMessages((prev) => [...prev, data.message]);
         }
-      } catch (error) {
-        console.error("Error fetching messages:", error);
+        if (isAtBottomRef.current) scrollToBottom();
+      }
+
+      if (data.type === "chat.history") {
+        if (data.messages.length === 0) {
+          setHasMore(false);
+          return;
+        }
+        const prevHeight = messagesContainerRef.current?.scrollHeight;
+        setMessages((prev) => [...data.messages, ...prev]);
+        setTimeout(() => preserveScroll(prevHeight), 50);
+      }
+
+      if (data.type === "presence" && selectedChat?.id === data.user_id) {
+        setIsOnline(data.is_online);
+        if (data.last_seen) setLastSeen(data.last_seen);
       }
     };
 
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
-  }, [selectedChat]);
+    socketRef.current.onclose = () => {
+      console.log("WebSocket closed");
+    };
 
-  const handleSendMessage = async () => {
-    if (!selectedChat || !newMessage.trim() || !currentUser) return;
+    return () => {
+      socketRef.current?.close();
+    };
+  }, [selectedChat, currentUser]);
 
-    try {
-      const csrfToken = getCookie("csrftoken");
-      await fetch("http://localhost:8000/send_message/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          ...(selectedChat.group_id
-            ? {
-                user_sending: currentUser.id,
-                user_recieving: selectedChat.group_id,
-              }
-            : {
-                sender_id: currentUser.id,
-                receiver_id: selectedChat.id,
-              }),
-          message: newMessage.trim(),
-        }),
-      });
+  const sendMessage = () => {
+    if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    const payload = {
+      type: "chat.message",
+      message: {
+        sender_id: currentUser.id,
+        content: newMessage.trim(),
+      },
+    };
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...payload.message,
+        timestamp: new Date().toISOString(),
+        status: "sent",
+      },
+    ]);
+    socketRef.current.send(JSON.stringify(payload));
+    setNewMessage("");
+    scrollToBottom();
+  };
 
-      setNewMessage("");
-      scrollToBottom(); // Only scroll after sending
-    } catch (error) {
-      console.error("Error sending message:", error);
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    isAtBottomRef.current = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+    if (container.scrollTop < 50 && hasMore && socketRef.current) {
+      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: page + 1 }));
+      setPage((prev) => prev + 1);
     }
   };
 
   return (
-    <div style={chatStyle}>
-      <div style={headerStyle}>
-        <h2>
-          {selectedChat?.group_name ||
-            selectedChat?.username ||
-            "Select a chat"}
+    <div style={styles.chat}>
+      <div style={styles.header}>
+        <h2 style={styles.headerTitle}>
+          {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+          {selectedChat?.group_id ? null : isOnline ? (
+            <span style={styles.onlineDot}>● Online</span>
+          ) : (
+            <span style={styles.lastSeen}>
+              {lastSeen ? `Last seen ${formatRelativeTime(lastSeen)}` : ""}
+            </span>
+          )}
         </h2>
       </div>
 
-      <div style={messagesStyle} ref={messagesContainerRef}>
+      <div style={styles.messages} onScroll={handleScroll} ref={messagesContainerRef}>
         {messages.length > 0 ? (
-          <>
-            {messages.slice().reverse().map((message, index) => (
-              <div key={index} style={{ marginBottom: "1rem" }}>
-                <strong>
-                  {message.sender_id === currentUser?.id
-                    ? "You"
-                    : message.user_sending || `User ${message.sender_id}`}
-                  :
-                </strong>{" "}
-                {message.message_content}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </>
-        ) : (
-          <div
-            style={{
-              textAlign: "center",
-              marginTop: "2rem",
-              color: "#aaa",
-            }}
-          >
-            {selectedChat
-              ? "No messages yet"
-              : "Select a chat to start messaging"}
+          messages.map((msg, index) => {
+            const isSent = msg.sender_id === currentUser?.id;
+            const messageDate = new Date(msg.timestamp);
+            const formattedDate = getRelativeDateLabel(messageDate);
 
+            const previousMsg = messages[index - 1];
+            const showDateHeader =
+              index === 0 ||
+              new Date(previousMsg.timestamp).toDateString() !== messageDate.toDateString();
+
+            return (
+              <React.Fragment key={index}>
+                {showDateHeader && (
+                  <div style={styles.dateHeader}>{formattedDate}</div>
+                )}
+
+                <div style={{ ...styles.messageWrapper, alignItems: isSent ? "flex-end" : "flex-start" }}>
+                  {!isSent && selectedChat?.group_id && (
+                    <div style={styles.senderUsername}>User {msg.sender_id}</div>
+                  )}
+                  <div
+                    style={{
+                      ...styles.messageBubble,
+                      ...(isSent ? styles.sent : styles.received),
+                    }}
+                  >
+                    <div>{msg.message_content}</div>
+                  </div>
+                  <div style={styles.meta}>
+                    <span style={styles.timestamp}>
+                      {messageDate.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {msg.status && isSent && (
+                      <span style={styles.status}> · {msg.status}</span>
+                    )}
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })
+        ) : (
+          <div style={styles.placeholder}>
+            {selectedChat ? "No messages yet" : "Select a chat to start messaging"}
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
+
       {selectedChat && (
-        <div style={inputContainerStyle}>
+        <div style={styles.inputContainer}>
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
-            style={inputStyle}
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+            style={styles.input}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <button
-            onClick={handleSendMessage}
-            style={buttonStyle}
-            disabled={!newMessage.trim()}
-          >
+          <button onClick={sendMessage} style={styles.button} disabled={!newMessage.trim()}>
             Send
           </button>
         </div>
@@ -949,6 +993,134 @@ export const ChatSection = ({ selectedChat }) => {
     </div>
   );
 };
+
+const styles = {
+  chat: {
+    width: "45%",
+    height: "90vh",
+    display: "flex",
+    flexDirection: "column",
+    backgroundImage: "radial-gradient(circle farthest-corner at 50.3% 47.3%, rgb(47, 0, 85) 0.1%, rgb(21, 0, 46) 90%)",
+    color: "white",
+    position: "relative",
+  },
+  header: {
+    padding: "1.5rem",
+    backgroundColor: "#240046",
+    borderBottom: "2px solid #3a1f5c",
+    flexShrink: 0,
+  },
+  messages: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "1.5rem",
+    display: "flex",
+    flexDirection: "column",
+  },
+  placeholder: {
+    textAlign: "center",
+    marginTop: "2rem",
+    color: "#aaa",
+  },
+  inputContainer: {
+    padding: "1.5rem",
+    borderTop: "2px solid #3a1f5c",
+    display: "flex",
+    gap: "1rem",
+    backgroundColor: "#2a0252",
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid #6a0dad",
+    backgroundColor: "#1a0133",
+    color: "white",
+    outline: "none",
+  },
+  button: {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    padding: "1rem 1.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+  messageBubble: {
+    maxWidth: "70%",
+    padding: "0.75rem 1rem",
+    marginBottom: "0.75rem",
+    borderRadius: "12px",
+    wordBreak: "break-word",
+  },
+  sent: {
+    backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
+    color: "white",
+    border: "1px solid rgb(161, 79, 255)",
+    borderRadius: "20px",
+    borderTopRightRadius: "5px",
+  },
+  received: {
+    backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
+    color: "black",
+    border: "1px solid rgb(248, 253, 255)",
+    borderRadius: "20px",
+    borderTopLeftRadius: "5px",
+  },
+  messageWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    marginBottom: "1.5rem",
+  },
+  senderUsername: {
+    fontSize: "0.75rem",
+    marginBottom: "0.25rem",
+    color: "#bbb",
+  },
+  meta: {
+    fontSize: "0.8rem",
+    color: "#ccc",
+    marginTop: "0.3rem",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  timestamp: {
+    opacity: 0.8,
+  },
+  dateHeader: {
+    textAlign: "center",
+    color: "#ccc",
+    margin: "1.5rem 0 1rem",
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    letterSpacing: "0.5px",
+  },
+  status: {
+    fontStyle: "italic",
+    opacity: 0.6,
+  },
+  headerTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    fontSize: "1.25rem",
+  },
+  onlineDot: {
+    color: "lightgreen",
+    fontSize: "0.95rem",
+    marginLeft: "0.5rem",
+  },
+  lastSeen: {
+    color: "#ccc",
+    fontSize: "0.9rem",
+    marginLeft: "0.5rem",
+    fontStyle: "italic",
+  },
+};
+
+
 
 
 
@@ -966,7 +1138,7 @@ export const ChatSection = ({ selectedChat }) => {
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
 
-const fetchMovieDetails = async (title,year) => {
+const fetchMovieDetails = async (title, year) => {
   try {
     const searchRes = await fetch(
       `http://localhost:8000/search/?q=${encodeURIComponent(title)}&filter=movie&year=${encodeURIComponent(year)}`
@@ -1065,7 +1237,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       } else {
 
         const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
-        
+
       }
       const { upvotes, downvotes } = await resp.json();
 
@@ -1112,7 +1284,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         let finalList = [...enrichedExisting];
 
-       // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
+        // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
 
         if (finalList.length < 20) {
           const needed = 20 - finalList.length;
@@ -1172,11 +1344,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             .map((d, i) =>
               d
                 ? {
-                    ...d,
-                    recId: recs[i].id,
-                    upvotes: 0,
-                    downvotes: 0,
-                  }
+                  ...d,
+                  recId: recs[i].id,
+                  upvotes: 0,
+                  downvotes: 0,
+                }
                 : null
             )
             .filter(Boolean)
