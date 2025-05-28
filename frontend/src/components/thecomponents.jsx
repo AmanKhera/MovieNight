@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 
 import {
   fetchUserInfo,
@@ -14,7 +16,15 @@ import {
   removeGroupMember
 } from '../api';
 
+dayjs.extend(relativeTime);
+export function formatRelativeTime(timestamp) {
+    if (!timestamp) return "unknown";
 
+    const parsed = dayjs(timestamp);
+    if (!parsed.isValid()) return "unknown";
+
+    return parsed.fromNow(); // e.g., "5 minutes ago"
+  }
 // Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
@@ -746,13 +756,14 @@ export const GroupsSidebar = ({
 
 //***********CHAT SECTION************ */
 //*********************************** */
-
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+  const [lastSeen, setLastSeen] = useState(null);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -769,6 +780,23 @@ export const ChatSection = ({ selectedChat }) => {
     }
   };
 
+  const getRelativeDateLabel = (date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatRelativeTime = (timestamp) => {
+    return dayjs(timestamp).fromNow();
+  };
+
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -777,8 +805,8 @@ export const ChatSection = ({ selectedChat }) => {
         });
         const data = await res.json();
         if (res.ok) setCurrentUser(data);
-      } catch (error) {
-        console.error("Error fetching user info:", error);
+      } catch (err) {
+        console.error("Failed to fetch user info:", err);
       }
     };
     fetchUserInfo();
@@ -798,10 +826,11 @@ export const ChatSection = ({ selectedChat }) => {
 
     if (socketRef.current) socketRef.current.close();
 
-    socketRef.current = new WebSocket(`ws://localhost:8000/ws/chat/${chatType}_${chatId}/`);
+    socketRef.current = new WebSocket(
+      `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
+    );
 
     socketRef.current.onopen = () => {
-      console.log("WebSocket connected");
       setMessages([]);
       setPage(1);
       setHasMore(true);
@@ -812,7 +841,12 @@ export const ChatSection = ({ selectedChat }) => {
       const data = JSON.parse(e.data);
 
       if (data.type === "chat.message") {
-        setMessages((prev) => [...prev, data.message]);
+        if (
+          data.message.sender_id !== currentUser?.id ||
+          selectedChat.group_id != null
+        ) {
+          setMessages((prev) => [...prev, data.message]);
+        }
         if (isAtBottomRef.current) scrollToBottom();
       }
 
@@ -824,6 +858,11 @@ export const ChatSection = ({ selectedChat }) => {
         const prevHeight = messagesContainerRef.current?.scrollHeight;
         setMessages((prev) => [...data.messages, ...prev]);
         setTimeout(() => preserveScroll(prevHeight), 50);
+      }
+
+      if (data.type === "presence" && selectedChat?.id === data.user_id) {
+        setIsOnline(data.is_online);
+        if (data.last_seen) setLastSeen(data.last_seen);
       }
     };
 
@@ -837,8 +876,7 @@ export const ChatSection = ({ selectedChat }) => {
   }, [selectedChat, currentUser]);
 
   const sendMessage = () => {
-    if (!newMessage.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-
+    if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
     const payload = {
       type: "chat.message",
       message: {
@@ -846,17 +884,23 @@ export const ChatSection = ({ selectedChat }) => {
         content: newMessage.trim(),
       },
     };
-
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...payload.message,
+        timestamp: new Date().toISOString(),
+        status: "sent",
+      },
+    ]);
     socketRef.current.send(JSON.stringify(payload));
     setNewMessage("");
+    scrollToBottom();
   };
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
     if (!container) return;
-
     isAtBottomRef.current = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-
     if (container.scrollTop < 50 && hasMore && socketRef.current) {
       socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: page + 1 }));
       setPage((prev) => prev + 1);
@@ -866,23 +910,61 @@ export const ChatSection = ({ selectedChat }) => {
   return (
     <div style={styles.chat}>
       <div style={styles.header}>
-        <h2>{selectedChat?.group_name || selectedChat?.username || "Select a chat"}</h2>
+        <h2 style={styles.headerTitle}>
+          {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+          {selectedChat?.group_id ? null : isOnline ? (
+            <span style={styles.onlineDot}>● Online</span>
+          ) : (
+            <span style={styles.lastSeen}>
+              {lastSeen ? `Last seen ${formatRelativeTime(lastSeen)}` : ""}
+            </span>
+          )}
+        </h2>
       </div>
 
       <div style={styles.messages} onScroll={handleScroll} ref={messagesContainerRef}>
         {messages.length > 0 ? (
           messages.map((msg, index) => {
             const isSent = msg.sender_id === currentUser?.id;
+            const messageDate = new Date(msg.timestamp);
+            const formattedDate = getRelativeDateLabel(messageDate);
+
+            const previousMsg = messages[index - 1];
+            const showDateHeader =
+              index === 0 ||
+              new Date(previousMsg.timestamp).toDateString() !== messageDate.toDateString();
+
             return (
-              <div
-                key={index}
-                style={{
-                  ...styles.messageBubble,
-                  ...(isSent ? styles.sent : styles.received),
-                }}
-              >
-                <div>{msg.message_content}</div>
-              </div>
+              <React.Fragment key={index}>
+                {showDateHeader && (
+                  <div style={styles.dateHeader}>{formattedDate}</div>
+                )}
+
+                <div style={{ ...styles.messageWrapper, alignItems: isSent ? "flex-end" : "flex-start" }}>
+                  {!isSent && selectedChat?.group_id && (
+                    <div style={styles.senderUsername}>User {msg.sender_id}</div>
+                  )}
+                  <div
+                    style={{
+                      ...styles.messageBubble,
+                      ...(isSent ? styles.sent : styles.received),
+                    }}
+                  >
+                    <div>{msg.message_content}</div>
+                  </div>
+                  <div style={styles.meta}>
+                    <span style={styles.timestamp}>
+                      {messageDate.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {msg.status && isSent && (
+                      <span style={styles.status}> · {msg.status}</span>
+                    )}
+                  </div>
+                </div>
+              </React.Fragment>
             );
           })
         ) : (
@@ -918,7 +1000,7 @@ const styles = {
     height: "90vh",
     display: "flex",
     flexDirection: "column",
-    backgroundImage: "radial-gradient( circle farthest-corner at 50.3% 47.3%,  rgb(47, 0, 85) 0.1%, rgb(21, 0, 46) 90% )",
+    backgroundImage: "radial-gradient(circle farthest-corner at 50.3% 47.3%, rgb(47, 0, 85) 0.1%, rgb(21, 0, 46) 90%)",
     color: "white",
     position: "relative",
   },
@@ -974,35 +1056,70 @@ const styles = {
     wordBreak: "break-word",
   },
   sent: {
-    alignSelf: "flex-end",
-    background: "radial-gradient( circle farthest-corner at -5.6% -6.8%,  rgba(103,49,145,1) 37.3%, rgba(50,0,129,1) 73.5% )",
     backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
     color: "white",
     border: "1px solid rgb(161, 79, 255)",
     borderRadius: "20px",
-    borderTopRightRadius: "5px", // sharper corner
-    borderTopLeftRadius: "20px",
-    borderBottomRightRadius: "20px",
-    borderBottomLeftRadius: "20px",
-    padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
-    maxWidth: "70%",
+    borderTopRightRadius: "5px",
   },
   received: {
-    alignSelf: "flex-start",
     backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
     color: "black",
     border: "1px solid rgb(248, 253, 255)",
     borderRadius: "20px",
-    borderTopLeftRadius: "5px", // sharper corner
-    borderTopRightRadius: "20px",
-    borderBottomRightRadius: "20px",
-    borderBottomLeftRadius: "20px",
-    padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
-    maxWidth: "70%",
+    borderTopLeftRadius: "5px",
+  },
+  messageWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    marginBottom: "1.5rem",
+  },
+  senderUsername: {
+    fontSize: "0.75rem",
+    marginBottom: "0.25rem",
+    color: "#bbb",
+  },
+  meta: {
+    fontSize: "0.8rem",
+    color: "#ccc",
+    marginTop: "0.3rem",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  timestamp: {
+    opacity: 0.8,
+  },
+  dateHeader: {
+    textAlign: "center",
+    color: "#ccc",
+    margin: "1.5rem 0 1rem",
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    letterSpacing: "0.5px",
+  },
+  status: {
+    fontStyle: "italic",
+    opacity: 0.6,
+  },
+  headerTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    fontSize: "1.25rem",
+  },
+  onlineDot: {
+    color: "lightgreen",
+    fontSize: "0.95rem",
+    marginLeft: "0.5rem",
+  },
+  lastSeen: {
+    color: "#ccc",
+    fontSize: "0.9rem",
+    marginLeft: "0.5rem",
+    fontStyle: "italic",
   },
 };
+
 
 
 

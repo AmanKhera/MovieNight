@@ -11,6 +11,8 @@ class User(models.Model):
     email = models.EmailField(unique=True)   
     username = models.CharField(max_length=150) 
     date_joined = models.DateTimeField(auto_now_add=True)
+    is_online = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.id}: {self.name}"  #Returns the name of the user when the object is printed

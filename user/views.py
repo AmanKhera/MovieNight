@@ -16,6 +16,7 @@ import jwt
 from django.core import serializers
 from django.utils import timezone
 from datetime import timedelta
+from django.utils.timezone import localtime
 
 
 
@@ -613,7 +614,22 @@ def user_info(request):
     except Exception as e:
         # Catch-all for other decode or unexpected errors
         return JsonResponse({"error": str(e)}, status=500)
+    
+def user_status(request):
+    user_id = request.GET.get("id")
+    if not user_id:
+        return JsonResponse({"error": "Missing user ID"}, status=400)
 
+    try:
+        user = User.objects.get(id=user_id)
+        return JsonResponse({
+            "id": user.id,
+            "username": user.username,
+            "is_online": user.is_online,
+            "last_seen": localtime(user.last_seen).isoformat() if user.last_seen else None,
+        })
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
         
                    
 from django.views.decorators.csrf import ensure_csrf_cookie
