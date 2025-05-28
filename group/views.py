@@ -152,8 +152,8 @@ def add_member_to_group(request):
         #removes movies not seen by everyone
         UserMovieJournal.objects.filter(user=group_id).exclude(movie_id__in=keep_ids).delete()
 
-
-        group_watchlist = Watchlist.objects.get(user=group_id)
+        group_user = User.objects.get(id=group_id)
+        group_watchlist = Watchlist.objects.get(user=group_user)
         new_member_watchlist = Watchlist.objects.get(user=member.id, type = 'main')
 
         movies_in_watchlist = set(WatchlistItem.objects.filter(watchlist=group_watchlist).values_list('movie_id', flat=True))
@@ -322,9 +322,9 @@ def get_user_groups(request):
 def group_recommendation(request):
     group_id = request.GET.get('group_id')
     try:
-        seven_days = timezone.now() - timedelta(days=7)
+        seven_days = timezone.now() - timedelta(days=30)
 
-        # Retrieves recommendations in the past 7 days excluding a specific suggestion
+        #Retrieves recommendations in the past 30 days
         recommendations = MemberRecommendation.objects.filter(
             user_receiving=group_id,
             date_suggested__gte=seven_days
