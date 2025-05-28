@@ -45,7 +45,7 @@ export const createGroup = async (csrfToken, { group_name, leader_id, genre }) =
 };
 
 export const addGroupMember = async (csrfToken, { group_id, user_id }) => {
-  const response = await fetch("http://localhost:8000/add_group_member/", {
+  const response = await fetch("http://localhost:8000/add_members/", {
     method: "POST",
     credentials: "include",
     headers: {
