@@ -510,7 +510,7 @@ const MovieDetailsPage = () => {
 };
 
 const styles = {
-  container: { 
+    container: { 
     position: "relative", 
     padding: "40px 20px", 
     color: "#fff", 
@@ -523,7 +523,7 @@ const styles = {
   backdropOverlay: { 
     position: "absolute", 
     inset: 0, 
-    background: "rgba(36,0,70,0.85)", 
+    backgroundImage: "radial-gradient(circle at center center, rgb(87,0,108),rgb(16,0,43))", 
     zIndex: 0 
   },
   loading: { 

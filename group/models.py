@@ -1,5 +1,6 @@
 from django.db import models
 from user.models import User
+from movie.models import Movie
 
 
 #Group ORM
@@ -82,3 +83,7 @@ class GroupMember(models.Model):
 
     def __str__(self):
         return f"{self.member.username} in {self.group.group_name} ({self.role})"
+    
+
+
+
