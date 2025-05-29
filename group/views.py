@@ -236,8 +236,8 @@ def remove_member_from_group(request):
             .exclude(movie_id__in=group_movie_ids) \
             .delete()
 
-
-        group_watchlist = Watchlist.objects.get(user=group_id, type=Watchlist.MAIN)
+        group_user = User.objects.get(id=group_id)
+        group_watchlist = Watchlist.objects.get(user=group_user, type=Watchlist.MAIN)
         shared_watchlist_ids = None
 
         for member_id in remaining_member_ids:
