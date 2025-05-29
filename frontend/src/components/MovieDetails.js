@@ -23,6 +23,8 @@ const MovieDetailsPage = () => {
 
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [message, setMessage] = useState(null);
+  // ADDED: Animation state for success message
+  const [messageAnimating, setMessageAnimating] = useState(false);
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showWatchedForm, setShowWatchedForm] = useState(false);
@@ -37,6 +39,31 @@ const MovieDetailsPage = () => {
   const [userFriends, setUserFriends] = useState([]);
   const [showGroupList, setShowGroupList] = useState(false);
   const [showFriendList, setShowFriendList] = useState(false);
+
+  // ADDED: New state for watchlist submenu
+  const [userWatchlists, setUserWatchlists] = useState([]);
+  const [showWatchlistSubmenu, setShowWatchlistSubmenu] = useState(false);
+  const [loadingWatchlists, setLoadingWatchlists] = useState(false);
+
+  // ADDED: Enhanced message display function with animations
+  const showAnimatedMessage = (text, type = "success") => {
+    setMessage({ text, type });
+    
+    // Trigger slide-in animation
+    setTimeout(() => {
+      setMessageAnimating(true);
+    }, 10);
+    
+    // Start slide-out animation after 2.5 seconds
+    setTimeout(() => {
+      setMessageAnimating(false);
+    }, 2500);
+    
+    // Remove message completely after slide-out completes
+    setTimeout(() => {
+      setMessage(null);
+    }, 3000);
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -170,12 +197,41 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // UPDATED: Added cache invalidation after successful watchlist addition
+  // ADDED: Function to fetch user's watchlists
+  const fetchUserWatchlists = async () => {
+    setLoadingWatchlists(true);
+    try {
+      const resp = await fetch("http://localhost:8000/grab_watchlist/", { 
+        credentials: "include" 
+      });
+      const data = await resp.json();
+      
+      if (resp.ok && data.status === "success") {
+        setUserWatchlists(data.watchlist || []);
+      } else {
+        throw new Error(data.message || "Failed to fetch watchlists");
+      }
+    } catch (e) {
+      console.error("Failed to fetch watchlists:", e);
+      showAnimatedMessage("Failed to load watchlists", "error");
+    } finally {
+      setLoadingWatchlists(false);
+    }
+  };
+
+  // UPDATED: Modified to show watchlist submenu instead of popup
   const addToWatchlist = async () => {
+    await fetchUserWatchlists();
+    setShowWatchlistSubmenu(true);
+  };
+
+  // ADDED: Function to add movie to specific watchlist
+  const addToSpecificWatchlist = async (watchlistName) => {
     setLoadingAdd(true);
     try {
       const idToSend = movie.db_id || movie.id;
-      const resp = await fetch(`http://localhost:8000/add_movie/?movie_id=${idToSend}`, { credentials: "include" });
+      const url = `http://localhost:8000/add_movie/?movie_id=${idToSend}&watchlist_name=${encodeURIComponent(watchlistName)}`;
+      const resp = await fetch(url, { credentials: "include" });
       const d = await resp.json();
       
       if (resp.ok) {
@@ -183,17 +239,17 @@ const MovieDetailsPage = () => {
         await queryClient.invalidateQueries({ 
           queryKey: ['watchlistMovies'] 
         });
-        setMessage({ text: d.message || "Added to watchlist", type: "success" });
+        showAnimatedMessage(d.message || `Added to ${watchlistName}`, "success");
       } else {
         throw new Error(d.error || "Failed to add to watchlist");
       }
     } catch (e) {
       console.error(e);
-      setMessage({ text: e.message || "Failed to add to watchlist", type: "error" });
+      showAnimatedMessage(e.message || "Failed to add to watchlist", "error");
     } finally {
       setLoadingAdd(false);
+      setShowWatchlistSubmenu(false);
       setShowAddMenu(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -213,17 +269,16 @@ const MovieDetailsPage = () => {
       });
       const data = await resp.json();
       if (resp.ok) {
-        setMessage({ text: data.message || "Recommendation sent to group!", type: "success" });
+        showAnimatedMessage(data.message || "Recommendation sent to group!", "success");
       } else {
         throw new Error(data.error || "Failed to send recommendation");
       }
     } catch (e) {
       console.error(e);
-      setMessage({ text: e.message || "Failed to send to group", type: "error" });
+      showAnimatedMessage(e.message || "Failed to send to group", "error");
     } finally {
       setLoadingAdd(false);
       setShowGroupList(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -243,17 +298,16 @@ const MovieDetailsPage = () => {
       });
       const data = await resp.json();
       if (resp.ok) {
-        setMessage({ text: data.message || "Recommendation sent to friend!", type: "success" });
+        showAnimatedMessage(data.message || "Recommendation sent to friend!", "success");
       } else {
         throw new Error(data.error || "Failed to send recommendation");
       }
     } catch (e) {
       console.error(e);
-      setMessage({ text: e.message || "Failed to send to friend", type: "error" });
+      showAnimatedMessage(e.message || "Failed to send to friend", "error");
     } finally {
       setLoadingAdd(false);
       setShowFriendList(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -275,7 +329,7 @@ const MovieDetailsPage = () => {
         }),
       });
       const d = await resp.json();
-      setMessage({ text: d.message, type: resp.ok ? "success" : "error" });
+      showAnimatedMessage(d.message, resp.ok ? "success" : "error");
 
       if (resp.ok) {
         // ENHANCED: Invalidate all relevant caches including watchlist
@@ -291,14 +345,13 @@ const MovieDetailsPage = () => {
       }
     } catch (e) {
       console.error(e);
-      setMessage({ text: "Failed to mark watched", type: "error" });
+      showAnimatedMessage("Failed to mark watched", "error");
     } finally {
       setLoadingAdd(false);
       setShowWatchedForm(false);
       setShowAddMenu(false);
       setWatchedRating("");
       setWatchedReview("");
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -309,8 +362,18 @@ const MovieDetailsPage = () => {
     <div style={{ ...styles.container, backgroundImage: backdropURL ? `url(${backdropURL})` : undefined }}>
       <div style={styles.backdropOverlay} />
       {message && (
-        <div style={{ ...styles.message, backgroundColor: message.type === "success" ? "#4caf50" : "#f44336" }}>
-          {message.text}
+        <div style={{
+          ...styles.successPopup, 
+          backgroundColor: message.type === "success" ? "#4caf50" : "#f44336",
+          transform: messageAnimating ? "translateX(0)" : "translateX(100%)",
+          opacity: messageAnimating ? 1 : 0,
+        }}>
+          <div style={styles.successContent}>
+            <span style={styles.successIcon}>
+              {message.type === "success" ? "✓" : "✕"}
+            </span>
+            <span style={styles.successText}>{message.text}</span>
+          </div>
         </div>
       )}
 
@@ -322,49 +385,85 @@ const MovieDetailsPage = () => {
 
               <button
                 style={styles.addButton}
-                onClick={() => { setShowAddMenu(s => !s); setShowWatchedForm(false); }}
+                onClick={() => { 
+                  setShowAddMenu(s => !s); 
+                  setShowWatchedForm(false); 
+                  setShowWatchlistSubmenu(false); // Reset watchlist submenu when toggling main menu
+                }}
                 disabled={loadingAdd}
               >
                 {loadingAdd ? "…" : "+"}
               </button>
 
               {showAddMenu && (
-                <div style={styles.addMenu}>
-                  <button 
-                    style={styles.menuButton}
-                    onClick={addToWatchlist}
-                  >
-                    Add to Watchlist
-                  </button>
-                  <button 
-                    style={styles.menuButton}
-                    onClick={() => {
-                      setShowGroupList(true);
-                      setShowAddMenu(false);
-                    }}
-                  >
-                    Send to Group
-                  </button>
-                  <button 
-                    style={styles.menuButton}
-                    onClick={() => {
-                      setShowFriendList(true);
-                      setShowAddMenu(false);
-                    }}
-                  >
-                    Send to Friend
-                  </button>
-                  <button 
-                    style={styles.menuButton}
-                    onClick={() => {
-                      setShowWatchedForm(true);
-                      setShowAddMenu(false);
-                    }}
-                  >
-                    Mark as Watched
-                  </button>
+                <div style={styles.addMenu} key={showWatchlistSubmenu ? 'watchlist' : 'main'}>
+                  {!showWatchlistSubmenu ? (
+                    // Main menu options
+                    <>
+                      <button 
+                        style={styles.menuButton}
+                        onClick={addToWatchlist}
+                      >
+                        Add to Watchlist
+                      </button>
+                      <button 
+                        style={styles.menuButton}
+                        onClick={() => {
+                          setShowGroupList(true);
+                          setShowAddMenu(false);
+                        }}
+                      >
+                        Send to Group
+                      </button>
+                      <button 
+                        style={styles.menuButton}
+                        onClick={() => {
+                          setShowFriendList(true);
+                          setShowAddMenu(false);
+                        }}
+                      >
+                        Send to Friend
+                      </button>
+                      <button 
+                        style={styles.menuButton}
+                        onClick={() => {
+                          setShowWatchedForm(true);
+                          setShowAddMenu(false);
+                        }}
+                      >
+                        Mark as Watched
+                      </button>
+                    </>
+                  ) : (
+                    // Watchlist selection submenu
+                    <>
+                      <button 
+                        style={styles.backButton}
+                        onClick={() => setShowWatchlistSubmenu(false)}
+                      >
+                        ← Back
+                      </button>
+                      {loadingWatchlists ? (
+                        <div style={styles.loadingItem}>Loading watchlists...</div>
+                      ) : userWatchlists.length > 0 ? (
+                        userWatchlists.map(watchlist => (
+                          <button 
+                            key={watchlist.id}
+                            style={styles.menuButton}
+                            onClick={() => addToSpecificWatchlist(watchlist.name)}
+                          >
+                            {watchlist.name}
+                          </button>
+                        ))
+                      ) : (
+                        <div style={styles.noItemsText}>No watchlists found</div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
+
+              {/* REMOVED: Watchlist selection popup */}
             </div>
 
             <div style={styles.info}>
@@ -447,6 +546,8 @@ const MovieDetailsPage = () => {
           </div>
         </div>
       )}
+
+
 
       {showGroupList && (
         <div style={styles.modalOverlay}>
@@ -540,15 +641,33 @@ const styles = {
     padding: "40px", 
     fontSize: "1.2rem" 
   },
-  message: { 
-    padding: "15px", 
-    margin: "0 auto 20px", 
-    color: "#fff", 
-    borderRadius: "4px", 
-    textAlign: "center", 
-    maxWidth: "80%", 
-    position: "relative", 
-    zIndex: 1 
+  successPopup: {
+    position: "fixed",
+    top: "120px",
+    right: "20px",
+    padding: "16px 20px",
+    color: "#fff",
+    borderRadius: "8px",
+    boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+    zIndex: 9999,
+    minWidth: "300px",
+    maxWidth: "400px",
+    transition: "all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    backdropFilter: "blur(10px)",
+  },
+  successContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  successIcon: {
+    fontSize: "20px",
+    fontWeight: "bold",
+  },
+  successText: {
+    fontSize: "1rem",
+    flex: 1,
   },
   mainContentWrapper: {
     display: "flex",
@@ -618,6 +737,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    minHeight: "0", // Add this to prevent height artifacts
   },
   menuButton: {
     padding: "12px 16px",
@@ -631,6 +751,33 @@ const styles = {
     ":hover": {
       backgroundColor: "rgba(125,0,255,0.4)"
     }
+  },
+  backButton: {
+    padding: "12px 16px",
+    backgroundColor: "rgba(125,0,255,0.3)",
+    border: "none",
+    color: "#fff",
+    textAlign: "left",
+    cursor: "pointer",
+    fontSize: "1rem",
+    transition: "all 0.2s",
+    borderBottom: "1px solid rgba(125,0,255,0.5)",
+    ":hover": {
+      backgroundColor: "rgba(125,0,255,0.5)"
+    }
+  },
+  loadingItem: {
+    padding: "12px 16px",
+    color: "#adb5bd",
+    fontSize: "1rem",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  noItemsText: {
+    padding: "12px 16px",
+    color: "#adb5bd",
+    fontSize: "1rem",
+    textAlign: "center",
   },
   info: { 
     flex: 1,

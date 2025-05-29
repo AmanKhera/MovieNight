@@ -216,7 +216,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
 
-            <Route path="/movie/:id" element={<MovieDetailsPage />} />
+            <Route path="/movie/:id" element={<MovieDetailsParentPage />} />
 
             <Route path="/groups" element={
               <ProtectedRoute>
