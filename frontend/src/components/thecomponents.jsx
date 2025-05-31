@@ -1201,9 +1201,17 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [pollView, setPollView] = useState("recommendations");
   const isGroup = activeTab === "groups";
 
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedMovieForSchedule, setSelectedMovieForSchedule] = useState(null);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [proposalVotes, setProposalVotes] = useState({});
+
   const [recommendations, setRecommendations] = useState([]);
+  const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [votedRecIds, setVotedRecIds] = useState(new Set());
@@ -1228,6 +1236,169 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       console.error("Error fetching username:", e);
     }
     return "Member";
+  };
+
+  const voteOnProposal = async (proposalId, votingValue) => {
+    if (!currentUserId) return;
+    
+    try {
+      const resp = await fetch("http://localhost:8000/vote_on_proposal/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_voting_id: currentUserId,
+          proposal_id: proposalId,
+          voting_value: votingValue,
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        
+        // Refresh proposals to get updated status
+        if (data.proposal_accepted) {
+          // Reload proposals to show updated status
+          const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
+          proposalsUrl.searchParams.set(
+            "id_retrieving",
+            isGroup ? selectedItem.group_id : selectedItem.id
+          );
+          
+          const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
+          if (proposalsResp.ok) {
+            const proposalsData = await proposalsResp.json();
+            const proposalsList = proposalsData.proposals || [];
+            
+            const proposalsWithMovieDetails = await Promise.all(
+              proposalsList.map(async (proposal) => {
+                try {
+                  const movieDetails = await fetchMovieDetailsWithoutYear(proposal.movie_title);
+                  return {
+                    ...proposal,
+                    movieDetails: movieDetails
+                  };
+                } catch (e) {
+                  console.error("Error fetching movie details for proposal:", e);
+                  return {
+                    ...proposal,
+                    movieDetails: null
+                  };
+                }
+              })
+            );
+            
+            setProposals(proposalsWithMovieDetails);
+          }
+        }
+        
+        // Refresh votes for this proposal
+        loadVotesForProposals();
+        
+        if (data.proposal_accepted) {
+          alert("Proposal accepted! 🎉");
+        }
+      } else {
+        const errorData = await resp.json();
+        setError(errorData.error || "Failed to vote");
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Failed to vote on proposal");
+    }
+  };
+
+  const loadVotesForProposals = async () => {
+    try {
+      const votesUrl = new URL("http://localhost:8000/retrieve_vote_proposals/");
+      votesUrl.searchParams.set(
+        "recipient_id",
+        isGroup ? selectedItem.group_id : selectedItem.id
+      );
+      
+      const votesResp = await fetch(votesUrl, { credentials: "include" });
+      if (votesResp.ok) {
+        const votesData = await votesResp.json();
+        const votes = votesData.votes || [];
+        
+        // Group votes by proposal_id
+        const votesByProposal = {};
+        votes.forEach(vote => {
+          if (!votesByProposal[vote.proposal_id]) {
+            votesByProposal[vote.proposal_id] = {
+              yesVotes: [],
+              noVotes: [],
+              userVoted: null
+            };
+          }
+          
+          if (vote.vote) {
+            votesByProposal[vote.proposal_id].yesVotes.push(vote);
+          } else {
+            votesByProposal[vote.proposal_id].noVotes.push(vote);
+          }
+          
+          // Check if current user has voted on this proposal
+          if (vote.voter_id === currentUserId) {
+            votesByProposal[vote.proposal_id].userVoted = vote.vote;
+          }
+        });
+        
+        setProposalVotes(votesByProposal);
+      }
+    } catch (e) {
+      console.error("Error loading votes:", e);
+    }
+  };
+
+  const handleScheduleMovie = async () => {
+    if (!currentUserId || !selectedMovieForSchedule || !scheduleDate || !scheduleTime) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    try {
+      const proposedDateTime = `${scheduleDate} ${scheduleTime}:00`;
+      
+      const resp = await fetch("http://localhost:8000/create_movie_proposal/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_proposing_id: currentUserId,
+          user_receiving: isGroup ? selectedItem.group_id : selectedItem.id,
+          movie_id: selectedMovieForSchedule.id,
+          proposed_date: proposedDateTime,
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        setShowScheduleModal(false);
+        setSelectedMovieForSchedule(null);
+        setScheduleDate("");
+        setScheduleTime("");
+        alert("Movie proposal created successfully!");
+      } else {
+        const errorData = await resp.json();
+        setError(errorData.error || "Failed to create proposal");
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Failed to create proposal");
+    }
+  };
+
+  const openScheduleModal = (movie) => {
+    setSelectedMovieForSchedule(movie);
+    setShowScheduleModal(true);
+    setError(null);
+    
+    // Set default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setScheduleDate(tomorrow.toISOString().split('T')[0]);
+    setScheduleTime("19:00"); // Default to 7 PM
   };
 
   const sendVoteAndUpdate = async (recId, value) => {
@@ -1269,120 +1440,203 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setError(null);
     setLoading(true);
 
-    const loadCombinedRecommendations = async () => {
-      try {
-        const memberUrl = new URL("http://localhost:8000/group_recommendation/");
-        memberUrl.searchParams.set(
-          "group_id",
-          isGroup ? selectedItem.group_id : selectedItem.id
-        );
-        
-        const memberResp = await fetch(memberUrl, { credentials: "include" });
-        let memberRecs = [];
-        
-        if (memberResp.ok) {
-          const memberData = await memberResp.json();
-          const recs = memberData.Recommendations || [];
-          const memberDetails = await Promise.all(
-            recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
+    if (pollView === "recommendations") {
+      const loadCombinedRecommendations = async () => {
+        try {
+          const memberUrl = new URL("http://localhost:8000/group_recommendation/");
+          memberUrl.searchParams.set(
+            "group_id",
+            isGroup ? selectedItem.group_id : selectedItem.id
           );
           
-          const memberDetailsWithUsernames = await Promise.all(
-            memberDetails.map(async (d, i) => {
-              if (!d) return null;
-              const username = await fetchUsername(recs[i].member_suggested_id);
-              return {
-                ...d,
-                recId: recs[i].id,
-                upvotes: 0,
-                downvotes: 0,
-                source: 'member',
-                username: username
-              };
-            })
-          );
+          const memberResp = await fetch(memberUrl, { credentials: "include" });
+          let memberRecs = [];
           
-          memberRecs = memberDetailsWithUsernames.filter(Boolean);
-        }
-
-        let finalList = [...memberRecs];
-
-        if (finalList.length < 10) {
-          try {
-            const generatedUrl = new URL("http://localhost:8000/group_recs/");
-            generatedUrl.searchParams.set(
-              "group_id",
-              isGroup ? selectedItem.group_id : selectedItem.id
+          if (memberResp.ok) {
+            const memberData = await memberResp.json();
+            const recs = memberData.Recommendations || [];
+            const memberDetails = await Promise.all(
+              recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
             );
             
-            let generatedResp = await fetch(generatedUrl, { credentials: "include" });
-            let generatedRecs = [];
+            const memberDetailsWithUsernames = await Promise.all(
+              memberDetails.map(async (d, i) => {
+                if (!d) return null;
+                const username = await fetchUsername(recs[i].member_suggested_id);
+                return {
+                  ...d,
+                  recId: recs[i].id,
+                  upvotes: 0,
+                  downvotes: 0,
+                  source: 'member',
+                  username: username
+                };
+              })
+            );
             
-            if (generatedResp.ok) {
-              let generatedData = await generatedResp.json();
-              let existing = generatedData.recommendations || [];
+            memberRecs = memberDetailsWithUsernames.filter(Boolean);
+          }
 
-              const enrichedExisting = (
-                await Promise.all(
-                  existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
-                )
-              )
-                .map((d, i) => d && { ...d, recId: existing[i].id, source: 'generated' })
-                .filter(Boolean);
+          let finalList = [...memberRecs];
 
-              generatedRecs = [...enrichedExisting];
+          if (finalList.length < 10) {
+            try {
+              const generatedUrl = new URL("http://localhost:8000/group_recs/");
+              generatedUrl.searchParams.set(
+                "group_id",
+                isGroup ? selectedItem.group_id : selectedItem.id
+              );
+              
+              let generatedResp = await fetch(generatedUrl, { credentials: "include" });
+              let generatedRecs = [];
+              
+              if (generatedResp.ok) {
+                let generatedData = await generatedResp.json();
+                let existing = generatedData.recommendations || [];
 
-              if (finalList.length + generatedRecs.length < 10) {
-                const needed = 10 - finalList.length - generatedRecs.length;
-                const genResp = await fetch(
-                  "http://localhost:8000/generate_group_recommendations/",
-                  {
-                    method: "POST",
-                    credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      group_id: isGroup
-                        ? selectedItem.group_id
-                        : selectedItem.id,
-                      num_of_recs: needed,
-                    }),
-                  }
-                );
-                
-                if (genResp.ok) {
-                  const { created = [] } = await genResp.json();
-                  const enrichedNew = (
-                    await Promise.all(
-                      created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
-                    )
+                const enrichedExisting = (
+                  await Promise.all(
+                    existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
                   )
-                    .map((d, i) => d && { ...d, recId: created[i].id, source: 'generated' })
-                    .filter(Boolean);
-                  generatedRecs = generatedRecs.concat(enrichedNew);
+                )
+                  .map((d, i) => d && { ...d, recId: existing[i].id, source: 'generated' })
+                  .filter(Boolean);
+
+                generatedRecs = [...enrichedExisting];
+
+                if (finalList.length + generatedRecs.length < 10) {
+                  const needed = 10 - finalList.length - generatedRecs.length;
+                  const genResp = await fetch(
+                    "http://localhost:8000/generate_group_recommendations/",
+                    {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        group_id: isGroup
+                          ? selectedItem.group_id
+                          : selectedItem.id,
+                        num_of_recs: needed,
+                      }),
+                    }
+                  );
+                  
+                  if (genResp.ok) {
+                    const { created = [] } = await genResp.json();
+                    const enrichedNew = (
+                      await Promise.all(
+                        created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
+                      )
+                    )
+                      .map((d, i) => d && { ...d, recId: created[i].id, source: 'generated' })
+                      .filter(Boolean);
+                    generatedRecs = generatedRecs.concat(enrichedNew);
+                  }
                 }
               }
+
+              const remainingSlots = Math.max(0, 10 - finalList.length);
+              finalList = finalList.concat(generatedRecs.slice(0, remainingSlots));
+            } catch (e) {
+              console.error("Error loading generated recommendations:", e);
             }
-
-            const remainingSlots = Math.max(0, 10 - finalList.length);
-            finalList = finalList.concat(generatedRecs.slice(0, remainingSlots));
-          } catch (e) {
-            console.error("Error loading generated recommendations:", e);
           }
+
+          setRecommendations(finalList);
+        } catch (e) {
+          console.error(e);
+          setError(e.message);
+        } finally {
+          setLoading(false);
         }
+      };
 
-        setRecommendations(finalList);
-      } catch (e) {
-        console.error(e);
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
+      loadCombinedRecommendations();
+    } else if (pollView === "schedule") {
+      const loadProposals = async () => {
+        try {
+          const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
+          proposalsUrl.searchParams.set(
+            "id_retrieving",
+            isGroup ? selectedItem.group_id : selectedItem.id
+          );
+          
+          const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
+          
+          if (proposalsResp.ok) {
+            const proposalsData = await proposalsResp.json();
+            const proposalsList = proposalsData.proposals || [];
+            
+            const proposalsWithMovieDetails = await Promise.all(
+              proposalsList.map(async (proposal) => {
+                try {
+                  const movieDetails = await fetchMovieDetailsWithoutYear(proposal.movie_title);
+                  return {
+                    ...proposal,
+                    movieDetails: movieDetails
+                  };
+                } catch (e) {
+                  console.error("Error fetching movie details for proposal:", e);
+                  return {
+                    ...proposal,
+                    movieDetails: null
+                  };
+                }
+              })
+            );
+            
+            setProposals(proposalsWithMovieDetails);
+            
+            // Load votes for proposals
+            loadVotesForProposals();
+          } else {
+            setError("Failed to load proposals");
+          }
+        } catch (e) {
+          console.error(e);
+          setError(e.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadProposals();
+    }
+  }, [selectedItem, activeTab, pollView]);
+
+  const formatDate = (isoString) => {
+    const date = new Date(isoString);
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      0: { text: "Pending", color: "#ff9800" },
+      1: { text: "Accepted", color: "#4caf50" },
+      2: { text: "Rejected", color: "#f44336" }
     };
+    
+    const config = statusConfig[status] || { text: "Unknown", color: "#757575" };
+    
+    return (
+      <span
+        style={{
+          backgroundColor: config.color,
+          color: "white",
+          padding: "2px 8px",
+          borderRadius: "12px",
+          fontSize: "0.7rem",
+          fontWeight: "bold"
+        }}
+      >
+        {config.text}
+      </span>
+    );
+  };
 
-    loadCombinedRecommendations();
-  }, [selectedItem, activeTab]);
-
-  const titleText = isGroup ? "Group Recommendations" : "Friend Recommendations";
+  const titleText = pollView === "recommendations" 
+    ? (isGroup ? "Group Recommendations" : "Friend Recommendations")
+    : "Movie Proposals";
 
   return (
     <div
@@ -1395,133 +1649,428 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         overflowY: "auto",
       }}
     >
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor: pollView === "recommendations" ? "#6a0dad" : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("recommendations")}
+        >
+          Recommendations
+        </button>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor: pollView === "schedule" ? "#6a0dad" : "#240046",
+            color: "white",
+          }}
+          onClick={() => setPollView("schedule")}
+        >
+          Schedule
+        </button>
+      </div>
+
       <h3>{titleText}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {!loading && recommendations.length === 0 && <p>No recommendations yet.</p>}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "1rem",
-        }}
-      >
-        {recommendations.map((movie) => {
-          const hasVoted = votedRecIds.has(movie.recId);
-          return (
-            <div
-              key={movie.recId}
-              style={{
-                backgroundColor: "#240046",
-                borderRadius: "8px",
-                overflow: "hidden",
-                position: "relative",
-                cursor: "pointer",
-              }}
-              onClick={() =>
-                navigate(
-                  `/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(
-                    movie.year
-                  )}`
-                )
-              }
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  backgroundColor: "#6a0dad",
-                  color: "white",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  fontSize: "0.8rem",
-                }}
-              >
-                {movie.rating}
-              </div>
-              {movie.source === 'member' && (
+      {pollView === "recommendations" && (
+        <>
+          {!loading && recommendations.length === 0 && <p>No recommendations yet.</p>}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "1rem",
+            }}
+          >
+            {recommendations.map((movie) => {
+              const hasVoted = votedRecIds.has(movie.recId);
+              return (
                 <div
+                  key={movie.recId}
                   style={{
-                    position: "absolute",
-                    top: 8,
-                    left: 8,
-                    backgroundColor: "#2e7d32",
-                    color: "white",
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                    fontSize: "0.7rem",
+                    backgroundColor: "#240046",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    position: "relative",
+                    cursor: "pointer",
+                  }}
+                  onClick={() =>
+                    navigate(
+                      `/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(
+                        movie.year
+                      )}`
+                    )
+                  }
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      backgroundColor: "#6a0dad",
+                      color: "white",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {movie.rating}
+                  </div>
+                  {movie.source === 'member' && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
+                        backgroundColor: "#2e7d32",
+                        color: "white",
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        fontSize: "0.7rem",
+                      }}
+                    >
+                      {movie.username}
+                    </div>
+                  )}
+                  <img
+                    src={movie.poster}
+                    alt={movie.title}
+                    style={{
+                      width: "100%",
+                      height: 200,
+                      objectFit: "cover",
+                    }}
+                  />
+                  <div style={{ padding: "0.5rem" }}>
+                    <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
+                    <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
+                      {movie.year} • {movie.runtime} mins
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "0.3rem 0.5rem",
+                      backgroundColor: "#1a0133",
+                    }}
+                  >
+                    <button
+                      style={{
+                        border: "none",
+                        padding: "0.4rem",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        backgroundColor: "#2e7d32",
+                        color: "white",
+                        fontSize: "0.8rem"
+                      }}
+                      disabled={hasVoted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendVoteAndUpdate(movie.recId, "upvote");
+                      }}
+                    >
+                      👍 {movie.upvotes}
+                    </button>
+                    <button
+                      style={{
+                        border: "none",
+                        padding: "0.4rem",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        backgroundColor: "#6a0dad",
+                        color: "white",
+                        fontSize: "0.8rem"
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openScheduleModal(movie);
+                      }}
+                    >
+                      📅
+                    </button>
+                    <button
+                      style={{
+                        border: "none",
+                        padding: "0.4rem",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        backgroundColor: "#c62828",
+                        color: "white",
+                        fontSize: "0.8rem"
+                      }}
+                      disabled={hasVoted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendVoteAndUpdate(movie.recId, "downvote");
+                      }}
+                    >
+                      👎 {movie.downvotes}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {pollView === "schedule" && (
+        <>
+          {!loading && proposals.length === 0 && <p>No movie proposals yet.</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {proposals.map((proposal) => {
+              const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
+              const isPending = proposal.status === 0;
+              const hasUserVoted = votes.userVoted !== null;
+              
+              return (
+                <div
+                  key={proposal.proposal_id}
+                  style={{
+                    backgroundColor: "#240046",
+                    borderRadius: "8px",
+                    padding: "1rem",
+                    border: "1px solid #6a0dad",
                   }}
                 >
-                  {movie.username}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                    <div>
+                      <h4 style={{ margin: "0 0 0.25rem 0", color: "#fff" }}>
+                        {proposal.movie_title}
+                      </h4>
+                      <p style={{ margin: "0", fontSize: "0.85rem", color: "#bbb" }}>
+                        Proposed by: <strong>{proposal.proposed_by}</strong>
+                      </p>
+                    </div>
+                    {getStatusBadge(proposal.status)}
+                  </div>
+                  
+                  <div style={{ fontSize: "0.9rem", color: "#ddd", marginBottom: "0.5rem" }}>
+                    📅 {formatDate(proposal.proposed_datetime)}
+                  </div>
+                  
+                  {proposal.movieDetails && (
+                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem" }}>
+                      <img
+                        src={proposal.movieDetails.poster}
+                        alt={proposal.movie_title}
+                        style={{
+                          width: "60px",
+                          height: "90px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                        }}
+                      />
+                      <div style={{ flex: 1, fontSize: "0.8rem", color: "#ccc" }}>
+                        <div>{proposal.movieDetails.year} • {proposal.movieDetails.runtime} mins</div>
+                        <div style={{ marginTop: "0.25rem" }}>⭐ {proposal.movieDetails.rating}</div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Vote counts */}
+                  <div style={{ 
+                    display: "flex", 
+                    gap: "1rem", 
+                    marginTop: "1rem", 
+                    fontSize: "0.85rem", 
+                    color: "#ccc" 
+                  }}>
+                    <span style={{ color: "#4caf50" }}>
+                      ✅ Yes: {votes.yesVotes.length}
+                    </span>
+                    <span style={{ color: "#f44336" }}>
+                      ❌ No: {votes.noVotes.length}
+                    </span>
+                  </div>
+                  
+                  {/* Voting buttons - only show for pending proposals */}
+                  {isPending && (
+                    <div style={{ 
+                      display: "flex", 
+                      gap: "0.5rem", 
+                      marginTop: "1rem",
+                      justifyContent: "flex-end"
+                    }}>
+                      <button
+                        style={{
+                          border: "none",
+                          padding: "0.5rem 1rem",
+                          borderRadius: 4,
+                          cursor: hasUserVoted ? "not-allowed" : "pointer",
+                          backgroundColor: votes.userVoted === true ? "#4caf50" : "#2e7d32",
+                          color: "white",
+                          fontSize: "0.8rem",
+                          opacity: hasUserVoted && votes.userVoted !== true ? 0.5 : 1
+                        }}
+                        disabled={hasUserVoted}
+                        onClick={() => voteOnProposal(proposal.proposal_id, true)}
+                      >
+                        {votes.userVoted === true ? "✅ Voted Yes" : "Accept"}
+                      </button>
+                      <button
+                        style={{
+                          border: "none",
+                          padding: "0.5rem 1rem",
+                          borderRadius: 4,
+                          cursor: hasUserVoted ? "not-allowed" : "pointer",
+                          backgroundColor: votes.userVoted === false ? "#f44336" : "#c62828",
+                          color: "white",
+                          fontSize: "0.8rem",
+                          opacity: hasUserVoted && votes.userVoted !== false ? 0.5 : 1
+                        }}
+                        disabled={hasUserVoted}
+                        onClick={() => voteOnProposal(proposal.proposal_id, false)}
+                      >
+                        {votes.userVoted === false ? "❌ Voted No" : "Reject"}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Show who voted */}
+                  {(votes.yesVotes.length > 0 || votes.noVotes.length > 0) && (
+                    <div style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#999" }}>
+                      {votes.yesVotes.length > 0 && (
+                        <div>
+                          <strong>Accepted by:</strong> {votes.yesVotes.map(v => v.voter_name).join(", ")}
+                        </div>
+                      )}
+                      {votes.noVotes.length > 0 && (
+                        <div>
+                          <strong>Rejected by:</strong> {votes.noVotes.map(v => v.voter_name).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-              <img
-                src={movie.poster}
-                alt={movie.title}
+              );
+            })}
+          </div>
+        </>
+      )}
+      
+      {/* Schedule Movie Modal */}
+      {showScheduleModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowScheduleModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#240046",
+              padding: "2rem",
+              borderRadius: "12px",
+              border: "2px solid #6a0dad",
+              minWidth: "400px",
+              maxWidth: "500px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ color: "white", marginTop: 0 }}>
+              Schedule: {selectedMovieForSchedule?.title}
+            </h3>
+            
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>
+                Date:
+              </label>
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
                 style={{
                   width: "100%",
-                  height: 200,
-                  objectFit: "cover",
+                  padding: "0.5rem",
+                  borderRadius: "4px",
+                  border: "1px solid #6a0dad",
+                  backgroundColor: "#1a0133",
+                  color: "white",
                 }}
               />
-              <div style={{ padding: "0.5rem" }}>
-                <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
-                <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
-                  {movie.year} • {movie.runtime} mins
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "0.3rem 0.5rem",
-                  backgroundColor: "#1a0133",
-                }}
-              >
-                <button
-                  style={{
-                    border: "none",
-                    padding: "0.4rem",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    backgroundColor: "#2e7d32",
-                    color: "white",
-                    fontSize: "0.8rem"
-                  }}
-                  disabled={hasVoted}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendVoteAndUpdate(movie.recId, "upvote");
-                  }}
-                >
-                  👍 {movie.upvotes}
-                </button>
-                <button
-                  style={{
-                    border: "none",
-                    padding: "0.4rem",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    backgroundColor: "#c62828",
-                    color: "white",
-                    fontSize: "0.8rem"
-                  }}
-                  disabled={hasVoted}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendVoteAndUpdate(movie.recId, "downvote");
-                  }}
-                >
-                  👎 {movie.downvotes}
-                </button>
-              </div>
             </div>
-          );
-        })}
-      </div>
+            
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>
+                Time:
+              </label>
+              <input
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  borderRadius: "4px",
+                  border: "1px solid #6a0dad",
+                  backgroundColor: "#1a0133",
+                  color: "white",
+                }}
+              />
+            </div>
+            
+            {error && (
+              <p style={{ color: "#f44336", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                {error}
+              </p>
+            )}
+            
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+              <button
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: "none",
+                  borderRadius: "4px",
+                  backgroundColor: "#757575",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+                onClick={() => setShowScheduleModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: "none",
+                  borderRadius: "4px",
+                  backgroundColor: "#6a0dad",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+                onClick={handleScheduleMovie}
+              >
+                Create Proposal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
