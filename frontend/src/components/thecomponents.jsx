@@ -1201,16 +1201,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [pollView, setPollView] = useState("auto");
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
-  const [groupRecs, setGroupRecs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
   const [votedRecIds, setVotedRecIds] = useState(new Set());
-
 
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
@@ -1219,7 +1215,22 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .catch(console.error);
   }, []);
 
-  const sendVoteAndUpdate = async (recId, value, listSetter) => {
+  const fetchUsername = async (userId) => {
+    try {
+      const resp = await fetch(`http://localhost:8000/frontend_user/?user_id=${userId}`, {
+        credentials: "include"
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.Username;
+      }
+    } catch (e) {
+      console.error("Error fetching username:", e);
+    }
+    return "Member";
+  };
+
+  const sendVoteAndUpdate = async (recId, value) => {
     if (!currentUserId) return;
     try {
       const resp = await fetch("http://localhost:8000/update_recommendation/", {
@@ -1234,16 +1245,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       });
       if (!resp.ok) {
         throw new Error("Vote failed");
-      } else {
-
-        const resp = await fetch()//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<---------------------------------------------------------
-
       }
+      
       const { upvotes, downvotes } = await resp.json();
 
-      listSetter((prev) =>
+      setRecommendations((prev) =>
         prev.map((m) =>
-          (pollView === "auto" ? m.id : m.recId) === recId
+          m.recId === recId
             ? { ...m, upvotes, downvotes }
             : m
         )
@@ -1261,57 +1269,104 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setError(null);
     setLoading(true);
 
-    const loadRecommendations = async () => {
+    const loadCombinedRecommendations = async () => {
       try {
-        const url = new URL("http://localhost:8000/group_recs/");
-        url.searchParams.set(
+        const memberUrl = new URL("http://localhost:8000/group_recommendation/");
+        memberUrl.searchParams.set(
           "group_id",
           isGroup ? selectedItem.group_id : selectedItem.id
         );
-        let resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("");
-        let data = await resp.json();
-        let existing = data.recommendations || [];
-
-        const enrichedExisting = (
-          await Promise.all(
-            existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
-          )
-        )
-          .map((d, i) => d && { ...d, id: existing[i].id })
-          .filter(Boolean);
-
-
-        let finalList = [...enrichedExisting];
-
-        // 3) if fewer than 20, POST to generate_group_recommendations to fill reder
-
-        if (finalList.length < 20) {
-          const needed = 20 - finalList.length;
-          const genResp = await fetch(
-            "http://localhost:8000/generate_group_recommendations/",
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                group_id: isGroup
-                  ? selectedItem.group_id
-                  : selectedItem.id,
-                num_of_recs: needed,
-              }),
-            }
+        
+        const memberResp = await fetch(memberUrl, { credentials: "include" });
+        let memberRecs = [];
+        
+        if (memberResp.ok) {
+          const memberData = await memberResp.json();
+          const recs = memberData.Recommendations || [];
+          const memberDetails = await Promise.all(
+            recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
           );
-          if (genResp.ok) {
-            const { created = [] } = await genResp.json();
-            const enrichedNew = (
-              await Promise.all(
-                created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
+          
+          const memberDetailsWithUsernames = await Promise.all(
+            memberDetails.map(async (d, i) => {
+              if (!d) return null;
+              const username = await fetchUsername(recs[i].member_suggested_id);
+              return {
+                ...d,
+                recId: recs[i].id,
+                upvotes: 0,
+                downvotes: 0,
+                source: 'member',
+                username: username
+              };
+            })
+          );
+          
+          memberRecs = memberDetailsWithUsernames.filter(Boolean);
+        }
+
+        let finalList = [...memberRecs];
+
+        if (finalList.length < 10) {
+          try {
+            const generatedUrl = new URL("http://localhost:8000/group_recs/");
+            generatedUrl.searchParams.set(
+              "group_id",
+              isGroup ? selectedItem.group_id : selectedItem.id
+            );
+            
+            let generatedResp = await fetch(generatedUrl, { credentials: "include" });
+            let generatedRecs = [];
+            
+            if (generatedResp.ok) {
+              let generatedData = await generatedResp.json();
+              let existing = generatedData.recommendations || [];
+
+              const enrichedExisting = (
+                await Promise.all(
+                  existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
+                )
               )
-            )
-              .map((d, i) => d && { ...d, id: created[i].id })
-              .filter(Boolean);
-            finalList = finalList.concat(enrichedNew);
+                .map((d, i) => d && { ...d, recId: existing[i].id, source: 'generated' })
+                .filter(Boolean);
+
+              generatedRecs = [...enrichedExisting];
+
+              if (finalList.length + generatedRecs.length < 10) {
+                const needed = 10 - finalList.length - generatedRecs.length;
+                const genResp = await fetch(
+                  "http://localhost:8000/generate_group_recommendations/",
+                  {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      group_id: isGroup
+                        ? selectedItem.group_id
+                        : selectedItem.id,
+                      num_of_recs: needed,
+                    }),
+                  }
+                );
+                
+                if (genResp.ok) {
+                  const { created = [] } = await genResp.json();
+                  const enrichedNew = (
+                    await Promise.all(
+                      created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
+                    )
+                  )
+                    .map((d, i) => d && { ...d, recId: created[i].id, source: 'generated' })
+                    .filter(Boolean);
+                  generatedRecs = generatedRecs.concat(enrichedNew);
+                }
+              }
+            }
+
+            const remainingSlots = Math.max(0, 10 - finalList.length);
+            finalList = finalList.concat(generatedRecs.slice(0, remainingSlots));
+          } catch (e) {
+            console.error("Error loading generated recommendations:", e);
           }
         }
 
@@ -1324,54 +1379,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
     };
 
-    const loadGroupMembers = async () => {
-      setGroupRecs([]);
-      try {
-        const url = new URL("http://localhost:8000/group_recommendation/");
-        url.searchParams.set(
-          "group_id",
-          isGroup ? selectedItem.group_id : selectedItem.id
-        );
-        const resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("");
-        const data = await resp.json();
-        const recs = data.Recommendations || [];
-        const details = await Promise.all(
-          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
-        );
-        setGroupRecs(
-          details
-            .map((d, i) =>
-              d
-                ? {
-                  ...d,
-                  recId: recs[i].id,
-                  upvotes: 0,
-                  downvotes: 0,
-                }
-                : null
-            )
-            .filter(Boolean)
-        );
-      } catch (e) {
-        console.error(e);
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    loadCombinedRecommendations();
+  }, [selectedItem, activeTab]);
 
-    pollView === "auto" ? loadRecommendations() : loadGroupMembers();
-  }, [selectedItem, activeTab, pollView]);
-
-
-  const list = pollView === "auto" ? recommendations : groupRecs;
-  const titleText =
-    pollView === "auto"
-      ? isGroup
-        ? "Generated Recommendations"
-        : "Friend Recommendations"
-      : "From Members";
+  const titleText = isGroup ? "Group Recommendations" : "Friend Recommendations";
 
   return (
     <div
@@ -1384,46 +1395,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         overflowY: "auto",
       }}
     >
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button
-          style={{
-            flex: 1,
-            padding: "0.5rem",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            backgroundColor:
-              pollView === "auto" ? "#6a0dad" : "#240046",
-            color: "white",
-          }}
-          onClick={() => setPollView("auto")}
-        >
-          Recommendations
-        </button>
-        <button
-          style={{
-            flex: 1,
-            padding: "0.5rem",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            backgroundColor:
-              pollView === "fromFriends"
-                ? "#6a0dad"
-                : "#240046",
-            color: "white",
-          }}
-          onClick={() => setPollView("fromFriends")}
-        >
-          From Members
-        </button>
-      </div>
-
       <h3>{titleText}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {!loading && list.length === 0 && <p>No recommendations yet.</p>}
+      {!loading && recommendations.length === 0 && <p>No recommendations yet.</p>}
 
       <div
         style={{
@@ -1432,13 +1408,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           gap: "1rem",
         }}
       >
-        {list.map((movie) => {
-          const idKey =
-            pollView === "auto" ? movie.id : movie.recId;
-          const hasVoted = votedRecIds.has(idKey);
+        {recommendations.map((movie) => {
+          const hasVoted = votedRecIds.has(movie.recId);
           return (
             <div
-              key={idKey}
+              key={movie.recId}
               style={{
                 backgroundColor: "#240046",
                 borderRadius: "8px",
@@ -1468,6 +1442,22 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               >
                 {movie.rating}
               </div>
+              {movie.source === 'member' && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    left: 8,
+                    backgroundColor: "#2e7d32",
+                    color: "white",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    fontSize: "0.7rem",
+                  }}
+                >
+                  {movie.username}
+                </div>
+              )}
               <img
                 src={movie.poster}
                 alt={movie.title}
@@ -1504,7 +1494,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                   disabled={hasVoted}
                   onClick={(e) => {
                     e.stopPropagation();
-                    sendVoteAndUpdate(idKey, UP_VOTE, setRecommendations);
+                    sendVoteAndUpdate(movie.recId, "upvote");
                   }}
                 >
                   👍 {movie.upvotes}
@@ -1522,7 +1512,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                   disabled={hasVoted}
                   onClick={(e) => {
                     e.stopPropagation();
-                    sendVoteAndUpdate(idKey, DOWN_VOTE, setRecommendations);
+                    sendVoteAndUpdate(movie.recId, "downvote");
                   }}
                 >
                   👎 {movie.downvotes}
