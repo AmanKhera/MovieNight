@@ -1204,17 +1204,18 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [pollView, setPollView] = useState("recommendations");
   const isGroup = activeTab === "groups";
 
+  const [recommendations, setRecommendations] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [userVotes, setUserVotes] = useState({}); // Track user's votes per recommendation
+  const [proposalVotes, setProposalVotes] = useState({});
+
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedMovieForSchedule, setSelectedMovieForSchedule] = useState(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
-  const [proposalVotes, setProposalVotes] = useState({});
-
-  const [recommendations, setRecommendations] = useState([]);
-  const [proposals, setProposals] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [votedRecIds, setVotedRecIds] = useState(new Set());
 
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
@@ -1238,6 +1239,106 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return "Member";
   };
 
+  const sendVoteAndUpdate = async (recId, voteValue) => {
+    if (!currentUserId) return;
+    
+    try {
+      const resp = await fetch("http://localhost:8000/update_recommendation/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          recommendation_id: recId,
+          value: voteValue, // 1 for upvote, -1 for downvote
+        }),
+      });
+
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        if (errorData.error === "You've already voted.") {
+          setError("You've already voted on this recommendation");
+        } else {
+          setError("Vote failed");
+        }
+        return;
+      }
+      
+      const { recommended, upvotes, downvotes, threshold } = await resp.json();
+
+      // Update recommendation in state
+      setRecommendations((prev) =>
+        prev.map((m) =>
+          m.recId === recId
+            ? { 
+                ...m, 
+                upvotes, 
+                downvotes, 
+                threshold,
+                recommended,
+                isInWatchlist: recommended === 1
+              }
+            : m
+        )
+      );
+
+      // Track user's vote
+      setUserVotes(prev => ({
+        ...prev,
+        [recId]: voteValue
+      }));
+
+      // Clear any previous error
+      setError(null);
+
+      // If movie was recommended for watchlist, refresh watchlist
+      if (recommended === 1) {
+        loadWatchlist();
+      }
+
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    }
+  };
+
+  const loadWatchlist = async () => {
+    try {
+      const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
+      watchlistUrl.searchParams.set("id", selectedItem.group_id);
+      watchlistUrl.searchParams.set("watchlist_name", "Watchlist");
+      
+      const watchlistResp = await fetch(watchlistUrl, { credentials: "include" });
+      if (watchlistResp.ok) {
+        const watchlistData = await watchlistResp.json();
+        const items = watchlistData.watchlist || [];
+        
+        const watchlistWithDetails = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const movieDetails = await fetchMovieDetailsWithoutYear(item.title);
+              return {
+                ...item,
+                movieDetails: movieDetails
+              };
+            } catch (e) {
+              console.error("Error fetching movie details for watchlist item:", e);
+              return {
+                ...item,
+                movieDetails: null
+              };
+            }
+          })
+        );
+        
+        setWatchlist(watchlistWithDetails);
+      }
+    } catch (e) {
+      console.error("Error loading watchlist:", e);
+      setError("Failed to load watchlist");
+    }
+  };
+
   const voteOnProposal = async (proposalId, votingValue) => {
     if (!currentUserId) return;
     
@@ -1256,43 +1357,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       if (resp.ok) {
         const data = await resp.json();
         
-        // Refresh proposals to get updated status
-        if (data.proposal_accepted) {
-          // Reload proposals to show updated status
-          const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
-          proposalsUrl.searchParams.set(
-            "id_retrieving",
-            isGroup ? selectedItem.group_id : selectedItem.id
-          );
-          
-          const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
-          if (proposalsResp.ok) {
-            const proposalsData = await proposalsResp.json();
-            const proposalsList = proposalsData.proposals || [];
-            
-            const proposalsWithMovieDetails = await Promise.all(
-              proposalsList.map(async (proposal) => {
-                try {
-                  const movieDetails = await fetchMovieDetailsWithoutYear(proposal.movie_title);
-                  return {
-                    ...proposal,
-                    movieDetails: movieDetails
-                  };
-                } catch (e) {
-                  console.error("Error fetching movie details for proposal:", e);
-                  return {
-                    ...proposal,
-                    movieDetails: null
-                  };
-                }
-              })
-            );
-            
-            setProposals(proposalsWithMovieDetails);
-          }
-        }
-        
-        // Refresh votes for this proposal
+        // Refresh proposals and votes
+        loadProposals();
         loadVotesForProposals();
         
         if (data.proposal_accepted) {
@@ -1311,17 +1377,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const loadVotesForProposals = async () => {
     try {
       const votesUrl = new URL("http://localhost:8000/retrieve_vote_proposals/");
-      votesUrl.searchParams.set(
-        "recipient_id",
-        isGroup ? selectedItem.group_id : selectedItem.id
-      );
+      votesUrl.searchParams.set("recipient_id", isGroup ? selectedItem.group_id : selectedItem.id);
       
       const votesResp = await fetch(votesUrl, { credentials: "include" });
       if (votesResp.ok) {
         const votesData = await votesResp.json();
         const votes = votesData.votes || [];
         
-        // Group votes by proposal_id
         const votesByProposal = {};
         votes.forEach(vote => {
           if (!votesByProposal[vote.proposal_id]) {
@@ -1338,7 +1400,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             votesByProposal[vote.proposal_id].noVotes.push(vote);
           }
           
-          // Check if current user has voted on this proposal
           if (vote.voter_id === currentUserId) {
             votesByProposal[vote.proposal_id].userVoted = vote.vote;
           }
@@ -1348,6 +1409,42 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
     } catch (e) {
       console.error("Error loading votes:", e);
+    }
+  };
+
+  const loadProposals = async () => {
+    try {
+      const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
+      proposalsUrl.searchParams.set("id_retrieving", isGroup ? selectedItem.group_id : selectedItem.id);
+      
+      const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
+      if (proposalsResp.ok) {
+        const proposalsData = await proposalsResp.json();
+        const proposalsList = proposalsData.proposals || [];
+        
+        const proposalsWithMovieDetails = await Promise.all(
+          proposalsList.map(async (proposal) => {
+            try {
+              const movieDetails = await fetchMovieDetailsWithoutYear(proposal.movie_title);
+              return {
+                ...proposal,
+                movieDetails: movieDetails
+              };
+            } catch (e) {
+              console.error("Error fetching movie details for proposal:", e);
+              return {
+                ...proposal,
+                movieDetails: null
+              };
+            }
+          })
+        );
+        
+        setProposals(proposalsWithMovieDetails);
+      }
+    } catch (e) {
+      console.error("Error loading proposals:", e);
+      setError("Failed to load proposals");
     }
   };
 
@@ -1367,18 +1464,18 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         body: JSON.stringify({
           user_proposing_id: currentUserId,
           user_receiving: isGroup ? selectedItem.group_id : selectedItem.id,
-          movie_id: selectedMovieForSchedule.id,
+          movie_id: selectedMovieForSchedule.movieDetails?.id || selectedMovieForSchedule.id,
           proposed_date: proposedDateTime,
         }),
       });
 
       if (resp.ok) {
-        const data = await resp.json();
         setShowScheduleModal(false);
         setSelectedMovieForSchedule(null);
         setScheduleDate("");
         setScheduleTime("");
         alert("Movie proposal created successfully!");
+        loadProposals(); // Refresh proposals
       } else {
         const errorData = await resp.json();
         setError(errorData.error || "Failed to create proposal");
@@ -1394,45 +1491,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setShowScheduleModal(true);
     setError(null);
     
-    // Set default date to tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setScheduleDate(tomorrow.toISOString().split('T')[0]);
-    setScheduleTime("19:00"); // Default to 7 PM
-  };
-
-  const sendVoteAndUpdate = async (recId, value) => {
-    if (!currentUserId) return;
-    try {
-      const resp = await fetch("http://localhost:8000/update_recommendation/", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: currentUserId,
-          recommendation_id: recId,
-          value,
-        }),
-      });
-      if (!resp.ok) {
-        throw new Error("Vote failed");
-      }
-      
-      const { upvotes, downvotes } = await resp.json();
-
-      setRecommendations((prev) =>
-        prev.map((m) =>
-          m.recId === recId
-            ? { ...m, upvotes, downvotes }
-            : m
-        )
-      );
-
-      setVotedRecIds((s) => new Set(s).add(recId));
-    } catch (e) {
-      console.error(e);
-      setError(e.message);
-    }
+    setScheduleTime("19:00");
   };
 
   useEffect(() => {
@@ -1440,14 +1502,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setError(null);
     setLoading(true);
 
-    if (pollView === "recommendations") {
-      const loadCombinedRecommendations = async () => {
+    const loadData = async () => {
+      if (pollView === "recommendations") {
+        // Load recommendations (member + generated)
         try {
           const memberUrl = new URL("http://localhost:8000/group_recommendation/");
-          memberUrl.searchParams.set(
-            "group_id",
-            isGroup ? selectedItem.group_id : selectedItem.id
-          );
+          memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
           
           const memberResp = await fetch(memberUrl, { credentials: "include" });
           let memberRecs = [];
@@ -1466,8 +1526,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 return {
                   ...d,
                   recId: recs[i].id,
-                  upvotes: 0,
-                  downvotes: 0,
+                  upvotes: recs[i].upvotes || 0,
+                  downvotes: recs[i].downvotes || 0,
+                  threshold: recs[i].threshold || 3,
+                  recommended: recs[i].recommended || 0,
+                  isInWatchlist: recs[i].recommended === 1,
                   source: 'member',
                   username: username
                 };
@@ -1480,65 +1543,32 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           let finalList = [...memberRecs];
 
           if (finalList.length < 10) {
-            try {
-              const generatedUrl = new URL("http://localhost:8000/group_recs/");
-              generatedUrl.searchParams.set(
-                "group_id",
-                isGroup ? selectedItem.group_id : selectedItem.id
-              );
-              
-              let generatedResp = await fetch(generatedUrl, { credentials: "include" });
-              let generatedRecs = [];
-              
-              if (generatedResp.ok) {
-                let generatedData = await generatedResp.json();
-                let existing = generatedData.recommendations || [];
+            const generatedUrl = new URL("http://localhost:8000/group_recs/");
+            generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+            
+            const generatedResp = await fetch(generatedUrl, { credentials: "include" });
+            if (generatedResp.ok) {
+              const generatedData = await generatedResp.json();
+              const existing = generatedData.recommendations || [];
 
-                const enrichedExisting = (
-                  await Promise.all(
-                    existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
-                  )
+              const enrichedExisting = (
+                await Promise.all(
+                  existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
                 )
-                  .map((d, i) => d && { ...d, recId: existing[i].id, source: 'generated' })
-                  .filter(Boolean);
+              )
+                .map((d, i) => d && { 
+                  ...d, 
+                  recId: existing[i].id, 
+                  upvotes: existing[i].upvotes || 0,
+                  downvotes: existing[i].downvotes || 0,
+                  threshold: existing[i].threshold || 3,
+                  recommended: existing[i].recommended || 0,
+                  isInWatchlist: existing[i].recommended === 1,
+                  source: 'generated' 
+                })
+                .filter(Boolean);
 
-                generatedRecs = [...enrichedExisting];
-
-                if (finalList.length + generatedRecs.length < 10) {
-                  const needed = 10 - finalList.length - generatedRecs.length;
-                  const genResp = await fetch(
-                    "http://localhost:8000/generate_group_recommendations/",
-                    {
-                      method: "POST",
-                      credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        group_id: isGroup
-                          ? selectedItem.group_id
-                          : selectedItem.id,
-                        num_of_recs: needed,
-                      }),
-                    }
-                  );
-                  
-                  if (genResp.ok) {
-                    const { created = [] } = await genResp.json();
-                    const enrichedNew = (
-                      await Promise.all(
-                        created.map((c) => fetchMovieDetailsWithoutYear(c.movie_title))
-                      )
-                    )
-                      .map((d, i) => d && { ...d, recId: created[i].id, source: 'generated' })
-                      .filter(Boolean);
-                    generatedRecs = generatedRecs.concat(enrichedNew);
-                  }
-                }
-              }
-
-              const remainingSlots = Math.max(0, 10 - finalList.length);
-              finalList = finalList.concat(generatedRecs.slice(0, remainingSlots));
-            } catch (e) {
-              console.error("Error loading generated recommendations:", e);
+              finalList = finalList.concat(enrichedExisting.slice(0, 10 - finalList.length));
             }
           }
 
@@ -1546,62 +1576,18 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         } catch (e) {
           console.error(e);
           setError(e.message);
-        } finally {
-          setLoading(false);
         }
-      };
+      } else if (pollView === "watchlist") {
+        await loadWatchlist();
+      } else if (pollView === "proposals") {
+        await loadProposals();
+        await loadVotesForProposals();
+      }
+      
+      setLoading(false);
+    };
 
-      loadCombinedRecommendations();
-    } else if (pollView === "schedule") {
-      const loadProposals = async () => {
-        try {
-          const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
-          proposalsUrl.searchParams.set(
-            "id_retrieving",
-            isGroup ? selectedItem.group_id : selectedItem.id
-          );
-          
-          const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
-          
-          if (proposalsResp.ok) {
-            const proposalsData = await proposalsResp.json();
-            const proposalsList = proposalsData.proposals || [];
-            
-            const proposalsWithMovieDetails = await Promise.all(
-              proposalsList.map(async (proposal) => {
-                try {
-                  const movieDetails = await fetchMovieDetailsWithoutYear(proposal.movie_title);
-                  return {
-                    ...proposal,
-                    movieDetails: movieDetails
-                  };
-                } catch (e) {
-                  console.error("Error fetching movie details for proposal:", e);
-                  return {
-                    ...proposal,
-                    movieDetails: null
-                  };
-                }
-              })
-            );
-            
-            setProposals(proposalsWithMovieDetails);
-            
-            // Load votes for proposals
-            loadVotesForProposals();
-          } else {
-            setError("Failed to load proposals");
-          }
-        } catch (e) {
-          console.error(e);
-          setError(e.message);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      loadProposals();
-    }
+    loadData();
   }, [selectedItem, activeTab, pollView]);
 
   const formatDate = (isoString) => {
@@ -1634,9 +1620,43 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     );
   };
 
-  const titleText = pollView === "recommendations" 
-    ? (isGroup ? "Group Recommendations" : "Friend Recommendations")
-    : "Movie Proposals";
+  const getRecommendationStatusBadge = (recommended) => {
+    const statusConfig = {
+      1: { text: "In Watchlist!", color: "#4caf50" },
+      "-1": { text: "Rejected", color: "#f44336" },
+      0: { text: "Pending", color: "#ff9800" }
+    };
+    
+    const config = statusConfig[recommended] || { text: "Pending", color: "#ff9800" };
+    
+    return (
+      <span
+        style={{
+          backgroundColor: config.color,
+          color: "white",
+          padding: "2px 6px",
+          borderRadius: "4px",
+          fontSize: "0.7rem",
+          fontWeight: "bold"
+        }}
+      >
+        {config.text}
+      </span>
+    );
+  };
+
+  const getTitleText = () => {
+    switch (pollView) {
+      case "recommendations":
+        return isGroup ? "Group Recommendations" : "Friend Recommendations";
+      case "watchlist":
+        return "Watchlist";
+      case "proposals":
+        return "Movie Proposals";
+      default:
+        return "";
+    }
+  };
 
   return (
     <div
@@ -1659,6 +1679,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             cursor: "pointer",
             backgroundColor: pollView === "recommendations" ? "#6a0dad" : "#240046",
             color: "white",
+            fontSize: "0.8rem"
           }}
           onClick={() => setPollView("recommendations")}
         >
@@ -1671,31 +1692,44 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             border: "none",
             borderRadius: "4px",
             cursor: "pointer",
-            backgroundColor: pollView === "schedule" ? "#6a0dad" : "#240046",
+            backgroundColor: pollView === "watchlist" ? "#6a0dad" : "#240046",
             color: "white",
+            fontSize: "0.8rem"
           }}
-          onClick={() => setPollView("schedule")}
+          onClick={() => setPollView("watchlist")}
         >
-          Schedule
+          Watchlist
+        </button>
+        <button
+          style={{
+            flex: 1,
+            padding: "0.5rem",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            backgroundColor: pollView === "proposals" ? "#6a0dad" : "#240046",
+            color: "white",
+            fontSize: "0.8rem"
+          }}
+          onClick={() => setPollView("proposals")}
+        >
+          Proposals
         </button>
       </div>
 
-      <h3>{titleText}</h3>
+      <h3>{getTitleText()}</h3>
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
+      {/* Recommendations Tab */}
       {pollView === "recommendations" && (
         <>
           {!loading && recommendations.length === 0 && <p>No recommendations yet.</p>}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "1rem",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
             {recommendations.map((movie) => {
-              const hasVoted = votedRecIds.has(movie.recId);
+              const userVote = userVotes[movie.recId];
+              const totalVotes = movie.upvotes + movie.downvotes;
+              
               return (
                 <div
                   key={movie.recId}
@@ -1706,13 +1740,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     position: "relative",
                     cursor: "pointer",
                   }}
-                  onClick={() =>
-                    navigate(
-                      `/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(
-                        movie.year
-                      )}`
-                    )
-                  }
+                  onClick={() => navigate(`/movie/${encodeURIComponent(movie.title)}?release_date=${encodeURIComponent(movie.year)}`)}
                 >
                   <div
                     style={{
@@ -1744,19 +1772,29 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       {movie.username}
                     </div>
                   )}
+                  {movie.recommended !== 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: movie.source === 'member' ? 35 : 8,
+                        left: 8,
+                      }}
+                    >
+                      {getRecommendationStatusBadge(movie.recommended)}
+                    </div>
+                  )}
                   <img
                     src={movie.poster}
                     alt={movie.title}
-                    style={{
-                      width: "100%",
-                      height: 200,
-                      objectFit: "cover",
-                    }}
+                    style={{ width: "100%", height: 200, objectFit: "cover" }}
                   />
                   <div style={{ padding: "0.5rem" }}>
                     <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
                     <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
                       {movie.year} • {movie.runtime} mins
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "#ccc", marginTop: "0.25rem" }}>
+                      {movie.upvotes}/{movie.threshold} votes needed for watchlist
                     </div>
                   </div>
                   <div
@@ -1773,14 +1811,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                         padding: "0.4rem",
                         borderRadius: 4,
                         cursor: "pointer",
-                        backgroundColor: "#2e7d32",
+                        backgroundColor: userVote === 1 ? "#1e7e34" : "#2e7d32",
                         color: "white",
-                        fontSize: "0.8rem"
+                        fontSize: "0.8rem",
+                        opacity: userVote === -1 ? 0.7 : 1
                       }}
-                      disabled={hasVoted}
                       onClick={(e) => {
                         e.stopPropagation();
-                        sendVoteAndUpdate(movie.recId, "upvote");
+                        sendVoteAndUpdate(movie.recId, 1);
                       }}
                     >
                       👍 {movie.upvotes}
@@ -1791,31 +1829,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                         padding: "0.4rem",
                         borderRadius: 4,
                         cursor: "pointer",
-                        backgroundColor: "#6a0dad",
+                        backgroundColor: userVote === -1 ? "#bd2130" : "#c62828",
                         color: "white",
-                        fontSize: "0.8rem"
+                        fontSize: "0.8rem",
+                        opacity: userVote === 1 ? 0.7 : 1
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openScheduleModal(movie);
-                      }}
-                    >
-                      📅
-                    </button>
-                    <button
-                      style={{
-                        border: "none",
-                        padding: "0.4rem",
-                        borderRadius: 4,
-                        cursor: "pointer",
-                        backgroundColor: "#c62828",
-                        color: "white",
-                        fontSize: "0.8rem"
-                      }}
-                      disabled={hasVoted}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        sendVoteAndUpdate(movie.recId, "downvote");
+                        sendVoteAndUpdate(movie.recId, -1);
                       }}
                     >
                       👎 {movie.downvotes}
@@ -1828,9 +1849,88 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         </>
       )}
 
-      {pollView === "schedule" && (
+      {/* Watchlist Tab */}
+      {pollView === "watchlist" && (
         <>
-          {!loading && proposals.length === 0 && <p>No movie proposals yet.</p>}
+          {!loading && watchlist.length === 0 && <p>No movies in watchlist yet. Vote for recommendations to add them!</p>}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
+            {watchlist.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  backgroundColor: "#240046",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  position: "relative",
+                  cursor: "pointer",
+                }}
+                onClick={() => navigate(`/movie/${encodeURIComponent(item.title)}`)}
+              >
+                {item.movieDetails && (
+                  <>
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        backgroundColor: "#6a0dad",
+                        color: "white",
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      {item.movieDetails.rating}
+                    </div>
+                    <img
+                      src={item.movieDetails.poster}
+                      alt={item.title}
+                      style={{ width: "100%", height: 200, objectFit: "cover" }}
+                    />
+                    <div style={{ padding: "0.5rem" }}>
+                      <strong style={{ fontSize: "0.9rem" }}>{item.title}</strong>
+                      <div style={{ fontSize: "0.7rem", color: "#bbb" }}>
+                        {item.movieDetails.year} • {item.movieDetails.runtime} mins
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div
+                  style={{
+                    padding: "0.3rem 0.5rem",
+                    backgroundColor: "#1a0133",
+                    display: "flex",
+                    justifyContent: "center"
+                  }}
+                >
+                  <button
+                    style={{
+                      border: "none",
+                      padding: "0.4rem 1rem",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      backgroundColor: "#6a0dad",
+                      color: "white",
+                      fontSize: "0.8rem"
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openScheduleModal(item);
+                    }}
+                  >
+                    📅 Schedule
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Proposals Tab */}
+      {pollView === "proposals" && (
+        <>
+          {!loading && proposals.length === 0 && <p>No movie proposals yet. Schedule movies from your watchlist!</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {proposals.map((proposal) => {
               const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
@@ -1868,12 +1968,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       <img
                         src={proposal.movieDetails.poster}
                         alt={proposal.movie_title}
-                        style={{
-                          width: "60px",
-                          height: "90px",
-                          objectFit: "cover",
-                          borderRadius: "4px",
-                        }}
+                        style={{ width: "60px", height: "90px", objectFit: "cover", borderRadius: "4px" }}
                       />
                       <div style={{ flex: 1, fontSize: "0.8rem", color: "#ccc" }}>
                         <div>{proposal.movieDetails.year} • {proposal.movieDetails.runtime} mins</div>
@@ -1882,30 +1977,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     </div>
                   )}
                   
-                  {/* Vote counts */}
-                  <div style={{ 
-                    display: "flex", 
-                    gap: "1rem", 
-                    marginTop: "1rem", 
-                    fontSize: "0.85rem", 
-                    color: "#ccc" 
-                  }}>
-                    <span style={{ color: "#4caf50" }}>
-                      ✅ Yes: {votes.yesVotes.length}
-                    </span>
-                    <span style={{ color: "#f44336" }}>
-                      ❌ No: {votes.noVotes.length}
-                    </span>
+                  <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", fontSize: "0.85rem", color: "#ccc" }}>
+                    <span style={{ color: "#4caf50" }}>✅ Yes: {votes.yesVotes.length}</span>
+                    <span style={{ color: "#f44336" }}>❌ No: {votes.noVotes.length}</span>
                   </div>
                   
-                  {/* Voting buttons - only show for pending proposals */}
                   {isPending && (
-                    <div style={{ 
-                      display: "flex", 
-                      gap: "0.5rem", 
-                      marginTop: "1rem",
-                      justifyContent: "flex-end"
-                    }}>
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", justifyContent: "flex-end" }}>
                       <button
                         style={{
                           border: "none",
@@ -1941,18 +2019,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     </div>
                   )}
                   
-                  {/* Show who voted */}
                   {(votes.yesVotes.length > 0 || votes.noVotes.length > 0) && (
                     <div style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#999" }}>
                       {votes.yesVotes.length > 0 && (
-                        <div>
-                          <strong>Accepted by:</strong> {votes.yesVotes.map(v => v.voter_name).join(", ")}
-                        </div>
+                        <div><strong>Accepted by:</strong> {votes.yesVotes.map(v => v.voter_name).join(", ")}</div>
                       )}
                       {votes.noVotes.length > 0 && (
-                        <div>
-                          <strong>Rejected by:</strong> {votes.noVotes.map(v => v.voter_name).join(", ")}
-                        </div>
+                        <div><strong>Rejected by:</strong> {votes.noVotes.map(v => v.voter_name).join(", ")}</div>
                       )}
                     </div>
                   )}
@@ -1992,13 +2065,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ color: "white", marginTop: 0 }}>
-              Schedule: {selectedMovieForSchedule?.title}
+              Schedule: {selectedMovieForSchedule?.title || selectedMovieForSchedule?.movieDetails?.title}
             </h3>
             
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>
-                Date:
-              </label>
+              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>Date:</label>
               <input
                 type="date"
                 value={scheduleDate}
@@ -2016,9 +2087,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             </div>
             
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>
-                Time:
-              </label>
+              <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>Time:</label>
               <input
                 type="time"
                 value={scheduleTime}
@@ -2035,9 +2104,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             </div>
             
             {error && (
-              <p style={{ color: "#f44336", fontSize: "0.9rem", marginBottom: "1rem" }}>
-                {error}
-              </p>
+              <p style={{ color: "#f44336", fontSize: "0.9rem", marginBottom: "1rem" }}>{error}</p>
             )}
             
             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
@@ -2074,7 +2141,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
 
 
 
