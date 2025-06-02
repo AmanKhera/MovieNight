@@ -1203,6 +1203,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [pollView, setPollView] = useState("recommendations");
   const [groupThreshold, setGroupThreshold] = useState(3); // Default threshold
+  const [calendarDate, setCalendarDate] = useState(new Date()); // For calendar navigation
+  const [calendarView, setCalendarView] = useState('calendar'); // 'calendar' or 'list'
+  const [selectedProposalId, setSelectedProposalId] = useState(null); // For highlighting in list view
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
@@ -1586,6 +1589,85 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     setScheduleDate(tomorrow.toISOString().split('T')[0]);
     setScheduleTime("19:00");
+  };
+
+  // Calendar helper functions
+  const getNextTwoWeeks = () => {
+    const days = [];
+    const today = new Date();
+    
+    // Start from today
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      days.push(date);
+    }
+    
+    return days;
+  };
+
+  const getProposalsForDate = (date) => {
+    if (!date) return [];
+    
+    const dateString = date.toISOString().split('T')[0];
+    return proposals.filter(proposal => {
+      const proposalDate = new Date(proposal.proposed_datetime).toISOString().split('T')[0];
+      return proposalDate === dateString;
+    }).sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
+  };
+
+  const checkTimeConflicts = (dateProposals) => {
+    const conflicts = [];
+    for (let i = 0; i < dateProposals.length - 1; i++) {
+      const current = new Date(dateProposals[i].proposed_datetime);
+      const next = new Date(dateProposals[i + 1].proposed_datetime);
+      const timeDiff = Math.abs(next - current) / (1000 * 60); // minutes
+      
+      // Consider conflict if movies are within 3 hours of each other
+      if (timeDiff < 180) {
+        conflicts.push(dateProposals[i].proposal_id);
+        conflicts.push(dateProposals[i + 1].proposal_id);
+      }
+    }
+    return conflicts;
+  };
+
+  const getProposalsByDate = () => {
+    const proposalsByDate = {};
+    proposals.forEach(proposal => {
+      const date = new Date(proposal.proposed_datetime).toISOString().split('T')[0];
+      if (!proposalsByDate[date]) {
+        proposalsByDate[date] = [];
+      }
+      proposalsByDate[date].push(proposal);
+    });
+    
+    // Sort proposals within each date and detect conflicts
+    Object.keys(proposalsByDate).forEach(date => {
+      proposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
+      const conflicts = checkTimeConflicts(proposalsByDate[date]);
+      proposalsByDate[date].forEach(proposal => {
+        proposal.hasConflict = conflicts.includes(proposal.proposal_id);
+      });
+    });
+    
+    return proposalsByDate;
+  };
+
+  const handleMovieClick = (proposalId) => {
+    setSelectedProposalId(proposalId);
+    setCalendarView('list');
+    // Small delay to ensure view switch completes before scrolling
+    setTimeout(() => {
+      const element = document.getElementById(`proposal-${proposalId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
+  const formatTime = (datetime) => {
+    return new Date(datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   useEffect(() => {
@@ -2029,108 +2111,462 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       {pollView === "proposals" && (
         <>
           {!loading && proposals.length === 0 && <p>No movie proposals yet. Schedule movies from your watchlist!</p>}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {proposals.map((proposal) => {
-              const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
-              const isPending = proposal.status === 0;
-              const hasUserVoted = votes.userVoted !== null;
-              
-              return (
-                <div
-                  key={proposal.proposal_id}
+          
+          {proposals.length > 0 && (
+            <div style={{ width: "100%" }}>
+              {/* View Toggle Buttons */}
+              <div style={{ 
+                display: "flex", 
+                gap: "0.5rem", 
+                marginBottom: "1rem",
+                justifyContent: "center"
+              }}>
+                <button
                   style={{
-                    backgroundColor: "#240046",
-                    borderRadius: "8px",
-                    padding: "1rem",
-                    border: "1px solid #6a0dad",
+                    padding: "0.4rem 0.8rem",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    backgroundColor: calendarView === "calendar" ? "#6a0dad" : "#240046",
+                    color: "white",
+                    fontSize: "0.7rem",
+                    fontWeight: calendarView === "calendar" ? "bold" : "normal"
                   }}
+                  onClick={() => setCalendarView("calendar")}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                    <div>
-                      <h4 style={{ margin: "0 0 0.25rem 0", color: "#fff" }}>
-                        {proposal.movie_title}
-                      </h4>
-                      <p style={{ margin: "0", fontSize: "0.85rem", color: "#bbb" }}>
-                        Proposed by: <strong>{proposal.proposed_by}</strong>
-                      </p>
-                    </div>
-                    {getStatusBadge(proposal.status)}
-                  </div>
-                  
-                  <div style={{ fontSize: "0.9rem", color: "#ddd", marginBottom: "0.5rem" }}>
-                    📅 {formatDate(proposal.proposed_datetime)}
-                  </div>
-                  
-                  {proposal.movieDetails && (
-                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem" }}>
-                      <img
-                        src={proposal.movieDetails.poster}
-                        alt={proposal.movie_title}
-                        style={{ width: "60px", height: "90px", objectFit: "cover", borderRadius: "4px" }}
-                      />
-                      <div style={{ flex: 1, fontSize: "0.8rem", color: "#ccc" }}>
-                        <div>{proposal.movieDetails.year} • {proposal.movieDetails.runtime} mins</div>
-                        <div style={{ marginTop: "0.25rem" }}>⭐ {proposal.movieDetails.rating}</div>
+                  📅 Calendar
+                </button>
+                <button
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    backgroundColor: calendarView === "list" ? "#6a0dad" : "#240046",
+                    color: "white",
+                    fontSize: "0.7rem",
+                    fontWeight: calendarView === "list" ? "bold" : "normal"
+                  }}
+                  onClick={() => setCalendarView("list")}
+                >
+                  📋 List
+                </button>
+              </div>
+
+              {/* Calendar View */}
+              {calendarView === "calendar" && (
+                <div>
+                  {/* Calendar Header */}
+                  <h4 style={{ 
+                    margin: "0 0 1rem 0", 
+                    color: "white",
+                    fontSize: "1rem",
+                    textAlign: "center"
+                  }}>
+                    Next Two Weeks
+                  </h4>
+
+                  {/* Calendar Grid */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(7, 1fr)",
+                    gap: "2px",
+                    backgroundColor: "#1a0133",
+                    padding: "2px",
+                    borderRadius: "4px"
+                  }}>
+                    {/* Day Headers */}
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div
+                        key={day}
+                        style={{
+                          padding: "0.5rem 0.25rem",
+                          textAlign: "center",
+                          fontSize: "0.7rem",
+                          fontWeight: "bold",
+                          color: "#bbb",
+                          backgroundColor: "#240046"
+                        }}
+                      >
+                        {day}
                       </div>
-                    </div>
-                  )}
-                  
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", fontSize: "0.85rem", color: "#ccc" }}>
-                    <span style={{ color: "#4caf50" }}>✅ Yes: {votes.yesVotes.length}</span>
-                    <span style={{ color: "#f44336" }}>❌ No: {votes.noVotes.length}</span>
+                    ))}
+
+                    {/* Calendar Days - First Week */}
+                    {(() => {
+                      const twoWeeks = getNextTwoWeeks();
+                      const firstWeek = twoWeeks.slice(0, 7);
+                      const today = new Date();
+                      
+                      // Add padding for first week if it doesn't start on Sunday
+                      const startPadding = firstWeek[0].getDay();
+                      const paddedFirstWeek = [
+                        ...Array(startPadding).fill(null),
+                        ...firstWeek
+                      ].slice(0, 7);
+                      
+                      return paddedFirstWeek.map((date, index) => {
+                        const dayProposals = date ? getProposalsForDate(date) : [];
+                        const isToday = date && date.toDateString() === today.toDateString();
+                        
+                        return (
+                          <div
+                            key={`week1-${index}`}
+                            style={{
+                              minHeight: "120px",
+                              backgroundColor: date ? "#240046" : "transparent",
+                              border: isToday ? "2px solid #6a0dad" : "none",
+                              padding: "4px",
+                              position: "relative",
+                              overflow: "hidden"
+                            }}
+                          >
+                            {date && (
+                              <>
+                                <div style={{
+                                  fontSize: "0.8rem",
+                                  color: isToday ? "#6a0dad" : "#fff",
+                                  fontWeight: isToday ? "bold" : "600",
+                                  marginBottom: "4px",
+                                  textAlign: "center"
+                                }}>
+                                  {date.getDate()}
+                                </div>
+                                
+                                {dayProposals.slice(0, 2).map((proposal, propIndex) => {
+                                  const hasConflict = proposal.hasConflict;
+                                  
+                                  return (
+                                    <div
+                                      key={propIndex}
+                                      style={{
+                                        fontSize: "0.65rem",
+                                        backgroundColor: hasConflict ? "#ff5722" : (proposal.status === 1 ? "#2e7d32" : proposal.status === 2 ? "#c62828" : "#ff9800"),
+                                        color: "white",
+                                        padding: "4px 6px",
+                                        marginBottom: "3px",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        overflow: "hidden",
+                                        border: hasConflict ? "1px solid #ff1744" : "none",
+                                        boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                                        lineHeight: "1.2"
+                                      }}
+                                      title={`${proposal.movie_title} at ${formatTime(proposal.proposed_datetime)} - Click to view details`}
+                                      onClick={() => handleMovieClick(proposal.proposal_id)}
+                                    >
+                                      <div style={{ 
+                                        fontWeight: "700",
+                                        textShadow: "0 1px 1px rgba(0,0,0,0.5)",
+                                        marginBottom: "2px"
+                                      }}>
+                                        {proposal.movie_title.length > 8 ? proposal.movie_title.substring(0, 8) + '...' : proposal.movie_title}
+                                      </div>
+                                      <div style={{ 
+                                        fontSize: "0.6rem", 
+                                        opacity: 0.95,
+                                        fontWeight: "500"
+                                      }}>
+                                        ⏰ {formatTime(proposal.proposed_datetime)}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                
+                                {dayProposals.length > 2 && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      color: "#bbb",
+                                      textAlign: "center",
+                                      fontStyle: "italic",
+                                      marginTop: "2px",
+                                      cursor: "pointer"
+                                    }}
+                                    onClick={() => setCalendarView('list')}
+                                  >
+                                    +{dayProposals.length - 2} more
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+
+                    {/* Calendar Days - Second Week */}
+                    {(() => {
+                      const twoWeeks = getNextTwoWeeks();
+                      const secondWeek = twoWeeks.slice(7, 14);
+                      const today = new Date();
+                      
+                      return secondWeek.map((date, index) => {
+                        const dayProposals = getProposalsForDate(date);
+                        const isToday = date.toDateString() === today.toDateString();
+                        
+                        return (
+                          <div
+                            key={`week2-${index}`}
+                            style={{
+                              minHeight: "120px",
+                              backgroundColor: "#240046",
+                              border: isToday ? "2px solid #6a0dad" : "none",
+                              padding: "4px",
+                              position: "relative",
+                              overflow: "hidden"
+                            }}
+                          >
+                            <div style={{
+                              fontSize: "0.8rem",
+                              color: isToday ? "#6a0dad" : "#fff",
+                              fontWeight: isToday ? "bold" : "600",
+                              marginBottom: "4px",
+                              textAlign: "center"
+                            }}>
+                              {date.getDate()}
+                            </div>
+                            
+                            {dayProposals.slice(0, 2).map((proposal, propIndex) => {
+                              const hasConflict = proposal.hasConflict;
+                              
+                              return (
+                                <div
+                                  key={propIndex}
+                                  style={{
+                                    fontSize: "0.65rem",
+                                    backgroundColor: hasConflict ? "#ff5722" : (proposal.status === 1 ? "#2e7d32" : proposal.status === 2 ? "#c62828" : "#ff9800"),
+                                    color: "white",
+                                    padding: "4px 6px",
+                                    marginBottom: "3px",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    overflow: "hidden",
+                                    border: hasConflict ? "1px solid #ff1744" : "none",
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                                    lineHeight: "1.2"
+                                  }}
+                                  title={`${proposal.movie_title} at ${formatTime(proposal.proposed_datetime)} - Click to view details`}
+                                  onClick={() => handleMovieClick(proposal.proposal_id)}
+                                >
+                                  <div style={{ 
+                                    fontWeight: "700",
+                                    textShadow: "0 1px 1px rgba(0,0,0,0.5)",
+                                    marginBottom: "2px"
+                                  }}>
+                                    {proposal.movie_title.length > 8 ? proposal.movie_title.substring(0, 8) + '...' : proposal.movie_title}
+                                  </div>
+                                  <div style={{ 
+                                    fontSize: "0.6rem", 
+                                    opacity: 0.95,
+                                    fontWeight: "500"
+                                  }}>
+                                    ⏰ {formatTime(proposal.proposed_datetime)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            
+                            {dayProposals.length > 2 && (
+                              <div
+                                style={{
+                                  fontSize: "0.6rem",
+                                  color: "#bbb",
+                                  textAlign: "center",
+                                  fontStyle: "italic",
+                                  marginTop: "2px",
+                                  cursor: "pointer"
+                                }}
+                                onClick={() => setCalendarView('list')}
+                              >
+                                +{dayProposals.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                   
-                  {isPending && (
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", justifyContent: "flex-end" }}>
-                      <button
-                        style={{
-                          border: "none",
-                          padding: "0.5rem 1rem",
-                          borderRadius: 4,
-                          cursor: hasUserVoted ? "not-allowed" : "pointer",
-                          backgroundColor: votes.userVoted === true ? "#4caf50" : "#2e7d32",
-                          color: "white",
-                          fontSize: "0.8rem",
-                          opacity: hasUserVoted && votes.userVoted !== true ? 0.5 : 1
-                        }}
-                        disabled={hasUserVoted}
-                        onClick={() => voteOnProposal(proposal.proposal_id, true)}
-                      >
-                        {votes.userVoted === true ? "✅ Voted Yes" : "Accept"}
-                      </button>
-                      <button
-                        style={{
-                          border: "none",
-                          padding: "0.5rem 1rem",
-                          borderRadius: 4,
-                          cursor: hasUserVoted ? "not-allowed" : "pointer",
-                          backgroundColor: votes.userVoted === false ? "#f44336" : "#c62828",
-                          color: "white",
-                          fontSize: "0.8rem",
-                          opacity: hasUserVoted && votes.userVoted !== false ? 0.5 : 1
-                        }}
-                        disabled={hasUserVoted}
-                        onClick={() => voteOnProposal(proposal.proposal_id, false)}
-                      >
-                        {votes.userVoted === false ? "❌ Voted No" : "Reject"}
-                      </button>
+                  {/* Legend */}
+                  <div style={{ 
+                    marginTop: "1rem", 
+                    fontSize: "0.65rem", 
+                    color: "#bbb",
+                    display: "flex",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                    justifyContent: "center"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <div style={{ width: "8px", height: "8px", backgroundColor: "#ff9800", borderRadius: "2px" }}></div>
+                      Pending
                     </div>
-                  )}
-                  
-                  {(votes.yesVotes.length > 0 || votes.noVotes.length > 0) && (
-                    <div style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#999" }}>
-                      {votes.yesVotes.length > 0 && (
-                        <div><strong>Accepted by:</strong> {votes.yesVotes.map(v => v.voter_name).join(", ")}</div>
-                      )}
-                      {votes.noVotes.length > 0 && (
-                        <div><strong>Rejected by:</strong> {votes.noVotes.map(v => v.voter_name).join(", ")}</div>
-                      )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <div style={{ width: "8px", height: "8px", backgroundColor: "#2e7d32", borderRadius: "2px" }}></div>
+                      Accepted
                     </div>
-                  )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <div style={{ width: "8px", height: "8px", backgroundColor: "#c62828", borderRadius: "2px" }}></div>
+                      Rejected
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <div style={{ width: "8px", height: "8px", backgroundColor: "#ff5722", borderRadius: "2px", border: "1px solid #ff1744" }}></div>
+                      Conflict
+                    </div>
+                  </div>
+                  <div style={{ 
+                    marginTop: "0.5rem", 
+                    fontSize: "0.6rem", 
+                    color: "#999",
+                    textAlign: "center"
+                  }}>
+                    Click on a movie to view details
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+
+              {/* List View */}
+              {calendarView === "list" && (
+                <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+                  {Object.entries(getProposalsByDate())
+                    .sort(([a], [b]) => new Date(a) - new Date(b))
+                    .map(([date, dayProposals]) => {
+                      const dateObj = new Date(date);
+                      const isToday = dateObj.toDateString() === new Date().toDateString();
+                      const isTomorrow = dateObj.toDateString() === new Date(Date.now() + 86400000).toDateString();
+                      
+                      return (
+                        <div key={date} style={{ marginBottom: "1.5rem" }}>
+                          <h4 style={{ 
+                            color: isToday ? "#6a0dad" : "#fff",
+                            fontSize: "0.9rem",
+                            margin: "0 0 0.75rem 0",
+                            fontWeight: "bold",
+                            borderBottom: "1px solid #444",
+                            paddingBottom: "0.25rem"
+                          }}>
+                            📅 {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                          </h4>
+                          
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            {dayProposals.map((proposal) => {
+                              const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
+                              const isPending = proposal.status === 0;
+                              const hasUserVoted = votes.userVoted !== null;
+                              const hasConflict = proposal.hasConflict;
+                              const isSelected = selectedProposalId === proposal.proposal_id;
+                              
+                              return (
+                                <div
+                                  key={proposal.proposal_id}
+                                  id={`proposal-${proposal.proposal_id}`}
+                                  style={{
+                                    backgroundColor: isSelected ? "#6a0dad" : "#240046",
+                                    borderRadius: "6px",
+                                    padding: "0.75rem",
+                                    border: hasConflict ? "2px solid #ff5722" : isSelected ? "2px solid #9c4dcc" : "1px solid #444",
+                                    position: "relative",
+                                    transition: "all 0.3s ease",
+                                    boxShadow: isSelected ? "0 0 10px rgba(106, 13, 173, 0.5)" : "none"
+                                  }}
+                                >
+                                  {hasConflict && (
+                                    <div style={{
+                                      position: "absolute",
+                                      top: "0.25rem",
+                                      right: "0.25rem",
+                                      backgroundColor: "#ff5722",
+                                      color: "white",
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      fontSize: "0.6rem",
+                                      fontWeight: "bold"
+                                    }}>
+                                      ⚠️ CONFLICT
+                                    </div>
+                                  )}
+                                  
+                                  {isSelected && (
+                                    <div style={{
+                                      position: "absolute",
+                                      top: "0.25rem",
+                                      left: "0.25rem",
+                                      backgroundColor: "#9c4dcc",
+                                      color: "white",
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      fontSize: "0.6rem",
+                                      fontWeight: "bold"
+                                    }}>
+                                      📍 SELECTED
+                                    </div>
+                                  )}
+                                  
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                                    <div style={{ flex: 1, marginRight: hasConflict || isSelected ? "4rem" : "0", marginTop: isSelected ? "1.5rem" : "0" }}>
+                                      <h5 style={{ margin: "0 0 0.25rem 0", color: "#fff", fontSize: "0.85rem" }}>
+                                        🎬 {proposal.movie_title}
+                                      </h5>
+                                      <p style={{ margin: "0", fontSize: "0.75rem", color: "#bbb" }}>
+                                        ⏰ {formatTime(proposal.proposed_datetime)} • By: <strong>{proposal.proposed_by}</strong>
+                                      </p>
+                                    </div>
+                                    {getStatusBadge(proposal.status)}
+                                  </div>
+                                  
+                                  <div style={{ display: "flex", gap: "1rem", fontSize: "0.7rem", color: "#ccc", marginBottom: isPending ? "0.75rem" : "0" }}>
+                                    <span style={{ color: "#4caf50" }}>✅ Yes: {votes.yesVotes.length}</span>
+                                    <span style={{ color: "#f44336" }}>❌ No: {votes.noVotes.length}</span>
+                                  </div>
+                                  
+                                  {isPending && (
+                                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                                      <button
+                                        style={{
+                                          border: "none",
+                                          padding: "0.4rem 0.8rem",
+                                          borderRadius: 4,
+                                          cursor: hasUserVoted ? "not-allowed" : "pointer",
+                                          backgroundColor: votes.userVoted === true ? "#4caf50" : "#2e7d32",
+                                          color: "white",
+                                          fontSize: "0.7rem",
+                                          opacity: hasUserVoted && votes.userVoted !== true ? 0.5 : 1
+                                        }}
+                                        disabled={hasUserVoted}
+                                        onClick={() => voteOnProposal(proposal.proposal_id, true)}
+                                      >
+                                        {votes.userVoted === true ? "✅ Voted Yes" : "Accept"}
+                                      </button>
+                                      <button
+                                        style={{
+                                          border: "none",
+                                          padding: "0.4rem 0.8rem",
+                                          borderRadius: 4,
+                                          cursor: hasUserVoted ? "not-allowed" : "pointer",
+                                          backgroundColor: votes.userVoted === false ? "#f44336" : "#c62828",
+                                          color: "white",
+                                          fontSize: "0.7rem",
+                                          opacity: hasUserVoted && votes.userVoted !== false ? 0.5 : 1
+                                        }}
+                                        disabled={hasUserVoted}
+                                        onClick={() => voteOnProposal(proposal.proposal_id, false)}
+                                      >
+                                        {votes.userVoted === false ? "❌ Voted No" : "Reject"}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
       
@@ -2239,7 +2675,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
 
 
 
