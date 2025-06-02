@@ -1966,7 +1966,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                   <img
                     src={movie.poster}
                     alt={movie.title}
-                    style={{ width: "100%", height: 200, objectFit: "cover" }}
+                    style={{ width: "100%", height: 280, objectFit: "cover" }}
                   />
                   <div style={{ padding: "0.5rem" }}>
                     <strong style={{ fontSize: "0.9rem" }}>{movie.title}</strong>
