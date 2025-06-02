@@ -1202,6 +1202,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [pollView, setPollView] = useState("recommendations");
+  const [groupThreshold, setGroupThreshold] = useState(3); // Default threshold
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
@@ -1223,6 +1224,24 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .then((js) => setCurrentUserId(js.id))
       .catch(console.error);
   }, []);
+
+  // Fetch group threshold
+  const fetchGroupThreshold = async () => {
+    if (!isGroup || !selectedItem?.group_id) return;
+    
+    try {
+      const resp = await fetch(`http://localhost:8000/get_group_members/?group_id=${selectedItem.group_id}`, {
+        credentials: "include"
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setGroupThreshold(data.Threshold || 3); // Use API threshold or default to 3
+      }
+    } catch (e) {
+      console.error("Error fetching group threshold:", e);
+      setGroupThreshold(3); // Fallback to default
+    }
+  };
 
   const fetchUsername = async (userId) => {
     try {
@@ -1291,8 +1310,29 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       // Clear any previous error
       setError(null);
 
-      // If movie was recommended for watchlist, refresh watchlist
+      // If movie was recommended for watchlist, add it to the group watchlist
       if (recommended === 1) {
+        // Find the movie that was just voted on to get its movie ID
+        const movie = recommendations.find(m => m.recId === recId);
+        if (movie && isGroup) {
+          try {
+            const addMovieUrl = new URL("http://localhost:8000/add_movie/");
+            addMovieUrl.searchParams.set("movie_id", movie.id);
+            addMovieUrl.searchParams.set("id", selectedItem.group_id);
+            addMovieUrl.searchParams.set("watchlist_name", "Watchlist");
+            
+            const addMovieResp = await fetch(addMovieUrl, { credentials: "include" });
+            if (addMovieResp.ok) {
+              console.log("Movie successfully added to group watchlist");
+            } else {
+              console.error("Failed to add movie to watchlist");
+            }
+          } catch (e) {
+            console.error("Error adding movie to watchlist:", e);
+          }
+        }
+        
+        // Refresh watchlist to show the newly added movie
         loadWatchlist();
       }
 
@@ -1300,6 +1340,55 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       console.error(e);
       setError(e.message);
     }
+  };
+
+  const fetchMoviePoster = async (title) => {
+    try {
+      const posterUrl = new URL("http://localhost:8000/movie_poster/");
+      posterUrl.searchParams.set("title", title);
+      
+      const resp = await fetch(posterUrl, { credentials: "include" });
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.poster || null;
+      }
+    } catch (e) {
+      console.error("Error fetching movie poster:", e);
+    }
+    return null;
+  };
+
+  const fetchMovieDetailsById = async (movieId) => {
+    try {
+      const searchUrl = new URL("http://localhost:8000/search/");
+      searchUrl.searchParams.set("id", movieId);
+      
+      const resp = await fetch(searchUrl, { credentials: "include" });
+      if (resp.ok) {
+        const data = await resp.json();
+        const movies = data.movies || [];
+        if (movies.length > 0) {
+          const movie = movies[0];
+          
+          // Fetch poster using the movie_poster endpoint
+          const poster = await fetchMoviePoster(movie.title);
+          
+          return {
+            id: movie.id,
+            title: movie.title,
+            year: movie.year,
+            runtime: movie.runtime,
+            rating: movie.rating,
+            plot: movie.plot,
+            director: movie.director,
+            poster: poster || `https://via.placeholder.com/500x750/240046/ffffff?text=${encodeURIComponent(movie.title)}`
+          };
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching movie details by ID:", e);
+    }
+    return null;
   };
 
   const loadWatchlist = async () => {
@@ -1316,15 +1405,17 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         const watchlistWithDetails = await Promise.all(
           items.map(async (item) => {
             try {
-              const movieDetails = await fetchMovieDetailsWithoutYear(item.title);
+              const movieDetails = await fetchMovieDetailsById(item.movie_id);
               return {
                 ...item,
+                title: movieDetails?.title || `Movie ${item.movie_id}`,
                 movieDetails: movieDetails
               };
             } catch (e) {
               console.error("Error fetching movie details for watchlist item:", e);
               return {
                 ...item,
+                title: `Movie ${item.movie_id}`,
                 movieDetails: null
               };
             }
@@ -1503,6 +1594,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setLoading(true);
 
     const loadData = async () => {
+      // Fetch group threshold first if this is a group
+      if (isGroup) {
+        await fetchGroupThreshold();
+      }
+
       if (pollView === "recommendations") {
         // Load recommendations (member + generated)
         try {
@@ -1729,6 +1825,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             {recommendations.map((movie) => {
               const userVote = userVotes[movie.recId];
               const totalVotes = movie.upvotes + movie.downvotes;
+              // Use groupThreshold for groups, fallback to movie.threshold for individual friends
+              const displayThreshold = isGroup ? groupThreshold : (movie.threshold || 3);
               
               return (
                 <div
@@ -1794,7 +1892,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       {movie.year} • {movie.runtime} mins
                     </div>
                     <div style={{ fontSize: "0.7rem", color: "#ccc", marginTop: "0.25rem" }}>
-                      {movie.upvotes}/{movie.threshold} votes needed for watchlist
+                      {movie.upvotes}/{displayThreshold} votes needed for watchlist
                     </div>
                   </div>
                   <div
@@ -1885,7 +1983,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     <img
                       src={item.movieDetails.poster}
                       alt={item.title}
-                      style={{ width: "100%", height: 200, objectFit: "cover" }}
+                      style={{ width: "100%", height: 280, objectFit: "cover" }}
                     />
                     <div style={{ padding: "0.5rem" }}>
                       <strong style={{ fontSize: "0.9rem" }}>{item.title}</strong>
@@ -2141,8 +2239,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
-
 
 
 

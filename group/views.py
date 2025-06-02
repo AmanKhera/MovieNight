@@ -774,8 +774,9 @@ def members_in_group(request):
     return JsonResponse({
         "group_id": group.group_id.id,
         "group_name": group.group_name,
-        "members": member_data
-    }, status=200)    
+        "members": member_data,
+        "Threshold": group.voting_limit
+    }, status=200) 
 
 
 
