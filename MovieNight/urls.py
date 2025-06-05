@@ -122,7 +122,7 @@ urlpatterns = [
     path('get_group_members/', group_views.members_in_group, name='get_group_memberes'),
     path("user_status/", user_views.user_status, name="user_status"),
     path("chat/", include("chat.urls")),
-
+    path("proposal_accepted/", user_views.proposal_accepted, name="proposal_accepted"),
     ]
 
 
