@@ -1202,10 +1202,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [pollView, setPollView] = useState("recommendations");
-  const [groupThreshold, setGroupThreshold] = useState(3); // Default threshold
-  const [calendarDate, setCalendarDate] = useState(new Date()); // For calendar navigation
-  const [calendarView, setCalendarView] = useState('calendar'); // 'calendar' or 'list'
-  const [selectedProposalId, setSelectedProposalId] = useState(null); // For highlighting in list view
+  const [groupThreshold, setGroupThreshold] = useState(3);
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarView, setCalendarView] = useState('calendar');
+  const [selectedProposalId, setSelectedProposalId] = useState(null);
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
@@ -1213,7 +1213,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [userVotes, setUserVotes] = useState({}); // Track user's votes per recommendation
+  const [userVotes, setUserVotes] = useState({});
   const [proposalVotes, setProposalVotes] = useState({});
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -1228,7 +1228,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .catch(console.error);
   }, []);
 
-  // Fetch group threshold
   const fetchGroupThreshold = async () => {
     if (!isGroup || !selectedItem?.group_id) return;
     
@@ -1238,11 +1237,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       });
       if (resp.ok) {
         const data = await resp.json();
-        setGroupThreshold(data.Threshold || 3); // Use API threshold or default to 3
+        setGroupThreshold(data.Threshold || 3);
       }
     } catch (e) {
       console.error("Error fetching group threshold:", e);
-      setGroupThreshold(3); // Fallback to default
+      setGroupThreshold(3);
     }
   };
 
@@ -1272,7 +1271,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         body: JSON.stringify({
           user_id: currentUserId,
           recommendation_id: recId,
-          value: voteValue, // 1 for upvote, -1 for downvote
+          value: voteValue,
         }),
       });
 
@@ -1288,7 +1287,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       
       const { recommended, upvotes, downvotes, threshold } = await resp.json();
 
-      // Update recommendation in state
       setRecommendations((prev) =>
         prev.map((m) =>
           m.recId === recId
@@ -1304,18 +1302,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         )
       );
 
-      // Track user's vote
       setUserVotes(prev => ({
         ...prev,
         [recId]: voteValue
       }));
 
-      // Clear any previous error
       setError(null);
 
-      // If movie was recommended for watchlist, add it to the group watchlist
       if (recommended === 1) {
-        // Find the movie that was just voted on to get its movie ID
         const movie = recommendations.find(m => m.recId === recId);
         if (movie && isGroup) {
           try {
@@ -1335,7 +1329,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           }
         }
         
-        // Refresh watchlist to show the newly added movie
         loadWatchlist();
       }
 
@@ -1373,7 +1366,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         if (movies.length > 0) {
           const movie = movies[0];
           
-          // Fetch poster using the movie_poster endpoint
           const poster = await fetchMoviePoster(movie.title);
           
           return {
@@ -1451,7 +1443,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       if (resp.ok) {
         const data = await resp.json();
         
-        // Refresh proposals and votes
         loadProposals();
         loadVotesForProposals();
         
@@ -1569,7 +1560,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         setScheduleDate("");
         setScheduleTime("");
         alert("Movie proposal created successfully!");
-        loadProposals(); // Refresh proposals
+        loadProposals();
       } else {
         const errorData = await resp.json();
         setError(errorData.error || "Failed to create proposal");
@@ -1591,12 +1582,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setScheduleTime("19:00");
   };
 
-  // Calendar helper functions
   const getNextTwoWeeks = () => {
     const days = [];
     const today = new Date();
     
-    // Start from today
     for (let i = 0; i < 14; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
@@ -1621,9 +1610,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     for (let i = 0; i < dateProposals.length - 1; i++) {
       const current = new Date(dateProposals[i].proposed_datetime);
       const next = new Date(dateProposals[i + 1].proposed_datetime);
-      const timeDiff = Math.abs(next - current) / (1000 * 60); // minutes
+      const timeDiff = Math.abs(next - current) / (1000 * 60);
       
-      // Consider conflict if movies are within 3 hours of each other
       if (timeDiff < 180) {
         conflicts.push(dateProposals[i].proposal_id);
         conflicts.push(dateProposals[i + 1].proposal_id);
@@ -1642,7 +1630,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       proposalsByDate[date].push(proposal);
     });
     
-    // Sort proposals within each date and detect conflicts
     Object.keys(proposalsByDate).forEach(date => {
       proposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
       const conflicts = checkTimeConflicts(proposalsByDate[date]);
@@ -1657,7 +1644,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const handleMovieClick = (proposalId) => {
     setSelectedProposalId(proposalId);
     setCalendarView('list');
-    // Small delay to ensure view switch completes before scrolling
     setTimeout(() => {
       const element = document.getElementById(`proposal-${proposalId}`);
       if (element) {
@@ -1676,13 +1662,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setLoading(true);
 
     const loadData = async () => {
-      // Fetch group threshold first if this is a group
       if (isGroup) {
         await fetchGroupThreshold();
       }
 
       if (pollView === "recommendations") {
-        // Load recommendations (member + generated)
         try {
           const memberUrl = new URL("http://localhost:8000/group_recommendation/");
           memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
@@ -1899,7 +1883,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       {loading && <p>Loading…</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {/* Recommendations Tab */}
       {pollView === "recommendations" && (
         <>
           {!loading && recommendations.length === 0 && <p>No recommendations yet.</p>}
@@ -1907,7 +1890,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             {recommendations.map((movie) => {
               const userVote = userVotes[movie.recId];
               const totalVotes = movie.upvotes + movie.downvotes;
-              // Use groupThreshold for groups, fallback to movie.threshold for individual friends
               const displayThreshold = isGroup ? groupThreshold : (movie.threshold || 3);
               
               return (
@@ -2029,7 +2011,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         </>
       )}
 
-      {/* Watchlist Tab */}
       {pollView === "watchlist" && (
         <>
           {!loading && watchlist.length === 0 && <p>No movies in watchlist yet. Vote for recommendations to add them!</p>}
@@ -2107,14 +2088,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         </>
       )}
 
-      {/* Proposals Tab */}
       {pollView === "proposals" && (
         <>
           {!loading && proposals.length === 0 && <p>No movie proposals yet. Schedule movies from your watchlist!</p>}
           
           {proposals.length > 0 && (
             <div style={{ width: "100%" }}>
-              {/* View Toggle Buttons */}
               <div style={{ 
                 display: "flex", 
                 gap: "0.5rem", 
@@ -2153,10 +2132,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 </button>
               </div>
 
-              {/* Calendar View */}
               {calendarView === "calendar" && (
                 <div>
-                  {/* Calendar Header */}
                   <h4 style={{ 
                     margin: "0 0 1rem 0", 
                     color: "white",
@@ -2166,7 +2143,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     Next Two Weeks
                   </h4>
 
-                  {/* Calendar Grid */}
                   <div style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(7, 1fr)",
@@ -2175,7 +2151,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     padding: "2px",
                     borderRadius: "4px"
                   }}>
-                    {/* Day Headers */}
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                       <div
                         key={day}
@@ -2192,134 +2167,41 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       </div>
                     ))}
 
-                    {/* Calendar Days - First Week */}
                     {(() => {
-                      const twoWeeks = getNextTwoWeeks();
-                      const firstWeek = twoWeeks.slice(0, 7);
                       const today = new Date();
+                      const currentDate = new Date(today);
                       
-                      // Add padding for first week if it doesn't start on Sunday
-                      const startPadding = firstWeek[0].getDay();
-                      const paddedFirstWeek = [
-                        ...Array(startPadding).fill(null),
-                        ...firstWeek
-                      ].slice(0, 7);
+                      const startOfWeek = new Date(currentDate);
+                      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
                       
-                      return paddedFirstWeek.map((date, index) => {
-                        const dayProposals = date ? getProposalsForDate(date) : [];
-                        const isToday = date && date.toDateString() === today.toDateString();
-                        
-                        return (
-                          <div
-                            key={`week1-${index}`}
-                            style={{
-                              minHeight: "120px",
-                              backgroundColor: date ? "#240046" : "transparent",
-                              border: isToday ? "2px solid #6a0dad" : "none",
-                              padding: "4px",
-                              position: "relative",
-                              overflow: "hidden"
-                            }}
-                          >
-                            {date && (
-                              <>
-                                <div style={{
-                                  fontSize: "0.8rem",
-                                  color: isToday ? "#6a0dad" : "#fff",
-                                  fontWeight: isToday ? "bold" : "600",
-                                  marginBottom: "4px",
-                                  textAlign: "center"
-                                }}>
-                                  {date.getDate()}
-                                </div>
-                                
-                                {dayProposals.slice(0, 2).map((proposal, propIndex) => {
-                                  const hasConflict = proposal.hasConflict;
-                                  
-                                  return (
-                                    <div
-                                      key={propIndex}
-                                      style={{
-                                        fontSize: "0.65rem",
-                                        backgroundColor: hasConflict ? "#ff5722" : (proposal.status === 1 ? "#2e7d32" : proposal.status === 2 ? "#c62828" : "#ff9800"),
-                                        color: "white",
-                                        padding: "4px 6px",
-                                        marginBottom: "3px",
-                                        borderRadius: "4px",
-                                        cursor: "pointer",
-                                        overflow: "hidden",
-                                        border: hasConflict ? "1px solid #ff1744" : "none",
-                                        boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
-                                        lineHeight: "1.2"
-                                      }}
-                                      title={`${proposal.movie_title} at ${formatTime(proposal.proposed_datetime)} - Click to view details`}
-                                      onClick={() => handleMovieClick(proposal.proposal_id)}
-                                    >
-                                      <div style={{ 
-                                        fontWeight: "700",
-                                        textShadow: "0 1px 1px rgba(0,0,0,0.5)",
-                                        marginBottom: "2px"
-                                      }}>
-                                        {proposal.movie_title.length > 8 ? proposal.movie_title.substring(0, 8) + '...' : proposal.movie_title}
-                                      </div>
-                                      <div style={{ 
-                                        fontSize: "0.6rem", 
-                                        opacity: 0.95,
-                                        fontWeight: "500"
-                                      }}>
-                                        ⏰ {formatTime(proposal.proposed_datetime)}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                                
-                                {dayProposals.length > 2 && (
-                                  <div
-                                    style={{
-                                      fontSize: "0.6rem",
-                                      color: "#bbb",
-                                      textAlign: "center",
-                                      fontStyle: "italic",
-                                      marginTop: "2px",
-                                      cursor: "pointer"
-                                    }}
-                                    onClick={() => setCalendarView('list')}
-                                  >
-                                    +{dayProposals.length - 2} more
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      });
-                    })()}
-
-                    {/* Calendar Days - Second Week */}
-                    {(() => {
-                      const twoWeeks = getNextTwoWeeks();
-                      const secondWeek = twoWeeks.slice(7, 14);
-                      const today = new Date();
+                      const calendarDays = [];
+                      for (let i = 0; i < 14; i++) {
+                        const date = new Date(startOfWeek);
+                        date.setDate(startOfWeek.getDate() + i);
+                        calendarDays.push(date);
+                      }
                       
-                      return secondWeek.map((date, index) => {
+                      return calendarDays.map((date, index) => {
                         const dayProposals = getProposalsForDate(date);
                         const isToday = date.toDateString() === today.toDateString();
+                        const isPastDate = date < today && !isToday;
                         
                         return (
                           <div
-                            key={`week2-${index}`}
+                            key={`calendar-day-${index}`}
                             style={{
                               minHeight: "120px",
-                              backgroundColor: "#240046",
+                              backgroundColor: isPastDate ? "#1a1a2e" : "#240046",
                               border: isToday ? "2px solid #6a0dad" : "none",
                               padding: "4px",
                               position: "relative",
-                              overflow: "hidden"
+                              overflow: "hidden",
+                              opacity: isPastDate ? 0.5 : 1
                             }}
                           >
                             <div style={{
                               fontSize: "0.8rem",
-                              color: isToday ? "#6a0dad" : "#fff",
+                              color: isToday ? "#6a0dad" : isPastDate ? "#666" : "#fff",
                               fontWeight: isToday ? "bold" : "600",
                               marginBottom: "4px",
                               textAlign: "center"
@@ -2327,7 +2209,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                               {date.getDate()}
                             </div>
                             
-                            {dayProposals.slice(0, 2).map((proposal, propIndex) => {
+                            {!isPastDate && dayProposals.slice(0, 2).map((proposal, propIndex) => {
                               const hasConflict = proposal.hasConflict;
                               
                               return (
@@ -2367,7 +2249,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                               );
                             })}
                             
-                            {dayProposals.length > 2 && (
+                            {!isPastDate && dayProposals.length > 2 && (
                               <div
                                 style={{
                                   fontSize: "0.6rem",
@@ -2388,7 +2270,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     })()}
                   </div>
                   
-                  {/* Legend */}
                   <div style={{ 
                     marginTop: "1rem", 
                     fontSize: "0.65rem", 
@@ -2426,12 +2307,42 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 </div>
               )}
 
-              {/* List View */}
               {calendarView === "list" && (
                 <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-                  {Object.entries(getProposalsByDate())
-                    .sort(([a], [b]) => new Date(a) - new Date(b))
-                    .map(([date, dayProposals]) => {
+                  {(() => {
+                    const today = new Date();
+                    const currentDate = new Date(today);
+                    
+                    const startOfWeek = new Date(currentDate);
+                    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+                    
+                    const endOfCalendar = new Date(startOfWeek);
+                    endOfCalendar.setDate(startOfWeek.getDate() + 13);
+                    endOfCalendar.setHours(23, 59, 59, 999);
+                    
+                    const filteredProposalsByDate = {};
+                    proposals.forEach(proposal => {
+                      const proposalDate = new Date(proposal.proposed_datetime);
+                      if (proposalDate >= startOfWeek && proposalDate <= endOfCalendar) {
+                        const dateKey = proposalDate.toISOString().split('T')[0];
+                        if (!filteredProposalsByDate[dateKey]) {
+                          filteredProposalsByDate[dateKey] = [];
+                        }
+                        filteredProposalsByDate[dateKey].push(proposal);
+                      }
+                    });
+                    
+                    Object.keys(filteredProposalsByDate).forEach(date => {
+                      filteredProposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
+                      const conflicts = checkTimeConflicts(filteredProposalsByDate[date]);
+                      filteredProposalsByDate[date].forEach(proposal => {
+                        proposal.hasConflict = conflicts.includes(proposal.proposal_id);
+                      });
+                    });
+                    
+                    return Object.entries(filteredProposalsByDate)
+                      .sort(([a], [b]) => new Date(a) - new Date(b))
+                      .map(([date, dayProposals]) => {
                       const dateObj = new Date(date);
                       const isToday = dateObj.toDateString() === new Date().toDateString();
                       const isTomorrow = dateObj.toDateString() === new Date(Date.now() + 86400000).toDateString();
@@ -2562,7 +2473,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                           </div>
                         </div>
                       );
-                    })}
+                    });
+                  })()}
                 </div>
               )}
             </div>
@@ -2570,7 +2482,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         </>
       )}
       
-      {/* Schedule Movie Modal */}
       {showScheduleModal && (
         <div
           style={{
@@ -2675,7 +2586,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
 
 
 

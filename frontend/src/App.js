@@ -48,7 +48,7 @@ persistQueryClient({
 });
 
 function App() {
-  //queryClient.clear();
+  queryClient.clear();
   useEffect(() => {
     async function prefetchCriticalData() {
       try {
