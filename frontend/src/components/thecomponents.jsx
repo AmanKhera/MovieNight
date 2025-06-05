@@ -1221,6 +1221,19 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
 
+  // Success notification state
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+
+  // Auto-hide success notification after 3 seconds
+  useEffect(() => {
+    if (showSuccessNotification) {
+      const timer = setTimeout(() => {
+        setShowSuccessNotification(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessNotification]);
+
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
       .then((r) => r.json())
@@ -1387,6 +1400,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   };
 
   const loadWatchlist = async () => {
+    // Clear previous watchlist content
+    setWatchlist([]);
+    
     try {
       const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
       watchlistUrl.searchParams.set("id", selectedItem.group_id);
@@ -1418,10 +1434,15 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         );
         
         setWatchlist(watchlistWithDetails);
+      } else {
+        // If request fails, keep watchlist empty (will show "No movies" message)
+        console.error("Failed to fetch watchlist items:", watchlistResp.status);
+        setWatchlist([]);
       }
     } catch (e) {
       console.error("Error loading watchlist:", e);
-      setError("Failed to load watchlist");
+      // If request fails, keep watchlist empty (will show "No movies" message)
+      setWatchlist([]);
     }
   };
 
@@ -1559,7 +1580,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         setSelectedMovieForSchedule(null);
         setScheduleDate("");
         setScheduleTime("");
-        alert("Movie proposal created successfully!");
+        setShowSuccessNotification(true); // Show success notification instead of alert
         loadProposals();
       } else {
         const errorData = await resp.json();
@@ -1829,8 +1850,64 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         backgroundColor: "#1a0133",
         padding: "1rem",
         overflowY: "auto",
+        position: "relative",
       }}
     >
+      {/* Success Notification */}
+      {showSuccessNotification && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            right: "20px",
+            backgroundColor: "#4caf50",
+            color: "white",
+            padding: "16px 20px",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            zIndex: 1001,
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+            animation: showSuccessNotification 
+              ? "slideInFromRight 0.5s ease-out forwards" 
+              : "slideOutToRight 0.5s ease-in forwards",
+            fontSize: "14px",
+            fontWeight: "500",
+            maxWidth: "350px",
+          }}
+        >
+          <span style={{ fontSize: "18px" }}>✓</span>
+          <span>Movie proposal created successfully</span>
+        </div>
+      )}
+
+      <style>
+        {`
+          @keyframes slideInFromRight {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+          
+          @keyframes slideOutToRight {
+            from {
+              transform: translateX(0);
+              opacity: 1;
+            }
+            to {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+          }
+        `}
+      </style>
+
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <button
           style={{
