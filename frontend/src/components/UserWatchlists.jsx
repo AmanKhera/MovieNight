@@ -557,7 +557,7 @@ const styles = {
   },
   successPopup: {
     position: "fixed",
-    top: "20px",
+    top: "120px",
     right: "20px",
     zIndex: 1100,
     animation: "slideInRight 0.3s ease-out",

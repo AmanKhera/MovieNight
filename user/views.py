@@ -3,7 +3,7 @@ from user_login.utils import get_cognito_client
 from django.http import JsonResponse
 from user.models import User, Relationship, MemberRecommendation, Message, BlockList, UserEventProposal,UserEventVote
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal,Movie
-from group.models import Group
+from group.models import Group, GroupMember
 from django.core.exceptions import ObjectDoesNotExist
 import json
 import os
@@ -11,8 +11,11 @@ import requests
 from django.views.decorators.csrf import csrf_exempt
 import jwt
 from django.utils import timezone
-from datetime import timedelta, datetime
+from django.utils.timezone import localtime
+from datetime import timedelta, datetime, timezone as dt_timezone
 from django.views.decorators.http import require_POST
+from django.utils.timezone import now
+import boto3
 
 
 
@@ -637,7 +640,22 @@ def user_info(request):
     except Exception as e:
         # Catch-all for other decode or unexpected errors
         return JsonResponse({"error": str(e)}, status=500)
+    
+def user_status(request):
+    user_id = request.GET.get("id")
+    if not user_id:
+        return JsonResponse({"error": "Missing user ID"}, status=400)
 
+    try:
+        user = User.objects.get(id=user_id)
+        return JsonResponse({
+            "id": user.id,
+            "username": user.username,
+            "is_online": user.is_online,
+            "last_seen": localtime(user.last_seen).isoformat() if user.last_seen else None,
+        })
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
         
                    
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -899,7 +917,7 @@ def get_following_watch_status(request):
 #Definition: Allows groups to plan movie events for a specific date and time
 #Requires post request
 #Params: user_proposing_id: User in group that is proposing the event, user_receiving: Currently only for groups but group receiving event, movie_id: movie being recommended
-#proposed_date: future date in this format '2025-05-27 14:30:00'
+#proposed_date: future date in this format "2025-06-02T14:30:00"
 #Returns: proposal.id, success message, and status 200 
 @csrf_exempt
 @require_POST
@@ -916,17 +934,17 @@ def create_movie_proposal(request):
         movie = Movie.objects.get(id=movie_id)
         group = User.objects.get(id=user_receiving)
 
-        # Check if the user has an accepted proposal (status=1) in the future
-        active_proposal_exists = UserEventProposal.objects.filter(
-            recipient=group,
-            status=1,
-            proposed_datetime__gt=timezone.now()
-        ).exists()
+        # # Check if the user has an accepted proposal (status=1) in the future
+        # active_proposal_exists = UserEventProposal.objects.filter(
+        #     recipient=group,
+        #     status=1,
+        #     proposed_datetime__gt=timezone.now()
+        # ).exists()
 
-        if active_proposal_exists:
-            return JsonResponse({
-                "error": "You already have an active accepted proposal scheduled in the future."
-            }, status=400)
+        # if active_proposal_exists:
+        #     return JsonResponse({
+        #         "error": "You already have an active accepted proposal scheduled in the future."
+        #     }, status=400)
 
         #Creates the proposal
         proposal = UserEventProposal.objects.create(
@@ -961,8 +979,14 @@ def retrieve_group_event_proposals(request):
     try:
         id_retrieving = request.GET.get('id_retrieving')
 
+        user = User.objects.get(id=id_retrieving)
 
-        proposals = UserEventProposal.objects.filter(recipient=User.objects.get(id=id_retrieving)).order_by('-created_at')
+        #Filter only future proposals
+        proposals = UserEventProposal.objects.filter(
+            recipient=user,
+            proposed_datetime__gt=now()
+        ).order_by('-created_at')
+
 
         result = []
         for proposal in proposals:
@@ -1026,7 +1050,7 @@ def vote_on_proposal(request):
 
         if true_vote_count >= group.voting_limit:
             proposal.status = 1
-            proposal.save()
+            proposal.save()       
             proposal_accepted = True
 
         return JsonResponse({
@@ -1076,3 +1100,109 @@ def retrieve_votes_for_recipient(request):
     return JsonResponse({"votes": data}, status=200)
 
 
+
+
+@csrf_exempt
+@require_POST
+def schedule_email_lambda(proposal_id, users, proposed_datetime):
+    # Calculate 3 hours before event
+    scheduled_time = proposed_datetime - timedelta(hours=3)
+    now_utc = timezone.now().astimezone(dt_timezone.utc)
+
+    # If the event is less than 3 hours away, send immediately
+    if scheduled_time <= now_utc:
+        print("Event is soon. Publishing SNS message immediately.")
+
+        sns = boto3.client(
+            "sns",
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        )
+
+        response = sns.publish(
+            TopicArn="arn:aws:sns:us-east-1:120569600069:MovieNightUpcomingEvent",
+            Message=json.dumps({
+                "proposal_id": proposal_id,
+                "users": users
+            })
+        )
+        print("Immediate SNS publish response:", response)
+        return response
+
+    # Otherwise, schedule an EventBridge rule
+    scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
+    iso_timestamp = scheduled_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("Schedule expression:", f"at({iso_timestamp})")
+
+    rule_name = f"email-proposal-{proposal_id}"
+
+    scheduler = boto3.client(
+        "scheduler",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    )
+
+    try:
+        response = scheduler.create_schedule(
+            Name=rule_name,
+            ScheduleExpression=f"at({iso_timestamp})",
+            FlexibleTimeWindow={"Mode": "OFF"},
+            Target={
+                "Arn": "arn:aws:sns:us-east-1:120569600069:MovieNightUpcomingEvent",
+                "RoleArn": "arn:aws:iam::120569600069:role/LambdaExecutionRole",
+                "Input": json.dumps({
+                    "proposal_id": proposal_id,
+                    "users": users
+                })
+            }
+        )
+        print("Scheduled rule response:", response)
+        return response
+
+    except Exception as e:
+        print("Failed to schedule email:", str(e))
+        raise
+
+
+
+
+
+@csrf_exempt
+@require_POST
+def proposal_accepted(request):
+    try:
+        data = json.loads(request.body)
+
+        proposal_id = data["proposal_id"]
+
+        proposal = UserEventProposal.objects.get(id = proposal_id)
+        proposed_datetime = proposal.proposed_datetime
+        recipient = proposal.recipient
+        group = Group.objects.get(group_id = recipient.id)
+
+        members = GroupMember.objects.filter(group=group).select_related('member')
+
+        users = [
+            {
+                "id": m.member.id,
+                "username": m.member.username,
+                "email": m.member.email
+            } for m in members
+        ]
+
+        schedule_email_lambda(proposal_id, users, proposed_datetime)
+
+        # Collect emails for debug output
+        user_emails = [user["email"] for user in users]
+
+        return JsonResponse({
+            "message": f"Scheduled email for proposal {proposal_id}",
+            "emails": user_emails
+        })
+    
+    except UserEventProposal.DoesNotExist:
+        return JsonResponse({"error": "Proposal not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

@@ -15,17 +15,19 @@ const GroupPage = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("groups");    // "groups" or "friends"
   const [selectedChat, setSelectedChat] = useState(null);
+  const chatUser = location.state?.chatUser || null;
 
   // ChatSection state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
 
+  // When chatUser is passed via state, select them
   useEffect(() => {
-    if (location.state?.chatUser) {
-      setSelectedChat(location.state.chatUser);
-      setActiveTab("friends"); // Optional: auto-switch to friends tab
+    if (chatUser) {
+      setActiveTab("friends");
+      setSelectedChat(chatUser);
     }
-  }, [location.state]);
+  }, [chatUser]);
 
   const handleSelectChat = (chat) => {
     setSelectedChat(chat);
