@@ -877,12 +877,16 @@ def retrieve_feed(request):
 
 
 
-
+#Get_following_watch_status Method
+#Desc: Returns which followers have seen the movie the current user is viewing
+#Params: movie_id: Integer id of movie, user_id: integer containing id
+#Returns: "Followers_Watched": user_id, username, watched_on, rating given to movie, review written by user
 def get_following_watch_status(request):
 
     movie_id = request.GET.get("movie_id")
     user_id = request.GET.get("user_id")
 
+    #Call helper method to retrieve who the user is following
     following = get_following_helper(user_id)
     following_ids = following.keys()
 
@@ -1102,6 +1106,10 @@ def retrieve_votes_for_recipient(request):
 
 
 
+#Schedule_Email_lambda Method
+#Desc: Helper method for the backend that helps send email to users about proposals
+#Params: proposal_id: Integer, users: Dictionary containing id, email, and username, proposed_datetime: time the event is taking place
+#Returns: Response
 @csrf_exempt
 @require_POST
 def schedule_email_lambda(proposal_id, users, proposed_datetime):
@@ -1130,7 +1138,7 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
         print("Immediate SNS publish response:", response)
         return response
 
-    # Otherwise, schedule an EventBridge rule
+    #Otherwise schedule an EventBridge rule
     scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
     iso_timestamp = scheduled_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
     print("Schedule expression:", f"at({iso_timestamp})")
@@ -1169,6 +1177,11 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
 
 
 
+#Proposal accepted method
+#Desc: When a proposal is accepted (status=1), the frontend should call this method with proposal_id.
+#This method then will schedule an email to be sent 3 hours before the event
+#Params: proposal_id: Given as integer
+#Returns:"message": f"Scheduled email for proposal {proposal_id}" if successful
 @csrf_exempt
 @require_POST
 def proposal_accepted(request):
@@ -1194,15 +1207,53 @@ def proposal_accepted(request):
 
         schedule_email_lambda(proposal_id, users, proposed_datetime)
 
-        # Collect emails for debug output
-        user_emails = [user["email"] for user in users]
 
         return JsonResponse({
             "message": f"Scheduled email for proposal {proposal_id}",
-            "emails": user_emails
         })
     
     except UserEventProposal.DoesNotExist:
         return JsonResponse({"error": "Proposal not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
+#remove movie from watchlist method
+#Desc: Allows for removing of movie from any of users watchlist
+#Params: user_id: to verify correct watchlists, movie_id: movie to be removed, watchlist_id: id of watchlist the item is being removed from
+#example json: {"user_id":1,"movie_id":1992,"watchlist_id":1}
+#Returns: Success if method fully executed
+@csrf_exempt
+@require_POST
+def remove_movie_from_watchlist(request):
+    try:
+        data = json.loads(request.body)
+        user_id = data["user_id"]
+        movie_id = data["movie_id"]
+        watchlist_id = data["watchlist_id"]
+
+
+        user = User.objects.get(id = user_id)
+
+        #Check to see if watchlist exists
+        try:
+            watchlist = Watchlist.objects.get(id = watchlist_id, user = user)
+        except Watchlist.DoesNotExist:
+            return JsonResponse({"error": "Watchlist not found or does not belong to user"}, status=404)
+        
+        #Remove item from watchlist
+        try:
+            item = WatchlistItem.objects.get(watchlist=watchlist, movie__id = movie_id)
+            item.delete()
+            return JsonResponse({"success": "Movie removed from watchlist"})
+        except WatchlistItem.DoesNotExist:
+            return JsonResponse({"error": "Movie not found in watchlist"}, status=404)
+
+    except KeyError as e:
+        return JsonResponse({"error": f"Missing field: {str(e)}"}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
