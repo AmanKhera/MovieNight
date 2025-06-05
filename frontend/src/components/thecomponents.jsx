@@ -890,6 +890,7 @@ export const ChatSection = ({ selectedChat }) => {
         ...payload.message,
         timestamp: new Date().toISOString(),
         status: "sent",
+        sender_username: currentUser.username,
       },
     ]);
     socketRef.current.send(JSON.stringify(payload));
@@ -928,7 +929,6 @@ export const ChatSection = ({ selectedChat }) => {
             const isSent = msg.sender_id === currentUser?.id;
             const messageDate = new Date(msg.timestamp);
             const formattedDate = getRelativeDateLabel(messageDate);
-
             const previousMsg = messages[index - 1];
             const showDateHeader =
               index === 0 ||
@@ -939,10 +939,9 @@ export const ChatSection = ({ selectedChat }) => {
                 {showDateHeader && (
                   <div style={styles.dateHeader}>{formattedDate}</div>
                 )}
-
                 <div style={{ ...styles.messageWrapper, alignItems: isSent ? "flex-end" : "flex-start" }}>
                   {!isSent && selectedChat?.group_id && (
-                    <div style={styles.senderUsername}>User {msg.sender_id}</div>
+                    <div style={styles.senderUsername}>{msg.sender_username}</div>
                   )}
                   <div
                     style={{

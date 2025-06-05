@@ -13,7 +13,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
-        # Mark user online
         if self.user.is_authenticated:
             await self.set_user_online(self.user.id, True)
             await self.broadcast_presence(True)
@@ -22,8 +21,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
-
-        # Mark user offline
         if self.user.is_authenticated:
             await self.set_user_online(self.user.id, False)
             await self.broadcast_presence(False)
@@ -36,19 +33,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender_id = data["message"]["sender_id"]
             content = data["message"]["content"]
             saved = await self.save_message(sender_id, content)
+            sender_username = await self.get_username(saved.user_sending_id)  # ✅ Safe access
 
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "chat.message",
+                    "sender_channel_name": self.channel_name,
                     "message": {
                         "sender_id": saved.user_sending_id,
+                        "sender_username": sender_username,
                         "message_content": saved.message_content,
                         "timestamp": saved.date_sent.isoformat(),
                         "status": saved.status,
                     }
                 },
             )
+
 
         elif msg_type == "fetch_messages":
             page = data.get("page", 1)
@@ -77,7 +78,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def broadcast_presence(self, is_online):
-        """Notify others in the room of this user's status"""
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -107,9 +107,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             return []
 
+        # Prefetch sender usernames
+        qs = qs.select_related("user_sending")
+
         return [
             {
                 "sender_id": msg.user_sending_id,
+                "sender_username": msg.user_sending.username,
                 "message_content": msg.message_content,
                 "timestamp": msg.date_sent.isoformat(),
                 "status": msg.status,
@@ -136,3 +140,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             user.is_online = online
             user.last_seen = datetime.utcnow()
             user.save()
+
+    @database_sync_to_async
+    def get_username(self, user_id):
+        return User.objects.filter(id=user_id).values_list("username", flat=True).first()
