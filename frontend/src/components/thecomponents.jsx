@@ -890,6 +890,7 @@ export const ChatSection = ({ selectedChat }) => {
         ...payload.message,
         timestamp: new Date().toISOString(),
         status: "sent",
+        sender_username: currentUser.username,
       },
     ]);
     socketRef.current.send(JSON.stringify(payload));
@@ -928,7 +929,6 @@ export const ChatSection = ({ selectedChat }) => {
             const isSent = msg.sender_id === currentUser?.id;
             const messageDate = new Date(msg.timestamp);
             const formattedDate = getRelativeDateLabel(messageDate);
-
             const previousMsg = messages[index - 1];
             const showDateHeader =
               index === 0 ||
@@ -939,10 +939,9 @@ export const ChatSection = ({ selectedChat }) => {
                 {showDateHeader && (
                   <div style={styles.dateHeader}>{formattedDate}</div>
                 )}
-
                 <div style={{ ...styles.messageWrapper, alignItems: isSent ? "flex-end" : "flex-start" }}>
                   {!isSent && selectedChat?.group_id && (
-                    <div style={styles.senderUsername}>User {msg.sender_id}</div>
+                    <div style={styles.senderUsername}>{msg.sender_username}</div>
                   )}
                   <div
                     style={{
@@ -1010,6 +1009,12 @@ const styles = {
     borderBottom: "2px solid #3a1f5c",
     flexShrink: 0,
   },
+  headerTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    fontSize: "1.25rem",
+  },
   messages: {
     flex: 1,
     overflowY: "auto",
@@ -1051,38 +1056,46 @@ const styles = {
   messageBubble: {
     maxWidth: "70%",
     padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
+    marginBottom: "0.05rem",
     borderRadius: "12px",
     wordBreak: "break-word",
   },
   sent: {
+    alignSelf: "flex-end",
     backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
     color: "white",
     border: "1px solid rgb(161, 79, 255)",
     borderRadius: "20px",
     borderTopRightRadius: "5px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
   },
   received: {
+    alignSelf: "flex-start",
     backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
     color: "black",
     border: "1px solid rgb(248, 253, 255)",
     borderRadius: "20px",
     borderTopLeftRadius: "5px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
   },
   messageWrapper: {
     display: "flex",
     flexDirection: "column",
+    alignItems: "flex-start",
     marginBottom: "1.5rem",
   },
   senderUsername: {
     fontSize: "0.75rem",
-    marginBottom: "0.25rem",
-    color: "#bbb",
+    color: "#aaa",
+    marginBottom: "0.2rem",
+    marginLeft: "0.2rem",
   },
   meta: {
     fontSize: "0.8rem",
     color: "#ccc",
-    marginTop: "0.3rem",
+    marginTop: "0.05rem",
     display: "flex",
     gap: "0.5rem",
   },
@@ -1101,15 +1114,9 @@ const styles = {
     fontStyle: "italic",
     opacity: 0.6,
   },
-  headerTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    fontSize: "1.25rem",
-  },
   onlineDot: {
     color: "lightgreen",
-    fontSize: "0.95rem",
+    fontSize: "1rem",
     marginLeft: "0.5rem",
   },
   lastSeen: {
