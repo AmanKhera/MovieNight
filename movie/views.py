@@ -561,8 +561,6 @@ def review_recommendations(request):
 
         if not Movie.objects.filter(title=movie_title).exists():
             created = api_movie_search_helper(movie_title)
-            print(created)
-            print(11111111111111111)
             if created == False:
                 return JsonResponse({"error": "Movie does not exist"})
 
