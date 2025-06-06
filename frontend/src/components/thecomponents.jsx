@@ -954,6 +954,9 @@ export const ChatSection = ({ selectedChat }) => {
                     style={{
                       ...styles.messageBubble,
                       ...(isSent ? styles.sent : styles.received),
+                      ...(isSent
+                        ? { borderTopRightRadius: "5px", borderTopLeftRadius: "20px" }
+                        : { borderTopLeftRadius: "5px", borderTopRightRadius: "20px" }),
                     }}
                   >
                     <div>{msg.message_content}</div>
@@ -1062,19 +1065,31 @@ const styles = {
     wordBreak: "break-word",
   },
   sent: {
+    alignSelf: "flex-end",
     backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
     color: "white",
     border: "1px solid rgb(161, 79, 255)",
     borderRadius: "20px",
-    borderTopRightRadius: "5px",
+    borderBottomRightRadius: "20px",
+    borderBottomLeftRadius: "20px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
+    maxWidth: "70%",
   },
+
   received: {
+    alignSelf: "flex-start",
     backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
     color: "black",
     border: "1px solid rgb(248, 253, 255)",
     borderRadius: "20px",
-    borderTopLeftRadius: "5px",
+    borderBottomRightRadius: "20px",
+    borderBottomLeftRadius: "20px",
+    padding: "0.75rem 1.2rem",
+    marginBottom: "1rem",
+    maxWidth: "70%",
   },
+
   messageWrapper: {
     display: "flex",
     flexDirection: "column",
