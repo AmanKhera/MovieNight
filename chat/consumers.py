@@ -17,7 +17,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.set_user_online(self.user.id, True)
             await self.broadcast_presence(True)
 
-        await self.send_latest_messages()
+        #await self.send_latest_messages()
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
@@ -33,7 +33,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender_id = data["message"]["sender_id"]
             content = data["message"]["content"]
             saved = await self.save_message(sender_id, content)
-            sender_username = await self.get_username(saved.user_sending_id)  # ✅ Safe access
+            sender_username = await self.get_username(saved.user_sending_id)
+
+            print("Echoing message to room:", {
+    "sender_id": saved.user_sending_id,
+    "sender_username": sender_username,
+    "content": saved.message_content
+})
 
             await self.channel_layer.group_send(
                 self.room_group_name,

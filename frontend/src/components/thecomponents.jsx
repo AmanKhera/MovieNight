@@ -18,13 +18,13 @@ import {
 
 dayjs.extend(relativeTime);
 export function formatRelativeTime(timestamp) {
-    if (!timestamp) return "unknown";
+  if (!timestamp) return "unknown";
 
-    const parsed = dayjs(timestamp);
-    if (!parsed.isValid()) return "unknown";
+  const parsed = dayjs(timestamp);
+  if (!parsed.isValid()) return "unknown";
 
-    return parsed.fromNow(); // e.g., "5 minutes ago"
-  }
+  return parsed.fromNow(); // e.g., "5 minutes ago"
+}
 // Helper to read a named cookie (e.g., "csrftoken")
 const getCookie = (name) => {
   let cookieValue = null;
@@ -841,12 +841,18 @@ export const ChatSection = ({ selectedChat }) => {
       const data = JSON.parse(e.data);
 
       if (data.type === "chat.message") {
-        if (
-          data.message.sender_id !== currentUser?.id ||
-          selectedChat.group_id != null
-        ) {
-          setMessages((prev) => [...prev, data.message]);
-        }
+        const msg = data.message;
+
+        setMessages((prev) => {
+          const replaced = prev.map((m) => {
+            const sameSender = m.sender_id === msg.sender_id;
+            const sameTime = Math.abs(new Date(m.timestamp) - new Date(msg.timestamp)) < 5000;
+            return sameSender && sameTime ? msg : m;
+          });
+          const alreadyExists = replaced.some(m => m.message_content === msg.message_content && m.sender_id === msg.sender_id);
+          return alreadyExists ? replaced : [...replaced, msg];
+        });
+
         if (isAtBottomRef.current) scrollToBottom();
       }
 
@@ -891,6 +897,7 @@ export const ChatSection = ({ selectedChat }) => {
         timestamp: new Date().toISOString(),
         status: "sent",
         sender_username: currentUser.username,
+        message_content: newMessage.trim(),
       },
     ]);
     socketRef.current.send(JSON.stringify(payload));
@@ -1242,7 +1249,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const fetchGroupThreshold = async () => {
     if (!isGroup || !selectedItem?.group_id) return;
-    
+
     try {
       const resp = await fetch(`http://localhost:8000/get_group_members/?group_id=${selectedItem.group_id}`, {
         credentials: "include"
@@ -1274,7 +1281,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const sendVoteAndUpdate = async (recId, voteValue) => {
     if (!currentUserId) return;
-    
+
     try {
       const resp = await fetch("http://localhost:8000/update_recommendation/", {
         method: "POST",
@@ -1296,20 +1303,20 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         }
         return;
       }
-      
+
       const { recommended, upvotes, downvotes, threshold } = await resp.json();
 
       setRecommendations((prev) =>
         prev.map((m) =>
           m.recId === recId
-            ? { 
-                ...m, 
-                upvotes, 
-                downvotes, 
-                threshold,
-                recommended,
-                isInWatchlist: recommended === 1
-              }
+            ? {
+              ...m,
+              upvotes,
+              downvotes,
+              threshold,
+              recommended,
+              isInWatchlist: recommended === 1
+            }
             : m
         )
       );
@@ -1329,7 +1336,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             addMovieUrl.searchParams.set("movie_id", movie.id);
             addMovieUrl.searchParams.set("id", selectedItem.group_id);
             addMovieUrl.searchParams.set("watchlist_name", "Watchlist");
-            
+
             const addMovieResp = await fetch(addMovieUrl, { credentials: "include" });
             if (addMovieResp.ok) {
               console.log("Movie successfully added to group watchlist");
@@ -1340,7 +1347,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             console.error("Error adding movie to watchlist:", e);
           }
         }
-        
+
         loadWatchlist();
       }
 
@@ -1354,7 +1361,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     try {
       const posterUrl = new URL("http://localhost:8000/movie_poster/");
       posterUrl.searchParams.set("title", title);
-      
+
       const resp = await fetch(posterUrl, { credentials: "include" });
       if (resp.ok) {
         const data = await resp.json();
@@ -1370,16 +1377,16 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     try {
       const searchUrl = new URL("http://localhost:8000/search/");
       searchUrl.searchParams.set("id", movieId);
-      
+
       const resp = await fetch(searchUrl, { credentials: "include" });
       if (resp.ok) {
         const data = await resp.json();
         const movies = data.movies || [];
         if (movies.length > 0) {
           const movie = movies[0];
-          
+
           const poster = await fetchMoviePoster(movie.title);
-          
+
           return {
             id: movie.id,
             title: movie.title,
@@ -1401,17 +1408,17 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const loadWatchlist = async () => {
     // Clear previous watchlist content
     setWatchlist([]);
-    
+
     try {
       const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
       watchlistUrl.searchParams.set("id", selectedItem.group_id);
       watchlistUrl.searchParams.set("watchlist_name", "Watchlist");
-      
+
       const watchlistResp = await fetch(watchlistUrl, { credentials: "include" });
       if (watchlistResp.ok) {
         const watchlistData = await watchlistResp.json();
         const items = watchlistData.watchlist || [];
-        
+
         const watchlistWithDetails = await Promise.all(
           items.map(async (item) => {
             try {
@@ -1431,7 +1438,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             }
           })
         );
-        
+
         setWatchlist(watchlistWithDetails);
       } else {
         // If request fails, keep watchlist empty (will show "No movies" message)
@@ -1447,7 +1454,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
   const voteOnProposal = async (proposalId, votingValue) => {
     if (!currentUserId) return;
-    
+
     try {
       const resp = await fetch("http://localhost:8000/vote_on_proposal/", {
         method: "POST",
@@ -1462,10 +1469,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
       if (resp.ok) {
         const data = await resp.json();
-        
+
         loadProposals();
         loadVotesForProposals();
-        
+
         if (data.proposal_accepted) {
           alert("Proposal accepted! 🎉");
         }
@@ -1483,12 +1490,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     try {
       const votesUrl = new URL("http://localhost:8000/retrieve_vote_proposals/");
       votesUrl.searchParams.set("recipient_id", isGroup ? selectedItem.group_id : selectedItem.id);
-      
+
       const votesResp = await fetch(votesUrl, { credentials: "include" });
       if (votesResp.ok) {
         const votesData = await votesResp.json();
         const votes = votesData.votes || [];
-        
+
         const votesByProposal = {};
         votes.forEach(vote => {
           if (!votesByProposal[vote.proposal_id]) {
@@ -1498,18 +1505,18 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               userVoted: null
             };
           }
-          
+
           if (vote.vote) {
             votesByProposal[vote.proposal_id].yesVotes.push(vote);
           } else {
             votesByProposal[vote.proposal_id].noVotes.push(vote);
           }
-          
+
           if (vote.voter_id === currentUserId) {
             votesByProposal[vote.proposal_id].userVoted = vote.vote;
           }
         });
-        
+
         setProposalVotes(votesByProposal);
       }
     } catch (e) {
@@ -1521,12 +1528,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     try {
       const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
       proposalsUrl.searchParams.set("id_retrieving", isGroup ? selectedItem.group_id : selectedItem.id);
-      
+
       const proposalsResp = await fetch(proposalsUrl, { credentials: "include" });
       if (proposalsResp.ok) {
         const proposalsData = await proposalsResp.json();
         const proposalsList = proposalsData.proposals || [];
-        
+
         const proposalsWithMovieDetails = await Promise.all(
           proposalsList.map(async (proposal) => {
             try {
@@ -1544,7 +1551,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             }
           })
         );
-        
+
         setProposals(proposalsWithMovieDetails);
       }
     } catch (e) {
@@ -1561,7 +1568,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
     try {
       const proposedDateTime = `${scheduleDate} ${scheduleTime}:00`;
-      
+
       const resp = await fetch("http://localhost:8000/create_movie_proposal/", {
         method: "POST",
         credentials: "include",
@@ -1595,7 +1602,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setSelectedMovieForSchedule(movie);
     setShowScheduleModal(true);
     setError(null);
-    
+
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setScheduleDate(tomorrow.toISOString().split('T')[0]);
@@ -1605,19 +1612,19 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const getNextTwoWeeks = () => {
     const days = [];
     const today = new Date();
-    
+
     for (let i = 0; i < 14; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       days.push(date);
     }
-    
+
     return days;
   };
 
   const getProposalsForDate = (date) => {
     if (!date) return [];
-    
+
     const dateString = date.toISOString().split('T')[0];
     return proposals.filter(proposal => {
       const proposalDate = new Date(proposal.proposed_datetime).toISOString().split('T')[0];
@@ -1631,7 +1638,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       const current = new Date(dateProposals[i].proposed_datetime);
       const next = new Date(dateProposals[i + 1].proposed_datetime);
       const timeDiff = Math.abs(next - current) / (1000 * 60);
-      
+
       if (timeDiff < 180) {
         conflicts.push(dateProposals[i].proposal_id);
         conflicts.push(dateProposals[i + 1].proposal_id);
@@ -1649,7 +1656,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
       proposalsByDate[date].push(proposal);
     });
-    
+
     Object.keys(proposalsByDate).forEach(date => {
       proposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
       const conflicts = checkTimeConflicts(proposalsByDate[date]);
@@ -1657,7 +1664,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         proposal.hasConflict = conflicts.includes(proposal.proposal_id);
       });
     });
-    
+
     return proposalsByDate;
   };
 
@@ -1690,17 +1697,17 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         try {
           const memberUrl = new URL("http://localhost:8000/group_recommendation/");
           memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-          
+
           const memberResp = await fetch(memberUrl, { credentials: "include" });
           let memberRecs = [];
-          
+
           if (memberResp.ok) {
             const memberData = await memberResp.json();
             const recs = memberData.Recommendations || [];
             const memberDetails = await Promise.all(
               recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
             );
-            
+
             const memberDetailsWithUsernames = await Promise.all(
               memberDetails.map(async (d, i) => {
                 if (!d) return null;
@@ -1718,7 +1725,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 };
               })
             );
-            
+
             memberRecs = memberDetailsWithUsernames.filter(Boolean);
           }
 
@@ -1727,7 +1734,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           if (finalList.length < 10) {
             const generatedUrl = new URL("http://localhost:8000/group_recs/");
             generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-            
+
             const generatedResp = await fetch(generatedUrl, { credentials: "include" });
             if (generatedResp.ok) {
               const generatedData = await generatedResp.json();
@@ -1738,15 +1745,15 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                   existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
                 )
               )
-                .map((d, i) => d && { 
-                  ...d, 
-                  recId: existing[i].id, 
+                .map((d, i) => d && {
+                  ...d,
+                  recId: existing[i].id,
                   upvotes: existing[i].upvotes || 0,
                   downvotes: existing[i].downvotes || 0,
                   threshold: existing[i].threshold || 3,
                   recommended: existing[i].recommended || 0,
                   isInWatchlist: existing[i].recommended === 1,
-                  source: 'generated' 
+                  source: 'generated'
                 })
                 .filter(Boolean);
 
@@ -1765,7 +1772,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         await loadProposals();
         await loadVotesForProposals();
       }
-      
+
       setLoading(false);
     };
 
@@ -1783,9 +1790,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       1: { text: "Accepted", color: "#4caf50" },
       2: { text: "Rejected", color: "#f44336" }
     };
-    
+
     const config = statusConfig[status] || { text: "Unknown", color: "#757575" };
-    
+
     return (
       <span
         style={{
@@ -1808,9 +1815,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       "-1": { text: "Rejected", color: "#f44336" },
       0: { text: "Pending", color: "#ff9800" }
     };
-    
+
     const config = statusConfig[recommended] || { text: "Pending", color: "#ff9800" };
-    
+
     return (
       <span
         style={{
@@ -1868,8 +1875,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             gap: "10px",
             zIndex: 1001,
             boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-            animation: showSuccessNotification 
-              ? "slideInFromRight 0.5s ease-out forwards" 
+            animation: showSuccessNotification
+              ? "slideInFromRight 0.5s ease-out forwards"
               : "slideOutToRight 0.5s ease-in forwards",
             fontSize: "14px",
             fontWeight: "500",
@@ -1967,7 +1974,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
               const userVote = userVotes[movie.recId];
               const totalVotes = movie.upvotes + movie.downvotes;
               const displayThreshold = isGroup ? groupThreshold : (movie.threshold || 3);
-              
+
               return (
                 <div
                   key={movie.recId}
@@ -2167,12 +2174,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       {pollView === "proposals" && (
         <>
           {!loading && proposals.length === 0 && <p>No movie proposals yet. Schedule movies from your watchlist!</p>}
-          
+
           {proposals.length > 0 && (
             <div style={{ width: "100%" }}>
-              <div style={{ 
-                display: "flex", 
-                gap: "0.5rem", 
+              <div style={{
+                display: "flex",
+                gap: "0.5rem",
                 marginBottom: "1rem",
                 justifyContent: "center"
               }}>
@@ -2210,8 +2217,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
               {calendarView === "calendar" && (
                 <div>
-                  <h4 style={{ 
-                    margin: "0 0 1rem 0", 
+                  <h4 style={{
+                    margin: "0 0 1rem 0",
                     color: "white",
                     fontSize: "1rem",
                     textAlign: "center"
@@ -2246,22 +2253,22 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                     {(() => {
                       const today = new Date();
                       const currentDate = new Date(today);
-                      
+
                       const startOfWeek = new Date(currentDate);
                       startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-                      
+
                       const calendarDays = [];
                       for (let i = 0; i < 14; i++) {
                         const date = new Date(startOfWeek);
                         date.setDate(startOfWeek.getDate() + i);
                         calendarDays.push(date);
                       }
-                      
+
                       return calendarDays.map((date, index) => {
                         const dayProposals = getProposalsForDate(date);
                         const isToday = date.toDateString() === today.toDateString();
                         const isPastDate = date < today && !isToday;
-                        
+
                         return (
                           <div
                             key={`calendar-day-${index}`}
@@ -2284,10 +2291,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                             }}>
                               {date.getDate()}
                             </div>
-                            
+
                             {!isPastDate && dayProposals.slice(0, 2).map((proposal, propIndex) => {
                               const hasConflict = proposal.hasConflict;
-                              
+
                               return (
                                 <div
                                   key={propIndex}
@@ -2307,15 +2314,15 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                                   title={`${proposal.movie_title} at ${formatTime(proposal.proposed_datetime)} - Click to view details`}
                                   onClick={() => handleMovieClick(proposal.proposal_id)}
                                 >
-                                  <div style={{ 
+                                  <div style={{
                                     fontWeight: "700",
                                     textShadow: "0 1px 1px rgba(0,0,0,0.5)",
                                     marginBottom: "2px"
                                   }}>
                                     {proposal.movie_title.length > 8 ? proposal.movie_title.substring(0, 8) + '...' : proposal.movie_title}
                                   </div>
-                                  <div style={{ 
-                                    fontSize: "0.6rem", 
+                                  <div style={{
+                                    fontSize: "0.6rem",
                                     opacity: 0.95,
                                     fontWeight: "500"
                                   }}>
@@ -2324,7 +2331,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                                 </div>
                               );
                             })}
-                            
+
                             {!isPastDate && dayProposals.length > 2 && (
                               <div
                                 style={{
@@ -2345,10 +2352,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       });
                     })()}
                   </div>
-                  
-                  <div style={{ 
-                    marginTop: "1rem", 
-                    fontSize: "0.65rem", 
+
+                  <div style={{
+                    marginTop: "1rem",
+                    fontSize: "0.65rem",
                     color: "#bbb",
                     display: "flex",
                     gap: "0.75rem",
@@ -2372,9 +2379,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       Conflict
                     </div>
                   </div>
-                  <div style={{ 
-                    marginTop: "0.5rem", 
-                    fontSize: "0.6rem", 
+                  <div style={{
+                    marginTop: "0.5rem",
+                    fontSize: "0.6rem",
                     color: "#999",
                     textAlign: "center"
                   }}>
@@ -2388,14 +2395,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                   {(() => {
                     const today = new Date();
                     const currentDate = new Date(today);
-                    
+
                     const startOfWeek = new Date(currentDate);
                     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-                    
+
                     const endOfCalendar = new Date(startOfWeek);
                     endOfCalendar.setDate(startOfWeek.getDate() + 13);
                     endOfCalendar.setHours(23, 59, 59, 999);
-                    
+
                     const filteredProposalsByDate = {};
                     proposals.forEach(proposal => {
                       const proposalDate = new Date(proposal.proposed_datetime);
@@ -2407,7 +2414,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                         filteredProposalsByDate[dateKey].push(proposal);
                       }
                     });
-                    
+
                     Object.keys(filteredProposalsByDate).forEach(date => {
                       filteredProposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
                       const conflicts = checkTimeConflicts(filteredProposalsByDate[date]);
@@ -2415,141 +2422,141 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                         proposal.hasConflict = conflicts.includes(proposal.proposal_id);
                       });
                     });
-                    
+
                     return Object.entries(filteredProposalsByDate)
                       .sort(([a], [b]) => new Date(a) - new Date(b))
                       .map(([date, dayProposals]) => {
-                      const dateObj = new Date(date);
-                      const isToday = dateObj.toDateString() === new Date().toDateString();
-                      const isTomorrow = dateObj.toDateString() === new Date(Date.now() + 86400000).toDateString();
-                      
-                      return (
-                        <div key={date} style={{ marginBottom: "1.5rem" }}>
-                          <h4 style={{ 
-                            color: isToday ? "#6a0dad" : "#fff",
-                            fontSize: "0.9rem",
-                            margin: "0 0 0.75rem 0",
-                            fontWeight: "bold",
-                            borderBottom: "1px solid #444",
-                            paddingBottom: "0.25rem"
-                          }}>
-                            📅 {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                          </h4>
-                          
-                          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                            {dayProposals.map((proposal) => {
-                              const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
-                              const isPending = proposal.status === 0;
-                              const hasUserVoted = votes.userVoted !== null;
-                              const hasConflict = proposal.hasConflict;
-                              const isSelected = selectedProposalId === proposal.proposal_id;
-                              
-                              return (
-                                <div
-                                  key={proposal.proposal_id}
-                                  id={`proposal-${proposal.proposal_id}`}
-                                  style={{
-                                    backgroundColor: isSelected ? "#6a0dad" : "#240046",
-                                    borderRadius: "6px",
-                                    padding: "0.75rem",
-                                    border: hasConflict ? "2px solid #ff5722" : isSelected ? "2px solid #9c4dcc" : "1px solid #444",
-                                    position: "relative",
-                                    transition: "all 0.3s ease",
-                                    boxShadow: isSelected ? "0 0 10px rgba(106, 13, 173, 0.5)" : "none"
-                                  }}
-                                >
-                                  {hasConflict && (
-                                    <div style={{
-                                      position: "absolute",
-                                      top: "0.25rem",
-                                      right: "0.25rem",
-                                      backgroundColor: "#ff5722",
-                                      color: "white",
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      fontSize: "0.6rem",
-                                      fontWeight: "bold"
-                                    }}>
-                                      ⚠️ CONFLICT
+                        const dateObj = new Date(date);
+                        const isToday = dateObj.toDateString() === new Date().toDateString();
+                        const isTomorrow = dateObj.toDateString() === new Date(Date.now() + 86400000).toDateString();
+
+                        return (
+                          <div key={date} style={{ marginBottom: "1.5rem" }}>
+                            <h4 style={{
+                              color: isToday ? "#6a0dad" : "#fff",
+                              fontSize: "0.9rem",
+                              margin: "0 0 0.75rem 0",
+                              fontWeight: "bold",
+                              borderBottom: "1px solid #444",
+                              paddingBottom: "0.25rem"
+                            }}>
+                              📅 {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                            </h4>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                              {dayProposals.map((proposal) => {
+                                const votes = proposalVotes[proposal.proposal_id] || { yesVotes: [], noVotes: [], userVoted: null };
+                                const isPending = proposal.status === 0;
+                                const hasUserVoted = votes.userVoted !== null;
+                                const hasConflict = proposal.hasConflict;
+                                const isSelected = selectedProposalId === proposal.proposal_id;
+
+                                return (
+                                  <div
+                                    key={proposal.proposal_id}
+                                    id={`proposal-${proposal.proposal_id}`}
+                                    style={{
+                                      backgroundColor: isSelected ? "#6a0dad" : "#240046",
+                                      borderRadius: "6px",
+                                      padding: "0.75rem",
+                                      border: hasConflict ? "2px solid #ff5722" : isSelected ? "2px solid #9c4dcc" : "1px solid #444",
+                                      position: "relative",
+                                      transition: "all 0.3s ease",
+                                      boxShadow: isSelected ? "0 0 10px rgba(106, 13, 173, 0.5)" : "none"
+                                    }}
+                                  >
+                                    {hasConflict && (
+                                      <div style={{
+                                        position: "absolute",
+                                        top: "0.25rem",
+                                        right: "0.25rem",
+                                        backgroundColor: "#ff5722",
+                                        color: "white",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontSize: "0.6rem",
+                                        fontWeight: "bold"
+                                      }}>
+                                        ⚠️ CONFLICT
+                                      </div>
+                                    )}
+
+                                    {isSelected && (
+                                      <div style={{
+                                        position: "absolute",
+                                        top: "0.25rem",
+                                        left: "0.25rem",
+                                        backgroundColor: "#9c4dcc",
+                                        color: "white",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontSize: "0.6rem",
+                                        fontWeight: "bold"
+                                      }}>
+                                        📍 SELECTED
+                                      </div>
+                                    )}
+
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                                      <div style={{ flex: 1, marginRight: hasConflict || isSelected ? "4rem" : "0", marginTop: isSelected ? "1.5rem" : "0" }}>
+                                        <h5 style={{ margin: "0 0 0.25rem 0", color: "#fff", fontSize: "0.85rem" }}>
+                                          🎬 {proposal.movie_title}
+                                        </h5>
+                                        <p style={{ margin: "0", fontSize: "0.75rem", color: "#bbb" }}>
+                                          ⏰ {formatTime(proposal.proposed_datetime)} • By: <strong>{proposal.proposed_by}</strong>
+                                        </p>
+                                      </div>
+                                      {getStatusBadge(proposal.status)}
                                     </div>
-                                  )}
-                                  
-                                  {isSelected && (
-                                    <div style={{
-                                      position: "absolute",
-                                      top: "0.25rem",
-                                      left: "0.25rem",
-                                      backgroundColor: "#9c4dcc",
-                                      color: "white",
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      fontSize: "0.6rem",
-                                      fontWeight: "bold"
-                                    }}>
-                                      📍 SELECTED
+
+                                    <div style={{ display: "flex", gap: "1rem", fontSize: "0.7rem", color: "#ccc", marginBottom: isPending ? "0.75rem" : "0" }}>
+                                      <span style={{ color: "#4caf50" }}>✅ Yes: {votes.yesVotes.length}</span>
+                                      <span style={{ color: "#f44336" }}>❌ No: {votes.noVotes.length}</span>
                                     </div>
-                                  )}
-                                  
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                                    <div style={{ flex: 1, marginRight: hasConflict || isSelected ? "4rem" : "0", marginTop: isSelected ? "1.5rem" : "0" }}>
-                                      <h5 style={{ margin: "0 0 0.25rem 0", color: "#fff", fontSize: "0.85rem" }}>
-                                        🎬 {proposal.movie_title}
-                                      </h5>
-                                      <p style={{ margin: "0", fontSize: "0.75rem", color: "#bbb" }}>
-                                        ⏰ {formatTime(proposal.proposed_datetime)} • By: <strong>{proposal.proposed_by}</strong>
-                                      </p>
-                                    </div>
-                                    {getStatusBadge(proposal.status)}
+
+                                    {isPending && (
+                                      <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                                        <button
+                                          style={{
+                                            border: "none",
+                                            padding: "0.4rem 0.8rem",
+                                            borderRadius: 4,
+                                            cursor: hasUserVoted ? "not-allowed" : "pointer",
+                                            backgroundColor: votes.userVoted === true ? "#4caf50" : "#2e7d32",
+                                            color: "white",
+                                            fontSize: "0.7rem",
+                                            opacity: hasUserVoted && votes.userVoted !== true ? 0.5 : 1
+                                          }}
+                                          disabled={hasUserVoted}
+                                          onClick={() => voteOnProposal(proposal.proposal_id, true)}
+                                        >
+                                          {votes.userVoted === true ? "✅ Voted Yes" : "Accept"}
+                                        </button>
+                                        <button
+                                          style={{
+                                            border: "none",
+                                            padding: "0.4rem 0.8rem",
+                                            borderRadius: 4,
+                                            cursor: hasUserVoted ? "not-allowed" : "pointer",
+                                            backgroundColor: votes.userVoted === false ? "#f44336" : "#c62828",
+                                            color: "white",
+                                            fontSize: "0.7rem",
+                                            opacity: hasUserVoted && votes.userVoted !== false ? 0.5 : 1
+                                          }}
+                                          disabled={hasUserVoted}
+                                          onClick={() => voteOnProposal(proposal.proposal_id, false)}
+                                        >
+                                          {votes.userVoted === false ? "❌ Voted No" : "Reject"}
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
-                                  
-                                  <div style={{ display: "flex", gap: "1rem", fontSize: "0.7rem", color: "#ccc", marginBottom: isPending ? "0.75rem" : "0" }}>
-                                    <span style={{ color: "#4caf50" }}>✅ Yes: {votes.yesVotes.length}</span>
-                                    <span style={{ color: "#f44336" }}>❌ No: {votes.noVotes.length}</span>
-                                  </div>
-                                  
-                                  {isPending && (
-                                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                                      <button
-                                        style={{
-                                          border: "none",
-                                          padding: "0.4rem 0.8rem",
-                                          borderRadius: 4,
-                                          cursor: hasUserVoted ? "not-allowed" : "pointer",
-                                          backgroundColor: votes.userVoted === true ? "#4caf50" : "#2e7d32",
-                                          color: "white",
-                                          fontSize: "0.7rem",
-                                          opacity: hasUserVoted && votes.userVoted !== true ? 0.5 : 1
-                                        }}
-                                        disabled={hasUserVoted}
-                                        onClick={() => voteOnProposal(proposal.proposal_id, true)}
-                                      >
-                                        {votes.userVoted === true ? "✅ Voted Yes" : "Accept"}
-                                      </button>
-                                      <button
-                                        style={{
-                                          border: "none",
-                                          padding: "0.4rem 0.8rem",
-                                          borderRadius: 4,
-                                          cursor: hasUserVoted ? "not-allowed" : "pointer",
-                                          backgroundColor: votes.userVoted === false ? "#f44336" : "#c62828",
-                                          color: "white",
-                                          fontSize: "0.7rem",
-                                          opacity: hasUserVoted && votes.userVoted !== false ? 0.5 : 1
-                                        }}
-                                        disabled={hasUserVoted}
-                                        onClick={() => voteOnProposal(proposal.proposal_id, false)}
-                                      >
-                                        {votes.userVoted === false ? "❌ Voted No" : "Reject"}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    });
+                        );
+                      });
                   })()}
                 </div>
               )}
@@ -2557,7 +2564,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           )}
         </>
       )}
-      
+
       {showScheduleModal && (
         <div
           style={{
@@ -2588,7 +2595,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             <h3 style={{ color: "white", marginTop: 0 }}>
               Schedule: {selectedMovieForSchedule?.title || selectedMovieForSchedule?.movieDetails?.title}
             </h3>
-            
+
             <div style={{ marginBottom: "1rem" }}>
               <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>Date:</label>
               <input
@@ -2606,7 +2613,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 }}
               />
             </div>
-            
+
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", color: "white", marginBottom: "0.5rem" }}>Time:</label>
               <input
@@ -2623,11 +2630,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                 }}
               />
             </div>
-            
+
             {error && (
               <p style={{ color: "#f44336", fontSize: "0.9rem", marginBottom: "1rem" }}>{error}</p>
             )}
-            
+
             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button
                 style={{
