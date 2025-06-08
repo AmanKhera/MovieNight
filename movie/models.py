@@ -1,8 +1,11 @@
 from django.db import models
 from user.models import User
 
-# Create your models here.
 
+#Movie Table
+#Desc: Stores all movies 
+#Table Columns: id: Primary key, title: title of movie, year: year released, runtime: Movie Length in minutes, rating: Content rating,
+#director: directors name, plot_overwritten: Used to track if plot has been updated via Open AI
 class Movie(models.Model):
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
@@ -18,15 +21,14 @@ class Movie(models.Model):
         return self.title
     
     class Meta:
-        #managed = False
         db_table = 'movie_movie'
 
 
 #Watchlist Table
 #contains all of users watchlists
-#   user_watchlists = Watchlist.objects.filter(user=user)
-#   retrieves all user watchlists
-
+#user_watchlists = Watchlist.objects.filter(user=user)
+#retrieves all user watchlists
+#Table Restrictions: A user cannot have a playlist with the same name, and each user only ha 1 main watchlist
 class Watchlist(models.Model):
     MAIN = 'main'
     CUSTOM = 'custom'
@@ -61,7 +63,8 @@ class Watchlist(models.Model):
 
 
 #WatchListItem Table
-#contains items within playlist
+#Desc: Tracks movies within a playlist
+#Table Columns: id: Primary key, watchlist: foreign key to Watchlist table, movie: foreign key to movie table, added_at: Time the movie was added
 class WatchlistItem(models.Model):
     id = models.BigAutoField(primary_key=True)
 
@@ -80,6 +83,11 @@ class WatchlistItem(models.Model):
         return f"Movie {self.movie_id} in {self.watchlist.name}"   
     
 
+#User Movie Journal
+#Desc: Tracks movies seen by user
+#Table Columns: id: Primary key, user: foreign key from User table, movie: foreign key from movie table, date_watched: date movie was watched, rating: Review given by user 1-5,
+#review: Allows users to write reviews up to 2000 characters, favorite: Boolean which tracks if the user favorites the movie
+#Table Restrictions: None
 class UserMovieJournal(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='movie_journals')
@@ -98,6 +106,11 @@ class UserMovieJournal(models.Model):
         return f'{self.user} - {self.movie} ({self.date_watched})'
 
 
+
+#Recommendation Fedback
+#Desc: Tracks recommendations given by OpenAI and whether or not the user liked it or not
+#Table Columns: id: Primary key, User: User voting on recommendation (Foreign key from user table), movie: Movie being voted on (Foreign key from Movie table),
+#liked: (Boolean) whether or not the user liked the movie, created_at: when the user voted on the recommendation
 class RecommendationFeedback(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(

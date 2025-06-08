@@ -26,6 +26,11 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 logger = logging.getLogger(__name__)
 
+
+#Create Group method
+#Desc: Creates group, watchlist for group, and populates watchlist via leaders watchlist
+#Params: Requires post request, group_name: Name of group, leader_id: id of user who is creating group, genre: Optional
+#Returns: message: Group created successfully
 @csrf_exempt
 def create_group(request):
     if request.method != 'POST':
@@ -77,10 +82,6 @@ def create_group(request):
             UserMovieJournal(
                 user = New_Group,
                 movie = entry.movie,
-                #date_watched = entry.date_watched,
-                #rating = entry.rating,
-                #review = entry.review,
-                #favorite = entry.favorite
             )
             for entry in leader_watched_movies
         ]      
@@ -97,10 +98,6 @@ def create_group(request):
             WatchlistItem(
                 watchlist = watchlist,
                 movie = entry.movie,
-                #date_watched = entry.date_watched,
-                #rating = entry.rating,
-                #review = entry.review,
-                #favorite = entry.favorite
             )
             for entry in leader_watchlist
         ]      
@@ -117,8 +114,9 @@ def create_group(request):
     
 
 #Add Member To Group
+#Desc: Adds member to group, updates voting limit and groups watchlist
 #params: group_id (group the member will be added to), member_id (member to be added)
-#returns: Status 200 if success
+#returns: message: member added to group!
 @require_POST
 @csrf_exempt
 def add_member_to_group(request):
@@ -189,14 +187,18 @@ def add_member_to_group(request):
 
 
 
+
 #Remove Member From Group
-#Params: remove_id (person being removed), group_id
+#Desc: Allows members to be removed from group, updates voting_limit, and groups watchlist
+#Params: remove_id (person being removed), group_id (group the user is being removed from),
+#username: username of leader
+#Returns:Success
 @csrf_exempt
 def remove_member_from_group(request):
     try:
         data = json.loads(request.body)
         username = data.get("username")
-        current_user_id = User.objects.get(username=username).id  # Ensure leader is the one removing members
+        current_user_id = User.objects.get(username=username).id  #Ensure leader is the one removing members
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
 
@@ -285,6 +287,7 @@ def remove_member_from_group(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+
 #Get User Groups
 #return: The list of groups the user is a part of
 @csrf_exempt
@@ -313,6 +316,7 @@ def get_user_groups(request):
         return JsonResponse({"error": "User not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
 
    
 #Group Recommendation
@@ -347,67 +351,6 @@ def group_recommendation(request):
 
 
 
-
-
-
-
-# def group_recommendation(request):
-#     group_id = request.GET.get('group_id')
-#     try:
-
-#         seven_days = timezone.now() - timedelta(days=7)
-
-#         #retrives recommendations in the past 7 days
-#         recommendations = MemberRecommendation.objects.filter(
-#         user_receiving=group_id,
-#         date_suggested__gte=seven_days
-#          ).exclude(member_suggested=7648).order_by('-votes')
-        
-#         movie_ids = [recs.movie_id for recs in recommendations]
-#         movies = Movie.objects.filter(id__in=movie_ids).values_list('id', 'title', 'year')
-#         title_map = {mid: title for mid, title in movies}
-
-
-#         titles = [ title_map.get(r.movie_id) for r in recommendations ]
-
-        
-#         recommendations_list = list(recommendations.values())
-
-#         for idx, rec_dict in enumerate(recommendations_list):
-#             rec_dict['movie_title'] = titles[idx]
-
-
-#         return JsonResponse({"Recommendations": recommendations_list})
-#     except Exception as e:
-#         return JsonResponse({"error": str(e)}, status=500)
-    
-
-#Just use removed method
-# #WHEN MEMBER REMOVED FROM GROUP UPDATE WATCHED MOVIES
-# @csrf_exempt
-# def leave_group(request):
-
-#     if request.method == 'POST':
-#         try:
-#             data = json.loads(request.body)
-#             user_id = data.get('user_id')
-#             group_id = data.get('group_id')
-
-#             group = Group.objects.get(group_id=group_id)
-
-#             membership = GroupMember.objects.get(group=group, member_id=user_id)
-#             membership.delete()
-
-#             return JsonResponse({"message": "User has left the group"}, status=200)
-
-#         except GroupMember.DoesNotExist:
-#             return JsonResponse({"error": "User is not in group"}, status=500)
-#         except Group.DoesNotExist:
-#             return JsonResponse({"error": "Group not found"}, status=404)
-#         except Exception as e:
-#             return JsonResponse({"error": str(e)}, status=500)
-
-#     return JsonResponse({"error": "Invalid request method"}, status=405)
         
 #Retrieve Group Messages Method
 #Desc: Retreives groups most recent messages
@@ -622,52 +565,7 @@ def generate_group_recommendations(group_id, num_of_recs):
 
 
 
-# @csrf_exempt
-# def retrieve_model_recommendations(request):
-#     group_id = request.GET.get("group_id")
-#     user = User.objects.get(pk=group_id)
-#     model_id = 7648
 
-#     latest_ids = (
-#         MemberRecommendation.objects
-#         .filter(user_receiving=user, member_suggested = model_id ,recommended=0)
-#         .values('movie_id')
-#         .annotate(latest_id=Max('id'))
-#         .values_list('latest_id', flat=True)
-#     )
-
-#     movie_title_sq = Movie.objects.filter(pk=OuterRef('movie_id')).values('title')[:1]
-
-#     rows = (
-#         MemberRecommendation.objects
-#         .filter(id__in=latest_ids)
-#         .annotate(movie_title=Subquery(movie_title_sq))
-#         .order_by('-date_suggested')
-#         .values('id', 'member_suggested','movie_id', 'movie_title', 'date_suggested')[:20]
-#     )
-
-#     if rows.count() < 20:
-#         num_needed = 20 - rows.count()
-#         generate_group_recommendations(group_id, num_needed)
-
-#         latest_ids = (
-#             MemberRecommendation.objects
-#             .filter(user_receiving=user, member_suggested = model_id, recommended=0)
-#             .values('movie_id')
-#             .annotate(latest_id=Max('id'))
-#             .values_list('latest_id', flat=True)
-#         )
-
-#         rows = (
-#             MemberRecommendation.objects
-#             .filter(id__in=latest_ids)
-#             .annotate(movie_title=Subquery(movie_title_sq))
-#             .order_by('-date_suggested')
-#             .values('id', 'member_suggested' 'movie_id', 'movie_title', 'date_suggested')[:20]
-#         )
-
-
-#     return JsonResponse({"recommendations": list(rows)})
 
 
 @csrf_exempt
@@ -749,6 +647,11 @@ def retrieve_model_recommendations(request):
 
 
 
+
+#Members_in_group method
+#Desc: Returns all members in the group with, member_id, username, role, and what time they joined
+#Params: group_id: Integer containing group_id
+#returns: group_id, group_name, and all member data
 @csrf_exempt
 def members_in_group(request):
     
