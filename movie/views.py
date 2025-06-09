@@ -35,11 +35,12 @@ genre_dictionary = {
 }
 
 
+
 #Movie Poster Method
 #Grabs title of movie and returns poster of movie in json format
-@csrf_exempt
 #params: title: Which is title of movie
 #returns a dictionary containing title and poster
+@csrf_exempt
 def Movie_Poster(request):
     title = request.GET.get('title')
     if not title:
@@ -67,13 +68,12 @@ def Movie_Poster(request):
         return JsonResponse({"error": "Failed to fetch data from OMDB API", "details": str(e)}, status=500)
 
 
+
 #Popular Movies
 #Grabs current popular movies by default returns page 1 but can add page in url to grab more
-
-@csrf_exempt
-
 #params: page: optional param used to show more results
 #returns json containing popular movies with all relevant information
+@csrf_exempt
 def popular(request):
     #Defaults to first page if no page is put in
     page = request.GET.get('page', 1)
@@ -94,7 +94,7 @@ def popular(request):
 
 
 @csrf_exempt
-# Helper for pagination
+#Helper for pagination
 def paginate(queryset, page, items_per_page=20):
     try:
         page = int(page)
@@ -203,23 +203,24 @@ def Search(request):
 
 
 #API Movie Search Function
-#If search function does not return correct movie us this function instead
+#Desc: If search function does not return correct movie use this function instead,
+#It also adds the movie to our database so the search function will work in the future
 #params: title: title of movie, and release date: the year the movie is released
 #returns the correct movie and the movie is also added to our database
 def api_movie_search(request):
-    # Get movie title and release date from query parameters
+    #Get movie title and release date from query parameters
     movie_title = request.GET.get('title')
-    release_date = request.GET.get('release_date')  # Expecting "YYYY-MM-DD" or "YYYY"
+    release_date = request.GET.get('release_date')  #Expecting "YYYY-MM-DD" or "YYYY"
 
-    # Extract the year from the release date if provided
+    #Extract the year from the release date if given
     release_year = None
     if release_date:
-        release_year = release_date.split('-')[0]  # Gets the "YYYY" part
+        release_year = release_date.split('-')[0]  #Grabs the year
 
     OMDB_API_KEY = os.getenv("OMDB_API_KEY")
     omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}"
 
-    # Build the query parameters for the OMDb API
+    #Query for omdbapi
     query_params = {
         't': movie_title,
     }
@@ -233,21 +234,20 @@ def api_movie_search(request):
         if data.get('Response') == 'False':
             return JsonResponse({'error': data.get('Error', 'Movie not found.')}, status=404)
 
-        # Check if runtime exists and is in the expected format
-        runtime_str = data.get('Runtime', '0 min')  # Default to '0 min' if not found
+        #Check if runtime exists
+        runtime_str = data.get('Runtime', '0 min') #Default to '0 min' if not found
         try:
-            runtime = int(runtime_str.split()[0])  # Extract the number from something like '120 min'
+            runtime = int(runtime_str.split()[0]) #Extract the number from runtime
         except (ValueError, IndexError):
-            runtime = 0  # Default to 0 if the runtime is not in the expected format
+            runtime = 0 
 
-        # Use both title and year as lookup fields to ensure uniqueness
+        #Use both title and year 
         movie, created = Movie.objects.update_or_create(
             title=data.get("Title", "Unknown Title"),
             year=data.get('Year', 'Unknown Year'),
             defaults={
                 'runtime': runtime,
                 'rating': data.get('Rated', 'N/A'),
-#                'plot': data.get('Plot', 'No plot available.'),
                 'director': data.get('Director', 'Unknown Director'),
             }
         )
@@ -261,6 +261,7 @@ def api_movie_search(request):
 
 
 #Discover Movies Method
+#Desc: Calls TMDB API to get recent movies in specific genre
 #Params:
 #page = Used to show more movies of the same genre
 #genre = Given as a string in lowercase and finds movies matching that genre
@@ -300,36 +301,35 @@ def discover_movies(request):
 #page = Used to show more movies of the same genre
 #genre = Given as a string in lowercase and finds movies matching that genre
 #Return: Dictionary with all movie data
-
 # def discover_movies(request):
-
-def discover_movies(request):
-        #Defaults to first page if no page is put in
-    page = request.GET.get('page', 1)
-    genre = request.GET.get('genre')
+#         #Defaults to first page if no page is put in
+#     page = request.GET.get('page', 1)
+#     genre = request.GET.get('genre')
 
 
-    TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+#     TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-    url = "https://api.themoviedb.org/3/discover/movie"
+#     url = "https://api.themoviedb.org/3/discover/movie"
 
 
-    params = {
-        "api_key": TMDB_API_KEY,
-        "language": "en-US",
-        "sort_by": "popularity.desc",
-        "with_genres": genre_dictionary[genre],
-        "page": page
-    }
+#     params = {
+#         "api_key": TMDB_API_KEY,
+#         "language": "en-US",
+#         "sort_by": "popularity.desc",
+#         "with_genres": genre_dictionary[genre],
+#         "page": page
+#     }
 
-    try:
+#     try:
 
-        response = requests.get(url, params=params)
-        data = response.json()
-        return JsonResponse(data, safe=False)
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         return JsonResponse(data, safe=False)
 
-    except requests.exceptions.RequestException as e:
-        return JsonResponse({"error": str(e)}, status=500)
+#     except requests.exceptions.RequestException as e:
+#         return JsonResponse({"error": str(e)}, status=500)
+
+
 
 
 #Favorite method
@@ -477,6 +477,11 @@ def update_movie_plot(movie_title, movie_year, new_plot):
     return updated
 
 
+
+#Generate Recommendations Method
+#Desc:Generates movies for the discover carousel via OpenAI and prompt engineering
+#Params: user_id:Id of user that we are generating recommendations for
+#Returns:Summary, including Movie Title separated by commas
 @csrf_exempt
 @require_POST
 def generate_recommendations(request):
@@ -546,6 +551,13 @@ def generate_recommendations(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+
+
+#review_recommendations method
+#Desc: Is used to update recommendation and watchlist tables depending on whether or not the user liked or disliked the recommendation
+#given by generate_recommendations
+#Params: Must send post request, user_id: (Integer) id of user reviewing recommendation, movie_title: (String) title of movie, review: (Boolean) True if user likes movie, false otherwise
+#Returns: Json containing if recommendation was created or updated, user_id, movie_id, and liked (boolean) 
 @csrf_exempt
 @require_POST
 def review_recommendations(request):
@@ -566,6 +578,8 @@ def review_recommendations(request):
 
         movie = Movie.objects.get(title=movie_title)
 
+
+        #if user likes movie we add it to their main watchlist
         if review == True:
             watchlist_main = Watchlist.objects.get(user_id = user_id, name = "Watchlist")
             if WatchlistItem.objects.filter(watchlist=watchlist_main, movie_id=movie.id).exists():

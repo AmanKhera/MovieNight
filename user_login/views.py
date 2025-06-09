@@ -97,7 +97,7 @@ def hosted_ui_login(request):
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
         f"client_id={settings.AWS_COGNITO_CLIENT_ID}&"
         f"response_type=code&"
-        f"scope=email+openid+phone+aws.cognito.signin.user.admin&"  # Include required scopes
+        f"scope=email+openid+phone+aws.cognito.signin.user.admin&"  #required scopes
         f"redirect_uri=http://localhost:8000/Login"
     )
     return redirect(cognito_url)
@@ -171,7 +171,10 @@ def hosted_ui_login(request):
 
 
 
-
+#Login Callback
+#Desc: Handles OAuth2 login callback from AWS Cognito. Exchanges authorization code for ID, access, and refresh tokens.
+#Tokens are stored in the session and if the user is new we create a default watchlist for them
+#Returns: Success: redirects user to frontend
 def login_callback(request):
     code = request.GET.get('code')
     if not code:
@@ -181,7 +184,7 @@ def login_callback(request):
     redirect_uri = "http://localhost:8000/Login"
 
     try:
-        # Exchange the authorization code for tokens
+        #Exchanges the authorization code for tokens
         response = requests.post(
             token_url,
             data={
@@ -224,7 +227,10 @@ def login_callback(request):
 
 
 
-
+#Update or create user from cognito
+#Desc: Checks to see if user exists within our User table
+#Params: access_token: Given via login_callback to get all the necessary information to populate our table
+#Return: User, and is_new
 def update_or_create_user_from_cognito(access_token):
     
     try:
@@ -235,14 +241,14 @@ def update_or_create_user_from_cognito(access_token):
              return {"user": username, "is_new": False}
         
 
-        # Decode the token without verifying the signature
+        #Decode given access token to grab user attributes
         decoded_token = jwt.decode(access_token, options={"verify_signature": False})
 
-        # Use AWS Cognito client to fetch user attributes
+        #Use AWS Cognito client to fetch user attributes
         client = get_cognito_client()
         response = client.get_user(AccessToken=access_token)
 
-        # Parse Cognito response to extract user attributes
+        #Parse attributes given via response
         user_attributes = {attr['Name']: attr['Value'] for attr in response['UserAttributes']}
         email = user_attributes.get('email')
 

@@ -6,13 +6,13 @@ from movie.models import Movie
 #Group ORM
 #user.led_groups.all() Returns all groups led by a user
 class Group(models.Model):
-    #group_id is explicitly declared as the primary key
+
     group_id = models.OneToOneField(
         User, 
         on_delete=models.CASCADE,
         db_column = 'group_id', 
         primary_key=True, 
-        related_name='group'  # Allows reverse lookup for the group associated with a user
+        related_name='group'  #Allows reverse lookup for the group associated with a user
     )
 
     #leader_id is a foreign key referencing the User table
@@ -20,7 +20,7 @@ class Group(models.Model):
         User, 
         on_delete=models.CASCADE, 
         db_column = 'leader_id', 
-        related_name='led_groups'  # Helps in reverse lookup for groups led by the user
+        related_name='led_groups' 
     )
 
     #Group name
@@ -28,24 +28,26 @@ class Group(models.Model):
 
     genre = models.CharField(max_length=100, blank=True, null=True)
 
-    voting_limit = models.IntegerField(null=True, blank=True, default=None)  # New field
+    voting_limit = models.IntegerField(null=True, blank=True, default=None)
 
     date_created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'Group'  # Explicitly sets the table name to match your database
+        db_table = 'Group' 
 
     def __str__(self):
-        return self.group_name  # String representation of the group
+        return self.group_name  
     
+
 
 #Group Member ORM 
 #Tracks which group each user is a part of 
+#Restrictions: Member in group cannot join the group they are currently in
 class GroupMember(models.Model):
     
     id = models.AutoField(primary_key=True)
 
-    # Foreign key to the Group table
+
     group = models.ForeignKey(
         Group, 
         on_delete=models.CASCADE, 
@@ -53,13 +55,13 @@ class GroupMember(models.Model):
         related_name='members'
     )
 
-    # Foreign key to the User table
+
     member = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
         db_column = 'member_id', 
 
-        related_name='group_memberships'  #Allows reverse lookup, e.g., user.group_memberships.all()
+        related_name='group_memberships' 
     )
 
     
