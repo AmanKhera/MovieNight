@@ -5,7 +5,7 @@ from user.models import User
 class MovieModelTests(TestCase):
 
     def setUp(self):
-        """Set up test data"""
+        #Set up test data
         self.user = User.objects.create(name="TestUser", email="test@example.com", username="testuser")
 
         self.movie = Movie.objects.create(
@@ -20,17 +20,13 @@ class MovieModelTests(TestCase):
         )
 
     def test_movie_model(self):
-        """Test Movie model string representation"""
         self.assertEqual(str(self.movie), "Inception")
 
     def test_watchlist_model(self):
-        """Test Watchlist model string representation"""
         self.assertEqual(str(self.watchlist), "Favorites (Main)")
 
     def test_watchlist_item_model(self):
-        """Test WatchlistItem model string representation"""
         self.assertEqual(str(self.watchlist_item), f"Movie {self.movie.id} in {self.watchlist.name}")
 
     def test_user_movie_journal_model(self):
-        """Test UserMovieJournal model string representation"""
         self.assertEqual(str(self.journal_entry), f"{self.user} - {self.movie} ({self.journal_entry.date_watched})")

@@ -124,6 +124,8 @@ urlpatterns = [
     path("chat/", include("chat.urls")),
     path("proposal_accepted/", user_views.proposal_accepted, name="proposal_accepted"),
     path("remove_movie_from_watchlist/", user_views.remove_movie_from_watchlist, name="remove_movie_from_watchlist"),
+    path('upload-file/', user_views.upload_file_to_s3, name='upload_file_s3'),
+    path('logout/', user_views.logout_user, name='logout_user'),
     ]
 
 

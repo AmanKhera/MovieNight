@@ -6,10 +6,15 @@ import MovieDetails from '../components/MovieDetails';
 import CardStackCarousel from '../components/DiscoverCardstack';
 const DiscoverPage = () => {
   return (
-      <div>
-        <Toolbar />
-        <CardStackCarousel />
-      </div>
+    <div style={{//gradient for background of page
+      minHeight: '100vh',
+      backgroundImage: "radial-gradient(circle at center center, rgb(87,0,108), rgb(16,0,43))",
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }}>
+      <Toolbar />
+      <CardStackCarousel />
+    </div>
   );
 };
 
