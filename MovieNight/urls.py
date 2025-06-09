@@ -123,6 +123,7 @@ urlpatterns = [
     path("user_status/", user_views.user_status, name="user_status"),
     path("chat/", include("chat.urls")),
     path("proposal_accepted/", user_views.proposal_accepted, name="proposal_accepted"),
+    path("remove_movie_from_watchlist/", user_views.remove_movie_from_watchlist, name="remove_movie_from_watchlist"),
     ]
 
 

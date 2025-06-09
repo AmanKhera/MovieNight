@@ -110,6 +110,7 @@ def create_watchlist(request):
 
 
 
+
 #Add_Movie Watchlist
 #Adds movie to default watchlist or watchlist specified 
 #Params in URL: movie_id 
@@ -161,6 +162,7 @@ def add_movie(request):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
     
+
 
 
 #Create_relationship method
@@ -249,12 +251,12 @@ def get_following(request):
     return JsonResponse(response, status=200)
 
 
+
 #Mutual Friends Method
 #Param: id of user whos mutual friends you are searching for
 #Returns a JSON Dictionary which contains the friends id as the key and username as value
 #Example URL 
 #http://127.0.0.1:8000/get_mutual_friends/?id=1
-
 def get_mutual_friends(request):
     user_id = request.GET.get('id')
 
@@ -305,6 +307,8 @@ def grab_watchlists(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
     
 
+
+
 #Grab Watchlist items
 #params: optional id: not required but can speed up request
 #return: Dictionary with all watchlist items
@@ -332,6 +336,7 @@ def grab_watchlist_items(request):
         return JsonResponse({"status": "error", "message": "Watchlist not found"}, status=404)
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
 
 
 #Add to watched method
@@ -369,8 +374,6 @@ def add_to_watched(request):
 
         user_watchlists = Watchlist.objects.filter(user=user)
         WatchlistItem.objects.filter(watchlist__in=user_watchlists, movie_id=movie_id).delete()
-
-
 
         #add entry to the UserMovieJournal table
         journal_entry, created = UserMovieJournal.objects.get_or_create(
@@ -416,7 +419,7 @@ def recommend_movie(request):
             user_receiving_id = data.get("user_receiving")
             movie_id = data.get("movie_id")
 
-            # Ensure movie_id is an integer
+            #Ensure movie_id is an integer
             try:
                 movie_id = int(movie_id)
             except (ValueError, TypeError):
@@ -467,15 +470,15 @@ def recommend_movie(request):
                 if group.genre and group.genre not in genres:
                     return JsonResponse({"error": "Movie doesn't fit group genre"}, status=400)
 
-            # Check if movie is already in user's journal
+            #Check if movie is already in user's journal
             if UserMovieJournal.objects.filter(user_id=user_receiving_id, movie_id=movie_id).exists():
                 return JsonResponse({"error": "User has already watched this movie."}, status=400)
 
-            # Check if movie is already in user's watchlist
+            #Check if movie is already in user's watchlist
             if WatchlistItem.objects.filter(watchlist__user_id=user_receiving_id, movie_id=movie_id).exists():
                 return JsonResponse({"error": "Movie is already in the user's watchlist."}, status=400)
 
-            # Check if the movie was already recommended by this member to this user
+            #Check if the movie was already recommended by this member to this user
             if MemberRecommendation.objects.filter(
                 member_suggested_id=member_suggested_id,
                 user_receiving_id=user_receiving_id,
@@ -502,55 +505,6 @@ def recommend_movie(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 
-#Update Recommendation
-#params: Requires post request,
-#recommendation_id: row id of the recommendation which can be grabbed via group_recommedation method (universal function not just for groups)
-#like: True or False
-#returns: Dictionary which contains "Recommendation" if true add movie to watchlist otherwise do nothing
-#
-# @csrf_exempt
-# def update_recommendation(request):
-#     if request.method == "POST":
-#         try:
-#             data = json.loads(request.body)
-#             recommendation_id = data.get("recommendation_id")
-#             like = data.get('like')
-#         except json.JSONDecodeError:
-#             return JsonResponse({"error": "Invalid JSON format."}, status=400)
-
-#         if MemberRecommendation.objects.filter(id = recommendation_id).exists():
-#             recommendation = MemberRecommendation.objects.get(id = recommendation_id)
-#         else:
-#             return JsonResponse({"error": "Recommendation does not exist"})
-        
-#         #increments voting by 1
-#         if like:
-#             recommendation.voting = recommendation.voting + 1
-#             #updates voting column
-#             recommendation.save()
-#         else:
-#             recommendation.voting = recommendation.voting - 1
-#             recommendation.save()
-
-#         user_rec = recommendation.user_receiving
-
-#         if Group.objects.filter(group_id = user_rec.id).exists():
-
-#             group = Group.objects.get(group_id = user_rec.id)
-#             voting_limit = group.voting_limit
-#             #convert to decimal and divide by # of group members
-#             if recommendation.voting >= voting_limit:
-#                 return JsonResponse({"Recommendation": True})
-#             else:
-#                 return JsonResponse({"Recommendation": False})
-#         # elif User.objects.filter(id = user_rec.id):
-#         #     if recommendation.voting == 1:
-#         #         return JsonResponse({"Recommendation": True})
-#         #     else:
-#         #         return JsonResponse({"Recommendation": False})
-
-#         else:
-#             return JsonResponse({"error": "Recieving user does not exist "})
         
 
 #Send Messages method
@@ -581,8 +535,11 @@ def send_messages(request):
         return JsonResponse({"error": "User does not exist"})
 
 
+
 #Retrieve Messages method
-#might not work frontend plz check
+#Desc: Retrieves messages between 2 users, or a user and group
+#Params: user_id_1: (integer) first user, user_id_2: (Integer) second user, num_messages: number of messages needed in retrieval, default is 50
+#Returns: message id, user_sending, user_recieving, message_content, date_sent, status
 def retrieve_messages(request):
 
     user_1 = request.GET.get('user_id_1')
@@ -640,7 +597,9 @@ def user_info(request):
     except Exception as e:
         # Catch-all for other decode or unexpected errors
         return JsonResponse({"error": str(e)}, status=500)
-    
+
+
+
 def user_status(request):
     user_id = request.GET.get("id")
     if not user_id:
@@ -666,36 +625,6 @@ def get_csrf_token(request):
     return JsonResponse({'status': 'ok'})
 
 
-# #Retrieve_messages method
-# #params:
-# #user_id: Used to retrieve messages relating to that user
-# #returns: Messages sent and recieved by that user
-# def retrieve_messages(request):
-#     if request.method != "GET":
-#         return JsonResponse({"error": "This method reqires get request"})
-    
-#     user_id = request.GET.get("user_id")
-
-#     if User.objects.filter(id = user_id).exists():
-#         messages = Message.objects.filter(Q(user_sending_id=user_id) | Q(user_receiving_id=user_id)).order_by('date_sent')
-
-#         #Serializes messages into a JSON format
-#         messages_data = [
-#             {
-#                 "id": msg.id,
-#                 "user_sending": msg.user_sending.id,
-#                 "user_receiving": msg.user_receiving.id,
-#                 "content": msg.message_content,
-#                 "date_sent": msg.date_sent,
-#                 "status":msg.status
-#             }
-#             for msg in messages
-#         ]
-
-#         return JsonResponse({'success': True, 'messages': messages_data})
-#     else:
-#         return JsonResponse({"error":"User does not have messages"})
-
 
 #Retrieve recently watched method
 #params: Requires user_id
@@ -718,6 +647,8 @@ def retrieve_recently_watched(request):
     ]
 
     return JsonResponse(data, safe=False)
+
+
 
 
 #Update Username method
@@ -744,6 +675,8 @@ def username(request):
 
     return JsonResponse({'username': get_user_username(request.session.get("access_token")).get('username')})
     
+
+
 
 #method that allows user to block another user. functions as a toggle 
 #params: blocker_id(id of user who is blocking other user), blocked_id(id of user who is being blocked)
@@ -776,6 +709,8 @@ def block_user(request):
             return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
     return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
 
 
 #allows user to view users that they have blocked.
@@ -877,12 +812,16 @@ def retrieve_feed(request):
 
 
 
-
+#Get_following_watch_status Method
+#Desc: Returns which followers have seen the movie the current user is viewing
+#Params: movie_id: Integer id of movie, user_id: integer containing id
+#Returns: "Followers_Watched": user_id, username, watched_on, rating given to movie, review written by user
 def get_following_watch_status(request):
 
     movie_id = request.GET.get("movie_id")
     user_id = request.GET.get("user_id")
 
+    #Call helper method to retrieve who the user is following
     following = get_following_helper(user_id)
     following_ids = following.keys()
 
@@ -907,7 +846,6 @@ def get_following_watch_status(request):
 
 
     return JsonResponse({"Followers_watched": feed})
-
 
 
 
@@ -1102,14 +1040,18 @@ def retrieve_votes_for_recipient(request):
 
 
 
+#Schedule_Email_lambda Method
+#Desc: Helper method for the backend that helps send email to users about proposals
+#Params: proposal_id: Integer, users: Dictionary containing id, email, and username, proposed_datetime: time the event is taking place
+#Returns: Response
 @csrf_exempt
 @require_POST
 def schedule_email_lambda(proposal_id, users, proposed_datetime):
-    # Calculate 3 hours before event
+    #Calculate 3 hours before event
     scheduled_time = proposed_datetime - timedelta(hours=3)
     now_utc = timezone.now().astimezone(dt_timezone.utc)
 
-    # If the event is less than 3 hours away, send immediately
+    #If the event is less than 3 hours away send email right away
     if scheduled_time <= now_utc:
         print("Event is soon. Publishing SNS message immediately.")
 
@@ -1130,7 +1072,7 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
         print("Immediate SNS publish response:", response)
         return response
 
-    # Otherwise, schedule an EventBridge rule
+    #Schedule eventbridge if event is more than 3 hours away
     scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
     iso_timestamp = scheduled_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
     print("Schedule expression:", f"at({iso_timestamp})")
@@ -1169,6 +1111,11 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
 
 
 
+#Proposal accepted method
+#Desc: When a proposal is accepted (status=1), the frontend should call this method with proposal_id.
+#This method then will schedule an email to be sent 3 hours before the event
+#Params: proposal_id: Given as integer
+#Returns:"message": f"Scheduled email for proposal {proposal_id}" if successful
 @csrf_exempt
 @require_POST
 def proposal_accepted(request):
@@ -1194,15 +1141,53 @@ def proposal_accepted(request):
 
         schedule_email_lambda(proposal_id, users, proposed_datetime)
 
-        # Collect emails for debug output
-        user_emails = [user["email"] for user in users]
 
         return JsonResponse({
             "message": f"Scheduled email for proposal {proposal_id}",
-            "emails": user_emails
         })
     
     except UserEventProposal.DoesNotExist:
         return JsonResponse({"error": "Proposal not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
+#remove movie from watchlist method
+#Desc: Allows for removing of movie from any of users watchlist
+#Params: user_id: to verify correct watchlists, movie_id: movie to be removed, watchlist_id: id of watchlist the item is being removed from
+#example json: {"user_id":1,"movie_id":1992,"watchlist_id":1}
+#Returns: Success if method fully executed
+@csrf_exempt
+@require_POST
+def remove_movie_from_watchlist(request):
+    try:
+        data = json.loads(request.body)
+        user_id = data["user_id"]
+        movie_id = data["movie_id"]
+        watchlist_id = data["watchlist_id"]
+
+
+        user = User.objects.get(id = user_id)
+
+        #Check to see if watchlist exists
+        try:
+            watchlist = Watchlist.objects.get(id = watchlist_id, user = user)
+        except Watchlist.DoesNotExist:
+            return JsonResponse({"error": "Watchlist not found or does not belong to user"}, status=404)
+        
+        #Remove item from watchlist
+        try:
+            item = WatchlistItem.objects.get(watchlist=watchlist, movie__id = movie_id)
+            item.delete()
+            return JsonResponse({"success": "Movie removed from watchlist"})
+        except WatchlistItem.DoesNotExist:
+            return JsonResponse({"error": "Movie not found in watchlist"}, status=404)
+
+    except KeyError as e:
+        return JsonResponse({"error": f"Missing field: {str(e)}"}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
