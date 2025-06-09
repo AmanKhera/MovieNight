@@ -1,5 +1,5 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom'; // <-- Import from react-router-dom
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Toolbar.css';
 import logo from '../images/logo.png';
 import searchImage from '../images/search-btn.png';
@@ -9,9 +9,14 @@ import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
-function  Toolbar() {
+function Toolbar() {
   // Get the 'navigate' function from react-router-dom
   const navigate = useNavigate();
+  
+  // State to control popup visibility and loading
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   // Use navigate("/") to redirect to the home page
   const homeButtonAction = () => {
@@ -22,68 +27,251 @@ function  Toolbar() {
   const searchButtonAction = () => {
     navigate("/search");
   };
+  
   const discoverButtonAction = () => {
     navigate("/DiscoverPage");
   };
+  
   const ratingButtonAction = () => {
     navigate("/ReviewedPage");
   };
+  
   const messageButtonAction = () => {
     navigate("/groups");
   };
+  
   const friendsButtonAction = () => {
     navigate("/UserWatchlists");
   };
+
+  // Modified profile button to show popup
   const profileButtonAction = () => {
-    navigate("/UserProfile");
+    setShowProfilePopup(true);
+    setUploadStatus(''); // Clear any previous status
+  };
+
+  // Close popup
+  const closePopup = () => {
+    setShowProfilePopup(false);
+    setIsUploading(false);
+    setUploadStatus('');
+  };
+
+  // Get CSRF token for Django requests
+  const getCSRFToken = async () => {
+    try {
+      const response = await fetch('/get-csrf-token/', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        return response.headers.get('X-CSRFToken') || 
+               document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+               getCookie('csrftoken');
+      }
+    } catch (error) {
+      console.error('Error getting CSRF token:', error);
+    }
+    return getCookie('csrftoken');
+  };
+
+  // Helper function to get cookie value
+  const getCookie = (name) => {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  };
+
+  // Upload file to S3 via Django backend
+  const uploadFileToS3 = async (file) => {
+    try {
+      setIsUploading(true);
+      setUploadStatus('Uploading file...');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      // No folder parameter needed - uploads directly to bucket root
+
+      const response = await fetch('http://localhost:8000/upload-file/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setUploadStatus(`✅ File uploaded as ${result.file_name}!`);
+        console.log('File uploaded to S3:', result.file_url);
+        return result;
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadStatus(`❌ Upload failed: ${error.message}`);
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle Letterboxd CSV upload
+  const handleLetterboxdUpload = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.csv';
+    fileInput.onchange = async (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        try {
+          // Validate file type
+          if (!file.name.endsWith('.csv')) {
+            alert('Please upload a CSV file');
+            return;
+          }
+
+          // Validate file size (10MB limit)
+          if (file.size > 10 * 1024 * 1024) {
+            alert('File size must be less than 10MB');
+            return;
+          }
+
+          // Upload to S3 - will be saved as {user_id}_rating.csv
+          const result = await uploadFileToS3(file);
+          
+          console.log('Letterboxd CSV uploaded as:', result.file_name);
+          
+        } catch (error) {
+          console.error('Letterboxd upload failed:', error);
+        }
+      }
+    };
+    fileInput.click();
+  };
+
+
+
+
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      // Call logout endpoint if you have one
+      const response = await fetch('http://localhost:8000/logout/', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        console.log('User logged out');
+        setShowProfilePopup(false);
+        
+        // Clear any local storage/session data
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Navigate to login page
+        //navigate("/login");
+      } else {
+        console.error('Logout failed');
+        alert('Logout failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      alert('Logout failed. Please try again.');
+    }
   };
 
   return (
-    <nav>
-      <div id="logo" className="button" onClick={homeButtonAction}>
-        <button>
-          <img src={logo} alt="Movie Night logo" className="responsive-image" />
-        </button>
-      </div>
-      <div className="buttons">
-        <div className="button" id="search-button" onClick={searchButtonAction}>
+    <>
+      <nav>
+        <div id="logo" className="button" onClick={homeButtonAction}>
           <button>
-            <img src={searchImage} alt="search button" />
+            <img src={logo} alt="Movie Night logo" className="responsive-image" />
           </button>
-          <span className="hover-text">Search Page</span>
         </div>
-        <div className="button" id="discover-button" onClick={discoverButtonAction}>
-          <button>
-            <img src={discoverImage} alt="discover button" />
-          </button>
-          <span className="hover-text">Discover Page</span>
+        <div className="buttons">
+          <div className="button" id="search-button" onClick={searchButtonAction}>
+            <button>
+              <img src={searchImage} alt="search button" />
+            </button>
+            <span className="hover-text">Search Page</span>
+          </div>
+          <div className="button" id="discover-button" onClick={discoverButtonAction}>
+            <button>
+              <img src={discoverImage} alt="discover button" />
+            </button>
+            <span className="hover-text">Discover Page</span>
+          </div>
+          <div className="button" id="rating-button" onClick={ratingButtonAction}>
+            <button>
+              <img src={ratingImage} alt="rating button" />
+            </button>
+            <span className="hover-text">User Journal</span>
+          </div>
+          <div className="button" id="message-button" onClick={messageButtonAction}>
+            <button>
+              <img src={messageImage} alt="message button" />
+            </button>
+            <span className="hover-text">Message Page</span>
+          </div>
+          <div className="button" id="friends-button" onClick={friendsButtonAction}>
+            <button>
+              <img src={friendsImage} alt="friends button" />
+            </button>
+            <span className="hover-text">Watchlists</span>
+          </div>
+          <div className="button" id="profile-button" onClick={profileButtonAction}>
+            <button>
+              <img src={profileImage} alt="profile button" />
+            </button>
+            <span className="hover-text">Profile Options</span>
+          </div>
         </div>
-        <div className="button" id="rating-button" onClick={ratingButtonAction}>
-          <button>
-            <img src={ratingImage} alt="rating button" />
-          </button>
-          <span className="hover-text">User Journal</span>
+      </nav>
+
+      {/* Profile Popup */}
+      {showProfilePopup && (
+        <div className="popup-overlay" onClick={closePopup}>
+          <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+            <div className="popup-header">
+              <h3>Profile Options</h3>
+              <button className="close-button" onClick={closePopup}>×</button>
+            </div>
+            <div className="popup-body">
+              <button 
+                className="popup-option" 
+                onClick={handleLetterboxdUpload}
+                disabled={isUploading}
+              >
+                📊 Upload to Letterboxd
+              </button>
+              <button className="popup-option" onClick={handleLogout}>
+                🚪 Log Out
+              </button>
+              
+              {/* Upload Status */}
+              {uploadStatus && (
+                <div className="upload-status">
+                  {isUploading && <div className="loading-spinner">⏳</div>}
+                  <p>{uploadStatus}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="button" id="message-button" onClick={messageButtonAction}>
-          <button>
-            <img src={messageImage} alt="message button" />
-          </button>
-          <span className="hover-text">Message Page</span>
-        </div>
-        <div className="button" id="friends-button" onClick={friendsButtonAction}>
-          <button>
-            <img src={friendsImage} alt="friends button" />
-          </button>
-          <span className="hover-text">Watchlists</span>
-        </div>
-        <div className="button" id="profile-button" onClick={profileButtonAction}>
-          <button>
-            <img src={profileImage} alt="profile button" />
-          </button>
-          <span className="hover-text">Profile Page</span>
-        </div>
-      </div>
-    </nav>
+      )}
+    </>
   );
 }
 

@@ -122,7 +122,9 @@ urlpatterns = [
     path('get_group_members/', group_views.members_in_group, name='get_group_memberes'),
     path("user_status/", user_views.user_status, name="user_status"),
     path("chat/", include("chat.urls")),
-
+    
+    path('upload-file/', user_views.upload_file_to_s3, name='upload_file_s3'),
+    path('logout/', user_views.logout_user, name='logout_user'),
     ]
 
 

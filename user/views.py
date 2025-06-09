@@ -15,8 +15,27 @@ from django.utils.timezone import localtime
 from datetime import timedelta, datetime
 from django.views.decorators.http import require_POST
 
+# S3 Upload imports
+import boto3
+import uuid
+from django.conf import settings
+from botocore.exceptions import ClientError
+import logging
 
+logger = logging.getLogger(__name__)
 
+# Initialize S3 client with your specific configuration
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    region_name=os.getenv('AWS_S3_REGION', 'us-east-1')
+)
+
+# S3 Configuration
+AWS_S3_BUCKET_NAME = 'letterbox-information-retrieval'
+AWS_S3_CUSTOM_DOMAIN = 'letterbox-information-retrieval.s3.amazonaws.com'
+AWS_LOCATION = 'media'  # folder in S3 bucket
 
 #remove in production
 from django.views.decorators.csrf import csrf_exempt
@@ -47,6 +66,124 @@ def get_user_username(access_token):
         return JsonResponse({"error": "Failed to decode token"}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+# S3 File Upload Views
+@csrf_exempt
+@require_POST
+def upload_file_to_s3(request):
+    """
+    Upload file to S3 bucket with format {user_id}_rating.csv
+    """
+    try:
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'error': 'No file provided'
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Validate file type - must be CSV
+        if not uploaded_file.name.endswith('.csv'):
+            return JsonResponse({
+                'error': 'File must be a CSV file'
+            }, status=400)
+        
+        # Validate file size (optional - adjust as needed)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if uploaded_file.size > max_size:
+            return JsonResponse({
+                'error': f'File size exceeds {max_size/1024/1024}MB limit'
+            }, status=400)
+        
+        # Get user ID from session token
+        try:
+            username_data = get_user_username(request.session.get("access_token"))
+            if isinstance(username_data, JsonResponse):
+                return username_data  # Return the error response
+            
+            username = username_data.get('username')
+            user = User.objects.get(name=username)
+            user_id = user.id
+        except Exception as e:
+            return JsonResponse({
+                'error': 'Unable to identify user'
+            }, status=401)
+        
+        # Set filename as {user_id}_rating.csv
+        filename = f"{user_id}_rating.csv"
+        
+        # Upload directly to bucket root (no folder)
+        s3_key = filename
+        
+        try:
+            # Upload to S3
+            s3_client.upload_fileobj(
+                uploaded_file,
+                AWS_S3_BUCKET_NAME,
+                s3_key,
+                ExtraArgs={
+                    'ContentType': 'text/csv'
+                }
+            )
+            
+            # Generate file URL
+            file_url = f"https://{AWS_S3_CUSTOM_DOMAIN}/{s3_key}"
+            
+            return JsonResponse({
+                'success': True,
+                'file_url': file_url,
+                'file_name': filename,
+                'original_name': uploaded_file.name,
+                'file_size': uploaded_file.size,
+                's3_key': s3_key,
+                'user_id': user_id
+            })
+            
+        except ClientError as e:
+            logger.error(f"S3 upload failed: {e}")
+            return JsonResponse({
+                'error': 'Failed to upload file to S3'
+            }, status=500)
+            
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        return JsonResponse({
+            'error': 'Internal server error'
+        }, status=500)
+    
+
+
+@csrf_exempt
+def logout_user(request):
+    if request.method == 'POST':
+        try:
+            # Clear all session data
+            request.session.flush()
+            
+            # Alternative: Clear specific session keys if you prefer
+            # session_keys_to_clear = ['access_token', 'id_token', 'refresh_token', 'user_id']
+            # for key in session_keys_to_clear:
+            #     if key in request.session:
+            #         del request.session[key]
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Logged out successfully'
+            }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Logout error: {e}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to logout'
+            }, status=500)
+    
+    return JsonResponse({
+        'error': 'Method not allowed. Use POST.'
+    }, status=405)
+
+
 
 
 #Create Watchlist Method
@@ -1091,5 +1228,3 @@ def retrieve_votes_for_recipient(request):
         })
 
     return JsonResponse({"votes": data}, status=200)
-
-
