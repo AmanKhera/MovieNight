@@ -780,6 +780,8 @@ export const ChatSection = ({ selectedChat }) => {
     }
   };
 
+  
+  //get time relative to current time in simple terms like month, day, hour, instead of always an exact timestamp
   const getRelativeDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -812,6 +814,7 @@ export const ChatSection = ({ selectedChat }) => {
     fetchUserInfo();
   }, []);
 
+  //format chatId thats used as the chat room name to either a user chat or a group chat for the websocket address
   useEffect(() => {
     if (!selectedChat || !currentUser) return;
 
@@ -830,6 +833,7 @@ export const ChatSection = ({ selectedChat }) => {
       `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
     );
 
+    //fetch previous messages when entering the chatroom
     socketRef.current.onopen = () => {
       setMessages([]);
       setPage(1);
@@ -837,6 +841,7 @@ export const ChatSection = ({ selectedChat }) => {
       socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
     };
 
+    //handle auto scroll when message is sent
     socketRef.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
 
@@ -881,6 +886,8 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [selectedChat, currentUser]);
 
+  
+  //send message send to chatconsumer to be save in the message table
   const sendMessage = () => {
     if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
     const payload = {
@@ -905,6 +912,7 @@ export const ChatSection = ({ selectedChat }) => {
     scrollToBottom();
   };
 
+  //scroll helper function
   const handleScroll = () => {
     const container = messagesContainerRef.current;
     if (!container) return;
