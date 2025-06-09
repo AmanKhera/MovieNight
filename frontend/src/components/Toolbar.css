@@ -389,11 +389,109 @@ main {
   content: "📁 ";
 }
 
+/* INSTRUCTIONS STYLING */
+.instructions-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+  margin-bottom: 20px;
+}
+
+.instruction-step {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #ffffff;
+}
+
+.instruction-step h4 {
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  font-family: 'Patua One', serif;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.instruction-step p {
+  margin: 0;
+  color: #ffffff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.instruction-step strong {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.instruction-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.instruction-button {
+  background-color: #4CAF50 !important;
+  color: #ffffff !important;
+}
+
+.instruction-button:hover:not(:disabled) {
+  background-color: #45a049 !important;
+  color: #ffffff !important;
+  border-color: #45a049 !important;
+}
+
+.proceed-button {
+  background-color: #2196F3 !important;
+  color: #ffffff !important;
+}
+
+.proceed-button:hover:not(:disabled) {
+  background-color: #1976D2 !important;
+  color: #ffffff !important;
+  border-color: #1976D2 !important;
+}
+
+.back-button {
+  background-color: #666666 !important;
+  color: #ffffff !important;
+}
+
+.back-button:hover:not(:disabled) {
+  background-color: #555555 !important;
+  color: #ffffff !important;
+  border-color: #555555 !important;
+}
+
+/* Custom scrollbar for instructions */
+.instructions-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.instructions-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.instructions-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.instructions-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 /* Responsive adjustments */
 @media (max-width: 480px) {
   .popup-content {
     width: 280px;
     margin: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
   }
   
   .popup-header {
@@ -415,6 +513,29 @@ main {
   
   .upload-status p {
     font-size: 13px;
+  }
+  
+  /* Mobile instructions adjustments */
+  .instructions-content {
+    max-height: 250px;
+    padding-right: 5px;
+  }
+  
+  .instruction-step {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+  
+  .instruction-step h4 {
+    font-size: 13px;
+  }
+  
+  .instruction-step p {
+    font-size: 12px;
+  }
+  
+  .instruction-buttons {
+    gap: 8px;
   }
 }
 

@@ -15,6 +15,7 @@ function Toolbar() {
   
   // State to control popup visibility and loading
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false); // ← ADDED THIS
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
@@ -53,6 +54,7 @@ function Toolbar() {
   // Close popup
   const closePopup = () => {
     setShowProfilePopup(false);
+    setShowInstructions(false); // ← ADDED THIS
     setIsUploading(false);
     setUploadStatus('');
   };
@@ -110,7 +112,7 @@ function Toolbar() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setUploadStatus(`✅ File uploaded as ${result.file_name}!`);
+        setUploadStatus(`✅ File uploaded!`);
         console.log('File uploaded to S3:', result.file_url);
         return result;
       } else {
@@ -125,8 +127,14 @@ function Toolbar() {
     }
   };
 
-  // Handle Letterboxd CSV upload
+  // UPDATED: Show Letterboxd instructions first (instead of opening file dialog)
   const handleLetterboxdUpload = () => {
+    setShowInstructions(true);
+  };
+
+  // NEW: Proceed with actual file upload after instructions
+  const proceedWithUpload = () => {
+    setShowInstructions(false);
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.csv';
@@ -158,10 +166,6 @@ function Toolbar() {
     };
     fileInput.click();
   };
-
-
-
-
 
   // Handle logout
   const handleLogout = async () => {
@@ -240,32 +244,86 @@ function Toolbar() {
         </div>
       </nav>
 
-      {/* Profile Popup */}
+      {/* UPDATED Profile Popup with Instructions */}
       {showProfilePopup && (
         <div className="popup-overlay" onClick={closePopup}>
           <div className="popup-content" onClick={(e) => e.stopPropagation()}>
             <div className="popup-header">
-              <h3>Profile Options</h3>
+              <h3>{showInstructions ? 'How to Get Your Letterboxd Data' : 'Profile Options'}</h3>
               <button className="close-button" onClick={closePopup}>×</button>
             </div>
             <div className="popup-body">
-              <button 
-                className="popup-option" 
-                onClick={handleLetterboxdUpload}
-                disabled={isUploading}
-              >
-                📊 Upload to Letterboxd
-              </button>
-              <button className="popup-option" onClick={handleLogout}>
-                🚪 Log Out
-              </button>
-              
-              {/* Upload Status */}
-              {uploadStatus && (
-                <div className="upload-status">
-                  {isUploading && <div className="loading-spinner">⏳</div>}
-                  <p>{uploadStatus}</p>
-                </div>
+              {showInstructions ? (
+                <>
+                  <div className="instructions-content">
+                    <div className="instruction-step">
+                      <h4>📋 Step 1: Go to Letterboxd Settings</h4>
+                      <p>Log into your Letterboxd account and navigate to your <strong>Account Settings</strong></p>
+                    </div>
+                    
+                    <div className="instruction-step">
+                      <h4>💾 Step 2: Export Your Data</h4>
+                      <p>Look for the <strong>"Export your data"</strong> section and click <strong>"Export"</strong></p>
+                    </div>
+                    
+                    <div className="instruction-step">
+                      <h4>📧 Step 3: Check Your Email</h4>
+                      <p>Letterboxd will email you a download link (this may take a few minutes)</p>
+                    </div>
+                    
+                    <div className="instruction-step">
+                      <h4>📁 Step 4: Download & Extract</h4>
+                      <p>Download the ZIP file and extract it. Look for the <strong>"ratings.csv"</strong> file</p>
+                    </div>
+                    
+                    <div className="instruction-step">
+                      <h4>⚠️ Important Note</h4>
+                      <p>Make sure to upload the <strong>"ratings.csv"</strong> file, not any other CSV from the export</p>
+                    </div>
+                  </div>
+                  
+                  <div className="instruction-buttons">
+                    <button 
+                      className="popup-option instruction-button"
+                      onClick={() => window.open('https://letterboxd.com/settings/data/', '_blank')}
+                    >
+                      🔗 Open Letterboxd Settings
+                    </button>
+                    <button 
+                      className="popup-option proceed-button"
+                      onClick={proceedWithUpload}
+                    >
+                      ✅ I Have My CSV File
+                    </button>
+                    <button 
+                      className="popup-option back-button"
+                      onClick={() => setShowInstructions(false)}
+                    >
+                      ← Back to Menu
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button 
+                    className="popup-option" 
+                    onClick={handleLetterboxdUpload}
+                    disabled={isUploading}
+                  >
+                    📊 Upload to Letterboxd
+                  </button>
+                  <button className="popup-option" onClick={handleLogout}>
+                    🚪 Log Out
+                  </button>
+                  
+                  {/* Upload Status */}
+                  {uploadStatus && (
+                    <div className="upload-status">
+                      {isUploading && <div className="loading-spinner">⏳</div>}
+                      <p>{uploadStatus}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
