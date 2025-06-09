@@ -5,6 +5,7 @@ from channels.db import database_sync_to_async
 from user.models import Message, User
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    #user enters chatroom
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
         self.room_group_name = f"chat_{self.room_name}"
@@ -19,12 +20,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         #await self.send_latest_messages()
 
+    #disconnect from web socket and chatroom and update user status when user disconnects
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         if self.user.is_authenticated:
             await self.set_user_online(self.user.id, False)
             await self.broadcast_presence(False)
 
+    #receive new messages
     async def receive(self, text_data):
         data = json.loads(text_data)
         msg_type = data.get("type")
@@ -61,12 +64,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             page = data.get("page", 1)
             await self.send_latest_messages(page)
 
+    #send message to chatroom
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             "type": "chat.message",
             "message": event["message"],
         }))
 
+    #update user status in chatroom
     async def chat_presence(self, event):
         await self.send(text_data=json.dumps({
             "type": "presence",
@@ -74,7 +79,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "is_online": event["is_online"],
             "last_seen": event["last_seen"],
         }))
-
+    
+    #display previous messages when user enters a chatroom
     async def send_latest_messages(self, page=1, page_size=20):
         offset = (page - 1) * page_size
         messages = await self.get_recent_messages(offset, page_size)
@@ -83,6 +89,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "messages": messages,
         }))
 
+    #display change change in users online status when they enter or leave a chatroom
     async def broadcast_presence(self, is_online):
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -94,6 +101,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
+    #fetch previous messages
     @database_sync_to_async
     def get_recent_messages(self, offset, limit):
         if self.room_name.startswith("dm_"):
@@ -113,7 +121,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             return []
 
-        # Prefetch sender usernames
+        #prefetch sender usernames
         qs = qs.select_related("user_sending")
 
         return [
@@ -127,6 +135,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             for msg in qs.order_by("-date_sent")[offset:offset + limit][::-1]
         ]
 
+    
+    #save message to message table
     @database_sync_to_async
     def save_message(self, sender_id, content):
         room_type, room_id = self.room_name.split("_", 1)
@@ -139,6 +149,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             status="sent"
         )
 
+    #change user status to online in user table
     @database_sync_to_async
     def set_user_online(self, user_id, online):
         user = User.objects.filter(id=user_id).first()

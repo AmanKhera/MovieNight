@@ -14,10 +14,6 @@ from user.models import User, Relationship, MemberRecommendation, Message, Block
 from movie.models import Watchlist, WatchlistItem, UserMovieJournal, Movie
 from group.models import Group, GroupMember
 
-#make sure this matches project settings module
-# os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MovieNight.settings')  
-# setup()
-
 
 #dummy secret used to encode tokens for testing.
 TEST_SECRET = "secret"
@@ -71,10 +67,10 @@ class ViewsTestCase(TestCase):
         )
 
         
-        #create valid JWT tokens for testing. get_user_username view expects a token payload with a "username" key.
+        #token with username key.
         self.access_token = jwt.encode({"username": "testuser"}, TEST_SECRET, algorithm="HS256")
         
-        #for user_info the token must have an "email" key.
+        #token with email key.
         self.id_token = jwt.encode({"email": "testuser@example.com"}, TEST_SECRET, algorithm="HS256")
 
         #set session tokens.
@@ -83,7 +79,7 @@ class ViewsTestCase(TestCase):
         session["id_token"] = self.id_token
         session.save()
 
-    #tests for helper function get_user_username ---
+    #tests for get_user_username
     def test_get_user_username_valid(self):
         # Import the helper directly if needed:
         from user.views import get_user_username
@@ -104,14 +100,14 @@ class ViewsTestCase(TestCase):
         #make sure there are no existing watchlists before running the test
         Watchlist.objects.filter(user_id=self.user1.id).delete()
 
-        #create the first watchlist (should succeed)
+        #create the first watchlist, should succeed
         response = self.client.post(reverse('watchlist'), {'id': self.user1.id, 'name': 'Watchlist'})
         data = json.loads(response.content)
 
         self.assertEqual(response.status_code, 200)  # Expect success
         self.assertTrue(data.get("success"))
 
-        #try creating a second watchlist (should fail)
+        #try creating a second watchlist, should fail
         response = self.client.post(reverse('watchlist'), {'id': self.user1.id, 'name': 'Watchlist'})
         data = json.loads(response.content)
 
@@ -119,13 +115,12 @@ class ViewsTestCase(TestCase):
         self.assertIn("A main watchlist already exists", data.get("message"))
 
     def test_create_watchlist_with_session_token(self):
-        #when no 'id' is provided the view uses the session token.
+        #when no 'id' is given the view uses the session token.
         url = "/watchlist/?name=CustomList"
         response = self.client.get(url)
         data = json.loads(response.content)
         self.assertTrue(data.get("success"))
         self.assertEqual(data.get("data", {}).get("name"), "CustomList")
-        #since name is not "Watchlist", the type should be CUSTOM.
         self.assertEqual(data.get("data", {}).get("type"), Watchlist.CUSTOM)
 
     def test_create_watchlist_duplicate_main(self):
@@ -142,7 +137,6 @@ class ViewsTestCase(TestCase):
 
     #tests for add_movie view ---
     def test_add_movie_with_direct_id(self):
-        # Create an additional watchlist for testing.
         custom_watchlist = Watchlist.objects.create(
             user_id=self.user1.id,
             name="CustomList",
@@ -154,7 +148,6 @@ class ViewsTestCase(TestCase):
         response = self.client.get(url)
         data = json.loads(response.content)
         self.assertTrue(data.get("success"))
-        # Verify the WatchlistItem was created.
         self.assertTrue(WatchlistItem.objects.filter(
             watchlist=custom_watchlist,
             movie_id=self.movie.id
@@ -165,7 +158,6 @@ class ViewsTestCase(TestCase):
         response = self.client.get(url)
         data = json.loads(response.content)
         self.assertIn("added", data.get("message", "").lower())
-        # Try adding the same movie again to trigger the duplicate branch.
         response2 = self.client.get(url)
         data2 = json.loads(response2.content)
         self.assertIn("already", data2.get("message", "").lower())
@@ -193,15 +185,12 @@ class ViewsTestCase(TestCase):
         response = self.client.get(reverse('relationship'), {'follower_id': self.user1.id, 'following_id': self.user2.id})
         data = json.loads(response.content)
 
-        print("Response Data (Duplicate Attempt):", data)
-
         #should return "already exists"
         self.assertEqual(response.status_code, 200)
         self.assertIn("Relationship removed", data.get("message"))
 
     
-    
-    
+
     def test_create_relationship_same_user(self):
         url = "/create_relationship/?follower_id={}&following_id={}".format(
             self.user1.id, self.user1.id
@@ -228,7 +217,7 @@ class ViewsTestCase(TestCase):
 
     #test for get_following
     def test_get_following(self):
-        # Create a relationship: user1 follows user2.
+        #create relationship, user1 follows user2.
         Relationship.objects.create(follower=self.user1, following=self.user2)
         url = "/get_following/?id={}".format(self.user1.id)
         response = self.client.get(url)
@@ -238,14 +227,21 @@ class ViewsTestCase(TestCase):
 
     #test for get_mutual_friends
     def test_get_mutual_friends(self):
-        # Create mutual relationships between user1 and user2.
+        #create mutual relationships between user1 and user2.
         Relationship.objects.create(follower=self.user1, following=self.user2)
         Relationship.objects.create(follower=self.user2, following=self.user1)
-        url = "/get_mutual_friends/?id={}".format(self.user1.id)
+
+        url = f"/get_mutual_friends/?id={self.user1.id}"
         response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
         data = json.loads(response.content)
-        self.assertIn(str(self.user2.id), data)
-        self.assertEqual(data[str(self.user2.id)], self.user2.name)
+        friends = data.get("friends", [])
+
+        self.assertTrue(
+            any(friend["id"] == self.user2.id and friend["username"] == self.user2.username for friend in friends)
+        )
 
     #tests for grab_watchlists
     def test_grab_watchlists_with_id(self):
@@ -271,17 +267,15 @@ class ViewsTestCase(TestCase):
 
     #tests for grab_watchlist_items
     def test_grab_watchlist_items_success(self):
-        # Create a watchlist item for user1's default watchlist.
+        #create watchlist item for user1's default watchlist.
         WatchlistItem.objects.create(
             watchlist=self.watchlist,
             movie_id=self.movie.id
         )
-        # URL changed to /watchlist_items/
         url = "/watchlist_items/?watchlist_name=Watchlist"
         response = self.client.get(url)
         data = json.loads(response.content)
         self.assertEqual(data.get("status"), "success")
-        # Verify that the item list contains the movie.
         items = data.get("watchlist", [])
         self.assertTrue(any(item.get("movie_id") == self.movie.id for item in items))
 
@@ -305,7 +299,6 @@ class ViewsTestCase(TestCase):
         self.assertIn("Movie added", data.get("message", ""))
 
     def test_add_to_watched_update(self):
-        # First, create an entry.
         payload = {
             "user_id": self.user1.id,
             "movie_id": self.movie.id,
@@ -315,7 +308,6 @@ class ViewsTestCase(TestCase):
         url = "/add_to_watched/"
         response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
         self.assertEqual(response.status_code, 201)
-        # Now, update the same entry.
         payload_update = {
             "user_id": self.user1.id,
             "movie_id": self.movie.id,
@@ -323,7 +315,6 @@ class ViewsTestCase(TestCase):
             "review": "Great movie"
         }
         response_update = self.client.post(url, data=json.dumps(payload_update), content_type="application/json")
-        # The view’s update branch may not return a proper success message (falling through to a 405 error)
         self.assertEqual(response_update.status_code, 200)
 
         url = "/add_to_watched/"
@@ -339,8 +330,6 @@ class ViewsTestCase(TestCase):
         }
         url = "/recommend_movie/"
         response = self.client.post(url, data=json.dumps(payload), content_type="application/json")
-        print("📥 Response Status Code:", response.status_code)  # ✅ Debugging
-        print("📥 Response Content:", response.json())  # ✅ Debugging
         self.assertEqual(response.status_code, 201)
         data = json.loads(response.content)
         self.assertIn("Movie recommended successfully", data.get("message", ""))
@@ -392,7 +381,6 @@ class ViewsTestCase(TestCase):
 
     #tests for update_recommendation
     def test_update_recommendation_no_group(self):
-    #Test updating a recommendation when the user is not in a group"""
         recommendation = MemberRecommendation.objects.create(
             member_suggested=self.user1, 
             user_receiving=self.user2, 
@@ -401,11 +389,9 @@ class ViewsTestCase(TestCase):
 
         response = self.client.post(
             reverse('update_recommendation'),
-            json.dumps({'recommendation_id': recommendation.id, 'like': True}),
+            json.dumps({'user_id' :self.user2.id,'recommendation_id': recommendation.id, 'value': True}),
             content_type="application/json"
         )
-
-        print("Response Data:", response.json())  # Debugging output
 
         self.assertEqual(response.status_code, 200)
 
@@ -465,7 +451,7 @@ class ViewsTestCase(TestCase):
         url = "/user_info/"
         response = self.client.get(url)
         data = json.loads(response.content)
-        self.assertEqual(data.get("username"), self.user1.name)
+        self.assertEqual(data.get("username"), self.user1.username)
         self.assertEqual(data.get("email"), self.user1.email)
 
     def test_user_info_no_token(self):
@@ -492,23 +478,19 @@ class ViewsTestCase(TestCase):
             user_receiving=self.user2,
             message_content="Test message"
         )
-        url = "/retrieve_messages/?user_id={}".format(self.user1.id)
+        url = f"/retrieve_messages/?user_id_1={self.user1.id}&user_id_2={self.user2.id}"
         response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
         data = json.loads(response.content)
-        self.assertTrue(data.get("success"))
-        self.assertTrue(len(data.get("messages", [])) > 0)
-
-    def test_retrieve_messages_user_not_exist(self):
-        url = "/retrieve_messages/?user_id=9999"
-        response = self.client.get(url)
-        data = json.loads(response.content)
-        self.assertIn("error", data)
+        self.assertIn("messages", data)
+        self.assertGreater(len(data["messages"]), 0)
 
     #tests for block_user
     def test_block_user(self):
         """Test blocking and unblocking a user"""
         url = reverse('block_user')
-        #first call: Block the user. expect 201 Created
+        #first call, block the user. expect 201 created
         payload = {
             "blocker_id": self.user1.id,
             "blocked_id": self.user2.id

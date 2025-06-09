@@ -20,7 +20,7 @@ from django.db.models import Max, OuterRef, Subquery
 from django.db.models import Subquery, OuterRef
 from math import ceil
 from django.shortcuts import get_object_or_404
-
+import traceback
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -185,6 +185,7 @@ def add_member_to_group(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -282,6 +283,7 @@ def remove_member_from_group(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -343,6 +345,7 @@ def group_recommendation(request):
 
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
+        
         return JsonResponse({"error": str(e)}, status=500)
 
 
