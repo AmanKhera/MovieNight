@@ -80,6 +80,21 @@ export const GroupsSidebar = ({
   const [showGroupMenu, setShowGroupMenu] = useState(null);
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
+  
+  // Success notification state
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Function to show success notification
+  const showSuccessNotification = (message) => {
+    setSuccessMessage(message);
+    setShowSuccess(true);
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setShowSuccess(false);
+    }, 3000);
+  };
 
   const createGroupMutation = useMutation({
     mutationFn: ({ groupName, leaderId, genre }) =>
@@ -134,7 +149,6 @@ export const GroupsSidebar = ({
     }
   });
 
-
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
       addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
@@ -154,9 +168,13 @@ export const GroupsSidebar = ({
       }
       return { previousMembers, groupId };
     },
+    onSuccess: () => {
+      // Show success notification
+      showSuccessNotification("Member added successfully!");
+    },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("");
+      setError("Failed to add member. Please try again.");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -165,7 +183,11 @@ export const GroupsSidebar = ({
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
-      removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+      removeGroupMember(getCookie("csrftoken"), { 
+        username: username,
+        remove_id: userId, 
+        group_id: groupId 
+      }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
       const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
@@ -174,9 +196,13 @@ export const GroupsSidebar = ({
       );
       return { previousMembers, groupId };
     },
+    onSuccess: () => {
+      // Show success notification
+      showSuccessNotification("Member removed successfully!");
+    },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("");
+      setError("Failed to remove member. Please try again.");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -195,12 +221,32 @@ export const GroupsSidebar = ({
 
   const handleAddMember = (groupId) => {
     if (!selectedMember) return;
-    addMemberMutation.mutate({ groupId, userId: selectedMember });
+    
+    // Capture the selected member value before clearing
+    const memberToAdd = selectedMember;
+    
+    // Close modal immediately
+    setSelectedMember("");
+    setActionType(null);
+    setShowGroupMenu(null);
+    
+    // Then run the mutation with the captured value
+    addMemberMutation.mutate({ groupId, userId: memberToAdd });
   };
 
   const handleRemoveMember = (groupId) => {
     if (!selectedMember) return;
-    removeMemberMutation.mutate({ groupId, userId: selectedMember });
+    
+    // Capture the selected member value before clearing
+    const memberToRemove = selectedMember;
+    
+    // Close modal immediately
+    setSelectedMember("");
+    setActionType(null);
+    setShowGroupMenu(null);
+    
+    // Then run the mutation with the captured value
+    removeMemberMutation.mutate({ groupId, userId: memberToRemove });
   };
 
   const handleGroupClick = async (group) => {
@@ -231,7 +277,6 @@ export const GroupsSidebar = ({
     position: "relative",
   };
 
-
   const tabContainerStyle = {
     display: "flex",
     justifyContent: "space-between",
@@ -239,7 +284,6 @@ export const GroupsSidebar = ({
     padding: "1.5rem",
     borderBottom: "1px solid #3a1f5c",
   };
-
 
   const tabButtonStyle = (isActive) => ({
     padding: "0.8rem 1.2rem",
@@ -250,7 +294,6 @@ export const GroupsSidebar = ({
     cursor: "pointer",
     borderRadius: "4px",
   });
-
 
   const listItemStyle = (active) => ({
     padding: "1rem",
@@ -294,8 +337,34 @@ export const GroupsSidebar = ({
     cursor: "pointer",
   };
 
+  // Success notification styles
+  const successNotificationStyle = {
+    position: "fixed",
+    top: "20px",
+    right: "20px",
+    backgroundColor: "#22c55e",
+    color: "white",
+    padding: "12px 20px",
+    borderRadius: "8px",
+    fontWeight: "500",
+    fontSize: "14px",
+    zIndex: 9999,
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+    transform: showSuccess ? "translateX(0)" : "translateX(100%)",
+    opacity: showSuccess ? 1 : 0,
+    transition: "all 0.3s ease-in-out",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
+
   return (
     <div style={sidebarStyle}>
+      {/* Success Notification */}
+      <div style={successNotificationStyle}>
+        <span>✓</span>
+        {successMessage}
+      </div>
 
       <div style={tabContainerStyle}>
         <div>
@@ -334,7 +403,6 @@ export const GroupsSidebar = ({
           {error}
         </div>
       )}
-
 
       <div style={listContainerStyle}>
         {activeTab === "groups"
@@ -566,7 +634,6 @@ export const GroupsSidebar = ({
           </div>
         </div>
       )}
-
 
       {showGroupForm && (
         <div

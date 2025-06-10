@@ -57,15 +57,15 @@ export const addGroupMember = async (csrfToken, { group_id, user_id }) => {
   return handleResponse(response);
 };
 
-export const removeGroupMember = async (csrfToken, { group_id, user_id }) => {
-  const response = await fetch("http://localhost:8000/remove_group_member/", {
+export const removeGroupMember = async (csrfToken, { group_id, remove_id }) => {
+  const response = await fetch("http://localhost:8000/remove_member/", {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
       "X-CSRFToken": csrfToken,
     },
-    body: JSON.stringify({ group_id, user_id }),
+    body: JSON.stringify({ group_id, remove_id }),
   });
   return handleResponse(response);
 };
