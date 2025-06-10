@@ -25,7 +25,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Initialize S3 client with your specific configuration
+#Initialize S3 client
 s3_client = boto3.client(
     's3',
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
@@ -33,7 +33,7 @@ s3_client = boto3.client(
     region_name=os.getenv('AWS_S3_REGION', 'us-east-1')
 )
 
-# S3 Configuration
+#S3 Config
 AWS_S3_BUCKET_NAME = 'letterbox-information-retrieval'
 AWS_S3_CUSTOM_DOMAIN = 'letterbox-information-retrieval.s3.amazonaws.com'
 AWS_LOCATION = 'media'  # folder in S3 bucket
@@ -1006,6 +1006,20 @@ def create_movie_proposal(request):
         movie_id = data["movie_id"]
         proposed_datetime = datetime.fromisoformat(data["proposed_date"])
 
+        # Ensure datetime object
+        if isinstance(proposed_datetime, str):
+            proposed_datetime = datetime.fromisoformat(proposed_datetime)
+
+        # Make timezone-aware if naive
+        if proposed_datetime.tzinfo is None:
+            proposed_datetime = timezone.make_aware(proposed_datetime, timezone.get_default_timezone())
+
+        # Convert to UTC using datetime.timezone.utc
+        proposed_datetime_utc = proposed_datetime.astimezone(dt_timezone.utc)
+
+
+
+
         user = User.objects.get(id=user_proposing_id)
         movie = Movie.objects.get(id=movie_id)
         group = User.objects.get(id=user_receiving)
@@ -1027,7 +1041,7 @@ def create_movie_proposal(request):
             proposed_by=user,
             recipient=group,
             movie=movie,
-            proposed_datetime=proposed_datetime
+            proposed_datetime=proposed_datetime_utc
         )
 
         return JsonResponse({
@@ -1183,8 +1197,6 @@ def retrieve_votes_for_recipient(request):
 #Desc: Helper method for the backend that helps send email to users about proposals
 #Params: proposal_id: Integer, users: Dictionary containing id, email, and username, proposed_datetime: time the event is taking place
 #Returns: Response
-@csrf_exempt
-@require_POST
 def schedule_email_lambda(proposal_id, users, proposed_datetime):
     #Calculate 3 hours before event
     scheduled_time = proposed_datetime - timedelta(hours=3)

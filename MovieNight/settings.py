@@ -197,7 +197,7 @@ AWS_COGNITO_CLIENT_SECRET = "1m88e24rnk628ba6v2mkpia6ba6q6ukg993ag96b6n844an7v73
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Los_Angeles'
 
 USE_I18N = True
 
