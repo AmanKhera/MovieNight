@@ -378,7 +378,7 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
           font-size: 1.8rem;
           font-weight: bold;
           text-transform: uppercase;
-          margin: 20px 0;
+          margin: 100px 0;
           text-align: center;
         }
 
