@@ -72,7 +72,7 @@ urlpatterns = [
 
     path('add_members/', group_views.add_member_to_group, name='add_members'),
 
-    path('remove_member/', group_views.remove_member_from_group, name='remove_member'),  
+    path('remove_group_member/', group_views.remove_member_from_group, name='remove_member'),  
 
     path('add_to_watched/', user_views.add_to_watched, name='add_to_watched'),
 

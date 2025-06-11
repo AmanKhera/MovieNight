@@ -89,9 +89,9 @@ def login(request):
 
 
 #hosted_iu_login
-#   When user clicks on login page it sends them to aws cognito and then to 
-#   http://localhost:8000/hosted-login
-#   at which point if the user logs in we go to the login_callback Method
+#When user clicks on login page it sends them to aws cognito and then to 
+#http://localhost:8000/hosted-login
+#at which point if the user logs in we go to the login_callback Method
 def hosted_ui_login(request):
     cognito_url = (
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
@@ -104,11 +104,11 @@ def hosted_ui_login(request):
 
 
 #login_callback
-#   Provides 2 tokens:
-#       ID Token: Can be used to retrieve personal information such as username or email
-#       Access Token: More secure than an id token and is updated on the spot, same features as id token
-#       but more secure and what we will be using
-#   Tokens can be retrieved via request.session["token_name"]
+#Provides 2 tokens:
+#ID Token: Can be used to retrieve personal information such as username or email
+#Access Token: More secure than an id token and is updated on the spot, same features as id token
+#but more secure and what we will be using
+#Tokens can be retrieved via request.session["token_name"]
 # def login_callback(request):
 #     code = request.GET.get('code')
 

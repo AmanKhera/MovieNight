@@ -162,6 +162,8 @@ function PopularToolbar() {
         localStorage.clear();
         sessionStorage.clear();
         
+
+        // Navigate to login page
         navigate("/");
       } else {
         console.error('Logout failed');

@@ -1661,6 +1661,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         if (data.proposal_accepted) {
           alert("Proposal accepted! 🎉");
+          await fetch("http://localhost:8000/proposal_accepted/", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              proposal_id: proposalId
+            }),
+          });
         }
       } else {
         const errorData = await resp.json();

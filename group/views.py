@@ -140,17 +140,19 @@ def add_member_to_group(request):
         group.save(update_fields=['voting_limit'])
 
         #Grabs groups watched movies
-        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat = True))
+
+        group_user = User.objects.get(id=group_id)
+
+        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_user).values_list('movie_id', flat = True))
 
         #grabs new users watched movies
-        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member.id).values_list('movie_id', flat = True))
+        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member).values_list('movie_id', flat = True))
 
         #Find intersection of movies watched by group and new user
         keep_ids = group_movie_ids & new_member_movie_id
         #removes movies not seen by everyone
         UserMovieJournal.objects.filter(user=group_id).exclude(movie_id__in=keep_ids).delete()
 
-        group_user = User.objects.get(id=group_id)
         group_watchlist = Watchlist.objects.get(user=group_user)
         new_member_watchlist = Watchlist.objects.get(user=member.id, type = 'main')
 
@@ -176,8 +178,6 @@ def add_member_to_group(request):
         ]
         WatchlistItem.objects.bulk_create(new_items)       
 
-
-
         return JsonResponse({'message': 'Member added to group!'})
 
     except json.JSONDecodeError:
@@ -185,6 +185,7 @@ def add_member_to_group(request):
     except Exception as e:
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
 
 
 
