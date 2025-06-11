@@ -1269,10 +1269,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
-  const [recommendationsLoaded, setRecommendationsLoaded] = useState(false); // New state to track if recommendations are loaded
-  const [lastLoadedItem, setLastLoadedItem] = useState(null); // Track which item recommendations were loaded for
+  const [recommendationsLoaded, setRecommendationsLoaded] = useState(false);
+  const [lastLoadedItem, setLastLoadedItem] = useState(null);
   const [watchlist, setWatchlist] = useState([]);
-  const [watchlistLoaded, setWatchlistLoaded] = useState(false); // Track if watchlist has been loaded
+  const [watchlistLoaded, setWatchlistLoaded] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1302,15 +1302,14 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .catch(console.error);
   }, []);
 
-  // Reset recommendations cache when selectedItem or activeTab changes
   useEffect(() => {
     const currentItemKey = `${selectedItem?.group_id || selectedItem?.id}-${activeTab}`;
     if (lastLoadedItem !== currentItemKey) {
       setRecommendationsLoaded(false);
       setRecommendations([]);
       setUserVotes({});
-      setWatchlistLoaded(false); // Reset watchlist loaded state
-      setWatchlist([]); // Clear watchlist
+      setWatchlistLoaded(false);
+      setWatchlist([]);
       setLastLoadedItem(currentItemKey);
     }
   }, [selectedItem, activeTab]);
@@ -1416,9 +1415,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           }
         }
 
-        // Seamlessly update watchlist by adding new movie to bottom (only if watchlist has been loaded)
         if (watchlistLoaded) {
-          // Small delay to ensure backend has processed the addition
           setTimeout(() => {
             updateWatchlistWithNewMovie();
           }, 500);
@@ -1480,7 +1477,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   };
 
   const loadWatchlist = async () => {
-    // Only clear watchlist if it hasn't been loaded yet
     if (!watchlistLoaded) {
       setWatchlist([]);
     }
@@ -1515,13 +1511,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           })
         );
 
-        // Filter out items without movie details/posters and remove duplicates
         const validWatchlistItems = watchlistWithDetails.filter(item => {
           if (!item.movieDetails || !item.movieDetails.poster) {
             console.log(`Filtering out movie "${item.title}" - no poster found`);
             return false;
           }
-          // Also filter out placeholder posters
           const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
                                item.movieDetails.poster.includes('placeholder');
           if (isPlaceholder) {
@@ -1531,7 +1525,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           return true;
         });
 
-        // Remove duplicates based on movie_id
         const uniqueWatchlistItems = validWatchlistItems.filter((item, index, self) => 
           index === self.findIndex(t => t.movie_id === item.movie_id)
         );
@@ -1541,11 +1534,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         }
 
         const sortedWatchlist = uniqueWatchlistItems.sort((a, b) => {
-          // Try sorting by ID first (assuming higher ID = more recent)
           if (a.id && b.id) {
             return b.id - a.id;
           }
-          // If no ID, try sorting by any timestamp field
           if (a.created_at && b.created_at) {
             return new Date(b.created_at) - new Date(a.created_at);
           }
@@ -1555,12 +1546,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           if (a.timestamp && b.timestamp) {
             return new Date(b.timestamp) - new Date(a.timestamp);
           }
-          // Fallback to original order if no sortable field found
           return 0;
         });
 
         setWatchlist(sortedWatchlist);
-        setWatchlistLoaded(true); // Mark watchlist as loaded
+        setWatchlistLoaded(true);
       } else {
         console.error("Failed to fetch watchlist items:", watchlistResp.status);
         if (!watchlistLoaded) {
@@ -1586,14 +1576,12 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         const watchlistData = await watchlistResp.json();
         const newItems = watchlistData.watchlist || [];
 
-        // Find items that aren't in the current watchlist (check by movie_id to avoid duplicates)
         const currentMovieIds = new Set(watchlist.map(item => item.movie_id));
         const newMovies = newItems.filter(item => !currentMovieIds.has(item.movie_id));
 
         if (newMovies.length > 0) {
           console.log(`Found ${newMovies.length} new movie(s) to add to watchlist`);
           
-          // Get movie details for new movies and filter out ones without posters
           const newMoviesWithDetails = await Promise.all(
             newMovies.map(async (item) => {
               try {
@@ -1614,13 +1602,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
             })
           );
 
-          // Filter out movies without valid posters
           const validNewMovies = newMoviesWithDetails.filter(item => {
             if (!item.movieDetails || !item.movieDetails.poster) {
               console.log(`Filtering out new movie "${item.title}" - no poster found`);
               return false;
             }
-            // Also filter out placeholder posters
             const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
                                  item.movieDetails.poster.includes('placeholder');
             if (isPlaceholder) {
@@ -1631,12 +1617,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           });
 
           if (validNewMovies.length > 0) {
-            // Double-check for duplicates before adding (extra safety)
             const currentMovieIdsUpdated = new Set(watchlist.map(item => item.movie_id));
             const trulyNewMovies = validNewMovies.filter(item => !currentMovieIdsUpdated.has(item.movie_id));
             
             if (trulyNewMovies.length > 0) {
-              // Add new movies to the top of the existing watchlist (most recent first)
               setWatchlist(prev => [...trulyNewMovies, ...prev]);
               console.log(`Successfully added ${trulyNewMovies.length} new movies to top of watchlist`);
             } else {
@@ -1762,7 +1746,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
-  // Load recommendations data (only called when needed)
   const loadRecommendations = async () => {
     try {
       const memberUrl = new URL("http://localhost:8000/group_recommendation/");
@@ -1973,12 +1956,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
 
       if (pollView === "recommendations") {
-        // Only load recommendations if they haven't been loaded for this item yet
         if (!recommendationsLoaded) {
           await loadRecommendations();
         }
       } else if (pollView === "watchlist") {
-        // Only load watchlist if it hasn't been loaded for this item yet (make it persistent)
         if (!watchlistLoaded) {
           await loadWatchlist();
         }
