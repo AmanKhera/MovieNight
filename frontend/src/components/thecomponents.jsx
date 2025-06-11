@@ -109,9 +109,16 @@ export const GroupsSidebar = ({
       ]);
       return { previousGroups };
     },
+    onSuccess: () => {
+      // Close the modal and clear form fields on successful creation
+      setShowGroupForm(false);
+      setGroupName("");
+      setGenre("");
+      showSuccessNotification("Group created successfully!");
+    },
     onError: (err, newGroup, context) => {
       queryClient.setQueryData(['userGroups', username], context.previousGroups);
-      setError("");
+      setError("Failed to create group. Please try again.");
     },
     onSettled: () => {
       queryClient.invalidateQueries(['userGroups', username]);
@@ -654,7 +661,11 @@ export const GroupsSidebar = ({
             >
               <h3>Create New Group</h3>
               <button
-                onClick={() => setShowGroupForm(false)}
+                onClick={() => {
+                  setShowGroupForm(false);
+                  setGroupName("");
+                  setGenre("");
+                }}
                 style={{
                   background: "none",
                   border: "none",
@@ -1258,7 +1269,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsLoaded, setRecommendationsLoaded] = useState(false); // New state to track if recommendations are loaded
+  const [lastLoadedItem, setLastLoadedItem] = useState(null); // Track which item recommendations were loaded for
   const [watchlist, setWatchlist] = useState([]);
+  const [watchlistLoaded, setWatchlistLoaded] = useState(false); // Track if watchlist has been loaded
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1287,6 +1301,19 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .then((js) => setCurrentUserId(js.id))
       .catch(console.error);
   }, []);
+
+  // Reset recommendations cache when selectedItem or activeTab changes
+  useEffect(() => {
+    const currentItemKey = `${selectedItem?.group_id || selectedItem?.id}-${activeTab}`;
+    if (lastLoadedItem !== currentItemKey) {
+      setRecommendationsLoaded(false);
+      setRecommendations([]);
+      setUserVotes({});
+      setWatchlistLoaded(false); // Reset watchlist loaded state
+      setWatchlist([]); // Clear watchlist
+      setLastLoadedItem(currentItemKey);
+    }
+  }, [selectedItem, activeTab]);
 
   const fetchGroupThreshold = async () => {
     if (!isGroup || !selectedItem?.group_id) return;
@@ -1389,7 +1416,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           }
         }
 
-        loadWatchlist();
+        // Seamlessly update watchlist by adding new movie to bottom (only if watchlist has been loaded)
+        if (watchlistLoaded) {
+          // Small delay to ensure backend has processed the addition
+          setTimeout(() => {
+            updateWatchlistWithNewMovie();
+          }, 500);
+        }
       }
 
     } catch (e) {
@@ -1447,7 +1480,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   };
 
   const loadWatchlist = async () => {
-    setWatchlist([]);
+    // Only clear watchlist if it hasn't been loaded yet
+    if (!watchlistLoaded) {
+      setWatchlist([]);
+    }
 
     try {
       const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
@@ -1479,14 +1515,142 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           })
         );
 
-        setWatchlist(watchlistWithDetails);
+        // Filter out items without movie details/posters and remove duplicates
+        const validWatchlistItems = watchlistWithDetails.filter(item => {
+          if (!item.movieDetails || !item.movieDetails.poster) {
+            console.log(`Filtering out movie "${item.title}" - no poster found`);
+            return false;
+          }
+          // Also filter out placeholder posters
+          const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
+                               item.movieDetails.poster.includes('placeholder');
+          if (isPlaceholder) {
+            console.log(`Filtering out movie "${item.title}" - only placeholder poster available`);
+            return false;
+          }
+          return true;
+        });
+
+        // Remove duplicates based on movie_id
+        const uniqueWatchlistItems = validWatchlistItems.filter((item, index, self) => 
+          index === self.findIndex(t => t.movie_id === item.movie_id)
+        );
+
+        if (validWatchlistItems.length !== uniqueWatchlistItems.length) {
+          console.log(`Removed ${validWatchlistItems.length - uniqueWatchlistItems.length} duplicate movies from watchlist`);
+        }
+
+        const sortedWatchlist = uniqueWatchlistItems.sort((a, b) => {
+          // Try sorting by ID first (assuming higher ID = more recent)
+          if (a.id && b.id) {
+            return b.id - a.id;
+          }
+          // If no ID, try sorting by any timestamp field
+          if (a.created_at && b.created_at) {
+            return new Date(b.created_at) - new Date(a.created_at);
+          }
+          if (a.date_added && b.date_added) {
+            return new Date(b.date_added) - new Date(a.date_added);
+          }
+          if (a.timestamp && b.timestamp) {
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          }
+          // Fallback to original order if no sortable field found
+          return 0;
+        });
+
+        setWatchlist(sortedWatchlist);
+        setWatchlistLoaded(true); // Mark watchlist as loaded
       } else {
         console.error("Failed to fetch watchlist items:", watchlistResp.status);
-        setWatchlist([]);
+        if (!watchlistLoaded) {
+          setWatchlist([]);
+        }
       }
     } catch (e) {
       console.error("Error loading watchlist:", e);
-      setWatchlist([]);
+      if (!watchlistLoaded) {
+        setWatchlist([]);
+      }
+    }
+  };
+
+  const updateWatchlistWithNewMovie = async () => {
+    try {
+      const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
+      watchlistUrl.searchParams.set("id", selectedItem.group_id);
+      watchlistUrl.searchParams.set("watchlist_name", "Watchlist");
+
+      const watchlistResp = await fetch(watchlistUrl, { credentials: "include" });
+      if (watchlistResp.ok) {
+        const watchlistData = await watchlistResp.json();
+        const newItems = watchlistData.watchlist || [];
+
+        // Find items that aren't in the current watchlist (check by movie_id to avoid duplicates)
+        const currentMovieIds = new Set(watchlist.map(item => item.movie_id));
+        const newMovies = newItems.filter(item => !currentMovieIds.has(item.movie_id));
+
+        if (newMovies.length > 0) {
+          console.log(`Found ${newMovies.length} new movie(s) to add to watchlist`);
+          
+          // Get movie details for new movies and filter out ones without posters
+          const newMoviesWithDetails = await Promise.all(
+            newMovies.map(async (item) => {
+              try {
+                const movieDetails = await fetchMovieDetailsById(item.movie_id);
+                return {
+                  ...item,
+                  title: movieDetails?.title || `Movie ${item.movie_id}`,
+                  movieDetails: movieDetails
+                };
+              } catch (e) {
+                console.error("Error fetching movie details for new watchlist item:", e);
+                return {
+                  ...item,
+                  title: `Movie ${item.movie_id}`,
+                  movieDetails: null
+                };
+              }
+            })
+          );
+
+          // Filter out movies without valid posters
+          const validNewMovies = newMoviesWithDetails.filter(item => {
+            if (!item.movieDetails || !item.movieDetails.poster) {
+              console.log(`Filtering out new movie "${item.title}" - no poster found`);
+              return false;
+            }
+            // Also filter out placeholder posters
+            const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
+                                 item.movieDetails.poster.includes('placeholder');
+            if (isPlaceholder) {
+              console.log(`Filtering out new movie "${item.title}" - only placeholder poster available`);
+              return false;
+            }
+            return true;
+          });
+
+          if (validNewMovies.length > 0) {
+            // Double-check for duplicates before adding (extra safety)
+            const currentMovieIdsUpdated = new Set(watchlist.map(item => item.movie_id));
+            const trulyNewMovies = validNewMovies.filter(item => !currentMovieIdsUpdated.has(item.movie_id));
+            
+            if (trulyNewMovies.length > 0) {
+              // Add new movies to the top of the existing watchlist (most recent first)
+              setWatchlist(prev => [...trulyNewMovies, ...prev]);
+              console.log(`Successfully added ${trulyNewMovies.length} new movies to top of watchlist`);
+            } else {
+              console.log("All valid movies were already in the watchlist - no duplicates added");
+            }
+          } else {
+            console.log("No valid movies with posters found to add to watchlist");
+          }
+        } else {
+          console.log("No new movies found to add to watchlist");
+        }
+      }
+    } catch (e) {
+      console.error("Error updating watchlist with new movie:", e);
     }
   };
 
@@ -1595,6 +1759,83 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     } catch (e) {
       console.error("Error loading proposals:", e);
       setError("Failed to load proposals");
+    }
+  };
+
+  // Load recommendations data (only called when needed)
+  const loadRecommendations = async () => {
+    try {
+      const memberUrl = new URL("http://localhost:8000/group_recommendation/");
+      memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+
+      const memberResp = await fetch(memberUrl, { credentials: "include" });
+      let memberRecs = [];
+
+      if (memberResp.ok) {
+        const memberData = await memberResp.json();
+        const recs = memberData.Recommendations || [];
+        const memberDetails = await Promise.all(
+          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
+        );
+
+        const memberDetailsWithUsernames = await Promise.all(
+          memberDetails.map(async (d, i) => {
+            if (!d) return null;
+            const username = await fetchUsername(recs[i].member_suggested_id);
+            return {
+              ...d,
+              recId: recs[i].id,
+              upvotes: recs[i].upvotes || 0,
+              downvotes: recs[i].downvotes || 0,
+              threshold: recs[i].threshold || 3,
+              recommended: recs[i].recommended || 0,
+              isInWatchlist: recs[i].recommended === 1,
+              source: 'member',
+              username: username
+            };
+          })
+        );
+
+        memberRecs = memberDetailsWithUsernames.filter(Boolean);
+      }
+
+      let finalList = [...memberRecs];
+
+      if (finalList.length < 10) {
+        const generatedUrl = new URL("http://localhost:8000/group_recs/");
+        generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+
+        const generatedResp = await fetch(generatedUrl, { credentials: "include" });
+        if (generatedResp.ok) {
+          const generatedData = await generatedResp.json();
+          const existing = generatedData.recommendations || [];
+
+          const enrichedExisting = (
+            await Promise.all(
+              existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
+            )
+          )
+            .map((d, i) => d && {
+              ...d,
+              recId: existing[i].id,
+              upvotes: existing[i].upvotes || 0,
+              downvotes: existing[i].downvotes || 0,
+              threshold: existing[i].threshold || 3,
+              recommended: existing[i].recommended || 0,
+              isInWatchlist: existing[i].recommended === 1,
+              source: 'generated'
+            })
+            .filter(Boolean);
+
+          finalList = finalList.concat(enrichedExisting.slice(0, 10 - finalList.length));
+        }
+      }
+
+      setRecommendations(finalList);
+      setRecommendationsLoaded(true);
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
     }
   };
 
@@ -1732,80 +1973,15 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
 
       if (pollView === "recommendations") {
-        try {
-          const memberUrl = new URL("http://localhost:8000/group_recommendation/");
-          memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-
-          const memberResp = await fetch(memberUrl, { credentials: "include" });
-          let memberRecs = [];
-
-          if (memberResp.ok) {
-            const memberData = await memberResp.json();
-            const recs = memberData.Recommendations || [];
-            const memberDetails = await Promise.all(
-              recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
-            );
-
-            const memberDetailsWithUsernames = await Promise.all(
-              memberDetails.map(async (d, i) => {
-                if (!d) return null;
-                const username = await fetchUsername(recs[i].member_suggested_id);
-                return {
-                  ...d,
-                  recId: recs[i].id,
-                  upvotes: recs[i].upvotes || 0,
-                  downvotes: recs[i].downvotes || 0,
-                  threshold: recs[i].threshold || 3,
-                  recommended: recs[i].recommended || 0,
-                  isInWatchlist: recs[i].recommended === 1,
-                  source: 'member',
-                  username: username
-                };
-              })
-            );
-
-            memberRecs = memberDetailsWithUsernames.filter(Boolean);
-          }
-
-          let finalList = [...memberRecs];
-
-          if (finalList.length < 10) {
-            const generatedUrl = new URL("http://localhost:8000/group_recs/");
-            generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-
-            const generatedResp = await fetch(generatedUrl, { credentials: "include" });
-            if (generatedResp.ok) {
-              const generatedData = await generatedResp.json();
-              const existing = generatedData.recommendations || [];
-
-              const enrichedExisting = (
-                await Promise.all(
-                  existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
-                )
-              )
-                .map((d, i) => d && {
-                  ...d,
-                  recId: existing[i].id,
-                  upvotes: existing[i].upvotes || 0,
-                  downvotes: existing[i].downvotes || 0,
-                  threshold: existing[i].threshold || 3,
-                  recommended: existing[i].recommended || 0,
-                  isInWatchlist: existing[i].recommended === 1,
-                  source: 'generated'
-                })
-                .filter(Boolean);
-
-              finalList = finalList.concat(enrichedExisting.slice(0, 10 - finalList.length));
-            }
-          }
-
-          setRecommendations(finalList);
-        } catch (e) {
-          console.error(e);
-          setError(e.message);
+        // Only load recommendations if they haven't been loaded for this item yet
+        if (!recommendationsLoaded) {
+          await loadRecommendations();
         }
       } else if (pollView === "watchlist") {
-        await loadWatchlist();
+        // Only load watchlist if it hasn't been loaded for this item yet (make it persistent)
+        if (!watchlistLoaded) {
+          await loadWatchlist();
+        }
       } else if (pollView === "proposals") {
         await loadProposals();
         await loadVotesForProposals();
@@ -1815,7 +1991,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     };
 
     loadData();
-  }, [selectedItem, activeTab, pollView]);
+  }, [selectedItem, activeTab, pollView, recommendationsLoaded]);
 
   const formatDate = (isoString) => {
     const date = new Date(isoString);
@@ -2706,7 +2882,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
 
 
 
