@@ -1225,15 +1225,15 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
 
     #Schedule eventbridge if event is more than 3 hours away
     scheduled_time_utc = scheduled_time.astimezone(dt_timezone.utc)
-    iso_timestamp = scheduled_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    iso_timestamp = scheduled_time_utc.strftime("%Y-%m-%dT%H:%M:%S")
     print("Schedule expression:", f"at({iso_timestamp})")
 
     rule_name = f"email-proposal-{proposal_id}"
 
     scheduler = boto3.client(
         "scheduler",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        aws_access_key_id=os.getenv("EVENT_AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("EVENT_AWS_SECRET_ACCESS_KEY"),
         region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
     )
 
@@ -1244,7 +1244,7 @@ def schedule_email_lambda(proposal_id, users, proposed_datetime):
             FlexibleTimeWindow={"Mode": "OFF"},
             Target={
                 "Arn": "arn:aws:sns:us-east-1:120569600069:MovieNightUpcomingEvent",
-                "RoleArn": "arn:aws:iam::120569600069:role/LambdaExecutionRole",
+                "RoleArn": "arn:aws:iam::120569600069:role/MovieNightSchedulerExecutionRole",
                 "Input": json.dumps({
                     "proposal_id": proposal_id,
                     "users": users
