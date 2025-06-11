@@ -1,4 +1,3 @@
-// src/pages/GroupPage.js
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import Toolbar from "../components/Toolbar";
@@ -9,19 +8,19 @@ import {
   MoviePoll,
   UserProfile
 } from "../components/thecomponents";
-/*import "./GroupPage.css";*/
+
 
 const GroupPage = () => {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState("groups");    // "groups" or "friends"
+  const [activeTab, setActiveTab] = useState("groups");   
   const [selectedChat, setSelectedChat] = useState(null);
   const chatUser = location.state?.chatUser || null;
 
-  // ChatSection state
+
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
 
-  // When chatUser is passed via state, select them
+
   useEffect(() => {
     if (chatUser) {
       setActiveTab("friends");

@@ -42,7 +42,7 @@ const UsernameDisplay = () => {
   useEffect(() => {
     const fetchUsername = async () => {
       try {
-        // 1) Get user info (including user_id) from /user_info/
+        //Get user info (including user_id) from /user_info/
         const infoRes = await fetch("http://localhost:8000/user_info/", {
           credentials: "include",
         });
@@ -53,7 +53,7 @@ const UsernameDisplay = () => {
           return;
         }
 
-        // 2) Use that user_id to call /frontend_username/
+        
         const userId = infoData.id;
         const usernameRes = await fetch(
           `http://localhost:8000/frontend_user/?user_id=${userId}`,
@@ -61,7 +61,7 @@ const UsernameDisplay = () => {
         );
         const usernameData = await usernameRes.json();
 
-        // 3) Update state if we got a valid response
+        //Update state if valid response
         if (usernameRes.ok && usernameData.Username) {
           setUsername(usernameData.Username);
         } else {

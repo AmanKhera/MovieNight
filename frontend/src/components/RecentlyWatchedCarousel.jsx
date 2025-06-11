@@ -2,7 +2,7 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { fetchRecentlyWatched } from "../api";
-import { queryClient } from "../App"; // Ensure you export queryClient from App.js
+import { queryClient } from "../App";
 
 const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
   const navigate = useNavigate();
@@ -10,9 +10,9 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
   const { data: movies, isLoading, isError, error } = useQuery({
     queryKey: ["recentlyWatched"],
     queryFn: fetchRecentlyWatched,
-    staleTime: 3600000, // 1 hour – keeps the prefetched data fresh longer
-    refetchOnMount: false, // Prevent refetching on mount if data exists
-    initialData: () => queryClient.getQueryData(["recentlyWatched"]), // Use cached data if available
+    staleTime: 3600000,
+    refetchOnMount: false,
+    initialData: () => queryClient.getQueryData(["recentlyWatched"]),
   });
 
   const handleMovieClick = (movie) => {
@@ -63,7 +63,6 @@ const RecentlyWatchedCarousel = ({ title = "Recently Watched" }) => {
           </div>
         ))}
       </div>
-      {/* Inline CSS omitted for brevity */}
     </div>
   );
 };

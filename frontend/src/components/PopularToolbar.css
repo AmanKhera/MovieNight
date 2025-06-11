@@ -32,7 +32,6 @@ body {
   padding-top: 105px;
 }
 
-/* LOGO/POSTER AREA */
 .main-toolbar-logo {
   position: absolute;
   top: 0px;
@@ -60,7 +59,6 @@ body {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
-/* ICON BUTTONS AT THE BOTTOM-RIGHT */
 .main-toolbar-buttons {
   position: absolute;
   bottom: 10px;
@@ -93,13 +91,11 @@ body {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
-/* HOVER TEXT (TOOLTIP) */
 .main-toolbar-button {
   position: relative;
   display: inline-block;
 }
 
-/* HOVER TEXT FOR LOGO */
 .main-toolbar-hover-text-logo {
   visibility: hidden;
   position: absolute;
@@ -118,7 +114,6 @@ body {
   white-space: nowrap;
 }
 
-/* HOVER TEXT FOR ICON BUTTONS */
 .main-toolbar-hover-text {
   visibility: hidden;
   position: absolute;
@@ -137,7 +132,6 @@ body {
   white-space: nowrap;
 }
 
-/* Tooltip arrow pointing DOWN */
 .main-toolbar-hover-text::after,
 .main-toolbar-hover-text-logo::after {
   content: '';
@@ -150,14 +144,12 @@ body {
   border-color: #240046 transparent transparent transparent;
 }
 
-/* Show tooltip on hover */
 .main-toolbar-button:hover .main-toolbar-hover-text,
 .main-toolbar-button:hover .main-toolbar-hover-text-logo {
   visibility: visible;
   opacity: 1;
 }
 
-/* POPUP STYLES */
 .popup-overlay {
   position: fixed;
   top: 0;
@@ -264,7 +256,6 @@ body {
   transform: translateY(0);
 }
 
-/* DISABLED BUTTON STYLING */
 .popup-option:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -283,7 +274,6 @@ body {
   box-shadow: none;
 }
 
-/* UPLOAD STATUS STYLING */
 .upload-status {
   margin-top: 15px;
   padding: 15px;
@@ -314,17 +304,14 @@ body {
   line-height: 1.4;
 }
 
-/* Success status styling */
 .upload-status:has(p[text*="✅"]) {
   border-left-color: #4CAF50;
 }
 
-/* Error status styling */
 .upload-status:has(p[text*="❌"]) {
   border-left-color: #F44336;
 }
 
-/* LOADING SPINNER */
 .loading-spinner {
   display: inline-block;
   margin-right: 8px;
@@ -341,12 +328,10 @@ body {
   }
 }
 
-/* Enhanced loading state for buttons */
 .popup-option:disabled .loading-spinner {
   margin-right: 8px;
 }
 
-/* File upload progress indicator */
 .upload-progress {
   width: 100%;
   height: 4px;
@@ -373,7 +358,6 @@ body {
   }
 }
 
-/* Enhanced popup content for better file upload UX */
 .popup-content.uploading {
   pointer-events: none;
 }
@@ -382,7 +366,6 @@ body {
   opacity: 0.5;
 }
 
-/* INSTRUCTIONS STYLING */
 .instructions-content {
   max-height: 400px;
   overflow-y: auto;
@@ -459,7 +442,6 @@ body {
   border-color: #555555 !important;
 }
 
-/* Custom scrollbar for instructions */
 .instructions-content::-webkit-scrollbar {
   width: 6px;
 }
@@ -478,7 +460,6 @@ body {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* Enhanced hover effects for accessibility */
 @media (prefers-reduced-motion: no-preference) {
   .popup-option:hover:not(:disabled) {
     animation: buttonHover 0.3s ease;
@@ -497,7 +478,6 @@ body {
   }
 }
 
-/* Focus styles for accessibility */
 .popup-option:focus {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
@@ -508,7 +488,6 @@ body {
   outline-offset: 2px;
 }
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   .main-toolbar {
     height: 80px;
@@ -535,10 +514,9 @@ body {
   
   .main-toolbar-hover-text,
   .main-toolbar-hover-text-logo {
-    display: none; /* Hide tooltips on mobile */
+    display: none;
   }
   
-  /* Mobile popup adjustments */
   .popup-content {
     width: 280px;
     margin: 20px;
@@ -567,7 +545,6 @@ body {
     font-size: 13px;
   }
   
-  /* Mobile instructions adjustments */
   .instructions-content {
     max-height: 250px;
     padding-right: 5px;
@@ -591,7 +568,6 @@ body {
   }
 }
 
-/* FOOTER */
 footer {
   margin: 0;
   background-color: #10002B;

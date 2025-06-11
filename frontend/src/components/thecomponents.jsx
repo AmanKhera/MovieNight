@@ -1,4 +1,3 @@
-// src/components/thecomponents.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,9 +22,9 @@ export function formatRelativeTime(timestamp) {
   const parsed = dayjs(timestamp);
   if (!parsed.isValid()) return "unknown";
 
-  return parsed.fromNow(); // e.g., "5 minutes ago"
+  return parsed.fromNow();
 }
-// Helper to read a named cookie (e.g., "csrftoken")
+
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -41,8 +40,7 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
-
-//Group Sidebar
+//Group Side Bar (left)
 export const GroupsSidebar = ({
   activeTab,
   onTabChange,
@@ -81,16 +79,13 @@ export const GroupsSidebar = ({
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
   
-  // Success notification state
   const [successMessage, setSuccessMessage] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Function to show success notification
   const showSuccessNotification = (message) => {
     setSuccessMessage(message);
     setShowSuccess(true);
     
-    // Auto-hide after 3 seconds
     setTimeout(() => {
       setShowSuccess(false);
     }, 3000);
@@ -169,7 +164,6 @@ export const GroupsSidebar = ({
       return { previousMembers, groupId };
     },
     onSuccess: () => {
-      // Show success notification
       showSuccessNotification("Member added successfully!");
     },
     onError: (err, variables, context) => {
@@ -197,7 +191,6 @@ export const GroupsSidebar = ({
       return { previousMembers, groupId };
     },
     onSuccess: () => {
-      // Show success notification
       showSuccessNotification("Member removed successfully!");
     },
     onError: (err, variables, context) => {
@@ -222,30 +215,24 @@ export const GroupsSidebar = ({
   const handleAddMember = (groupId) => {
     if (!selectedMember) return;
     
-    // Capture the selected member value before clearing
     const memberToAdd = selectedMember;
     
-    // Close modal immediately
     setSelectedMember("");
     setActionType(null);
     setShowGroupMenu(null);
     
-    // Then run the mutation with the captured value
     addMemberMutation.mutate({ groupId, userId: memberToAdd });
   };
 
   const handleRemoveMember = (groupId) => {
     if (!selectedMember) return;
     
-    // Capture the selected member value before clearing
     const memberToRemove = selectedMember;
     
-    // Close modal immediately
     setSelectedMember("");
     setActionType(null);
     setShowGroupMenu(null);
     
-    // Then run the mutation with the captured value
     removeMemberMutation.mutate({ groupId, userId: memberToRemove });
   };
 
@@ -337,7 +324,6 @@ export const GroupsSidebar = ({
     cursor: "pointer",
   };
 
-  // Success notification styles
   const successNotificationStyle = {
     position: "fixed",
     top: "20px",
@@ -360,7 +346,6 @@ export const GroupsSidebar = ({
 
   return (
     <div style={sidebarStyle}>
-      {/* Success Notification */}
       <div style={successNotificationStyle}>
         <span>✓</span>
         {successMessage}
@@ -816,13 +801,7 @@ export const GroupsSidebar = ({
   );
 };
 
-
-
-
-
-
-//***********CHAT SECTION************ */
-//*********************************** */
+//Chat (middle)
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -847,8 +826,6 @@ export const ChatSection = ({ selectedChat }) => {
     }
   };
 
-  
-  //get time relative to current time in simple terms like month, day, hour, instead of always an exact timestamp
   const getRelativeDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -881,7 +858,6 @@ export const ChatSection = ({ selectedChat }) => {
     fetchUserInfo();
   }, []);
 
-  //format chatId thats used as the chat room name to either a user chat or a group chat for the websocket address
   useEffect(() => {
     if (!selectedChat || !currentUser) return;
 
@@ -900,7 +876,6 @@ export const ChatSection = ({ selectedChat }) => {
       `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
     );
 
-    //fetch previous messages when entering the chatroom
     socketRef.current.onopen = () => {
       setMessages([]);
       setPage(1);
@@ -908,7 +883,6 @@ export const ChatSection = ({ selectedChat }) => {
       socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
     };
 
-    //handle auto scroll when message is sent
     socketRef.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
 
@@ -953,8 +927,6 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [selectedChat, currentUser]);
 
-  
-  //send message send to chatconsumer to be save in the message table
   const sendMessage = () => {
     if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
     const payload = {
@@ -979,7 +951,6 @@ export const ChatSection = ({ selectedChat }) => {
     scrollToBottom();
   };
 
-  //scroll helper function
   const handleScroll = () => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -1216,24 +1187,6 @@ const styles = {
   },
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-
 const fetchMovieDetails = async (title, year) => {
   try {
     const searchRes = await fetch(
@@ -1288,11 +1241,11 @@ const fetchMovieDetailsWithoutYear = async (title) => {
   }
 };
 
-
-
 const UP_VOTE = 1;
 const DOWN_VOTE = -1;
 
+
+//Movie recommednations, Right panel 
 export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
@@ -1317,10 +1270,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
 
-  // Success notification state
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
-  // Auto-hide success notification after 3 seconds
   useEffect(() => {
     if (showSuccessNotification) {
       const timer = setTimeout(() => {
@@ -1496,7 +1447,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   };
 
   const loadWatchlist = async () => {
-    // Clear previous watchlist content
     setWatchlist([]);
 
     try {
@@ -1531,13 +1481,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
         setWatchlist(watchlistWithDetails);
       } else {
-        // If request fails, keep watchlist empty (will show "No movies" message)
         console.error("Failed to fetch watchlist items:", watchlistResp.status);
         setWatchlist([]);
       }
     } catch (e) {
       console.error("Error loading watchlist:", e);
-      // If request fails, keep watchlist empty (will show "No movies" message)
       setWatchlist([]);
     }
   };
@@ -1676,7 +1624,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         setSelectedMovieForSchedule(null);
         setScheduleDate("");
         setScheduleTime("");
-        setShowSuccessNotification(true); // Show success notification instead of alert
+        setShowSuccessNotification(true);
         loadProposals();
       } else {
         const errorData = await resp.json();
@@ -1949,7 +1897,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         position: "relative",
       }}
     >
-      {/* Success Notification */}
       {showSuccessNotification && (
         <div
           style={{

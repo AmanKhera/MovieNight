@@ -11,12 +11,10 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     if (!movieId || !userId || hasCalledAPI.current) return;
 
     const fetchFriendsWhoWatched = async () => {
-      // Cancel any previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
 
-      // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
 
       setLoading(true);
@@ -50,7 +48,6 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
 
     fetchFriendsWhoWatched();
 
-    // Cleanup function to abort request if component unmounts
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -58,7 +55,6 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     };
   }, [movieId, userId]);
 
-  // Reset the ref when movieId or userId changes
   useEffect(() => {
     hasCalledAPI.current = false;
   }, [movieId, userId]);

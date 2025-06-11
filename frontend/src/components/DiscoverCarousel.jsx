@@ -7,11 +7,11 @@ const DiscoverCarousel = ({
 }) => {
   const [movies, setMovies] = useState([]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const itemsToScroll = 3; // Scroll one item per click
+  const itemsToScroll = 3; // Scroll three item per click
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enableTransition, setEnableTransition] = useState(true);
-  const [message, setMessage] = useState(null); // For user feedback
-  const [loading, setLoading] = useState({}); // Track loading state per movie
+  const [message, setMessage] = useState(null); 
+  const [loading, setLoading] = useState({}); 
 
   const navigate = useNavigate();
   const totalItems = movies.length;
@@ -26,7 +26,6 @@ const DiscoverCarousel = ({
         }
         const data = await response.json();
         setMovies(data.results || []);
-        // For infinite scrolling, set the current index to the end of the fetched array
         setCurrentIndex(data.results.length);
       } catch (error) {
         console.error("Error fetching discover movies:", error);
@@ -53,26 +52,22 @@ const DiscoverCarousel = ({
     };
   }, [id]);
 
-  // Clone items for infinite scrolling
   const extendedItems = [
     ...movies.slice(-itemsPerPage),
     ...movies,
     ...movies.slice(0, itemsPerPage),
   ];
 
-  // Handle next slide
   const nextSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex + itemsToScroll);
   };
 
-  // Handle previous slide
   const prevSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex - itemsToScroll);
   };
 
-  // Reset position after transition for infinite scrolling
   const handleTransitionEnd = () => {
     if (currentIndex >= totalItems + itemsPerPage) {
       setEnableTransition(false);
@@ -89,14 +84,14 @@ const DiscoverCarousel = ({
     return `translateX(-${translateValue}%)`;
   };
 
-  // Function to add a movie to the watchlist
+
   const addToWatchlist = async (movieId) => {
     if (!movieId) {
       setMessage({ text: "Invalid movie ID.", type: "error" });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-    // Set loading state for this movie
+
     setLoading((prev) => ({ ...prev, [movieId]: true }));
     try {
       const params = new URLSearchParams({ movie_id: movieId });
@@ -119,9 +114,7 @@ const DiscoverCarousel = ({
     }
   };
 
-  // Navigate to movie details using the movie title and release date via query parameters
   const handleMovieClick = (movie) => {
-    // Use the movie title for the details lookup.
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
     const releaseDate = movie.release_date; // TMDb usually provides release_date
     if (releaseDate) {
@@ -131,7 +124,7 @@ const DiscoverCarousel = ({
     }
   };
 
-  // Inline CSS styles
+
   const styles = `
     /* Container for the entire carousel */
     .discover-carousel {

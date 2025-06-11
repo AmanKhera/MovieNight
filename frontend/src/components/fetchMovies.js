@@ -1,11 +1,3 @@
-/**
- * uses the given searchText to call the movie database and return the
- * search results
- * @param {String} searchText - user's search input
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @return {JSON <object>} - search results
- */
 export const fetchMovies = async (searchText, moviesCallback, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?s=${searchText}&apikey=3d39d278&type=movie`);
@@ -28,13 +20,7 @@ export const fetchMovies = async (searchText, moviesCallback, errorCallback) => 
   }
 };
 
-/**
- * uses the given id to call the movie database and return the details of
- * that specific movie
- * @param {String} id - specific movie id
- * @param {Function} errorCallback -
- * @return {JSON <object>} - search results
- */
+
 export const fetchMovieDetails = async (id, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?i=${id}&plot=full&apikey=3d39d278`);
@@ -49,15 +35,7 @@ export const fetchMovieDetails = async (id, errorCallback) => {
   }
 }
 
-/**
- * uses the given searchText that is assumed to be the name of a movie director to call two
- * endpoints and return the search results
- * @param {String} searchText - user's search input that is assumed to be the name of a movie
- *                              director (ex. Spielberg or Steven Spielberg)
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @return {JSON <object>} - search results
- */
+
 export const fetchMoviesByDirector = async (searchText, moviesCallback, errorCallback) => {
   try {
     const response = await fetch(`http://localhost:8000/search/?filter=director&q=${searchText}`);
@@ -87,14 +65,6 @@ export const fetchMoviesByDirector = async (searchText, moviesCallback, errorCal
   }
 };
 
-/**
- * uses the given searchText that is assumed to be a certain year to call two endpoints
- * and return the search results
- * @param {String} searchText - user's search input that is assumed to be a year (ex. 2002)
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @return {JSON <object>} - search results
- */
 export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallback) => {
   try {
     const response = await fetch(`http://localhost:8000/search/?year=${searchText}&q=movie`);
@@ -124,16 +94,7 @@ export const fetchMoviesByYear = async (searchText, moviesCallback, errorCallbac
   }
 };
 
-/**
- * uses the given searchFilterValue that is assumed to be the content rating of a movie (G, PG, PG-13, R)
- * to call two endpoints and return the search results
- * @param {String} searchFilterValue - user's search filter that is assumed to be the content rating of a
- *                                     movie (G, PG, PG-13, R)
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @param {Number} batchSize - number of movies to be returned each call
- * @return {JSON <object>} - search results
- */
+
 export const fetchMoviesByContentRating = async (searchFilterValue, moviesCallback, errorCallback, batchSize) => {
   try {
     const response = await fetch(`http://localhost:8000/search/?filter=rating&q=${searchFilterValue}`);
@@ -164,16 +125,7 @@ export const fetchMoviesByContentRating = async (searchFilterValue, moviesCallba
   }
 };
 
-/**
- * uses the given searchFilterValue that is assumed to be the runtime of a movie (in minutes)
- * to call two endpoints and return the search results
- * @param {String} searchFilterValue - user's search filter that is assumed to be the runtime of a
- *                                     movie in minutes (either 90, 120, or 180)
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @param {Number} batchSize - number of movies to be returned each call
- * @return {JSON <object>} - search results
- */
+
 export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, errorCallback, batchSize) => {
   try {
     const response = await fetch(`http://localhost:8000/search/?filter=runtime&q=${searchFilterValue}`);
@@ -203,16 +155,7 @@ export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, er
   }
 };
 
-/**
- * uses the given searchFilterValue that is assumed to be the runtime of a movie (in minutes)
- * to call two endpoints and return the search results
- * @param {String} searchFilterValue - user's search filter that is assumed to be the runtime of a
- *                                     movie in minutes (either 90, 120, or 180)
- * @param {Function} moviesCallback -
- * @param {Function} errorCallback -
- * @param {Number} batchSize - number of movies to be returned each call
- * @return {JSON <object>} - search results
- */
+
 export const fetchMoviesByGenre = async (searchFilterValue, moviesCallback, errorCallback, page) => {
   try {
     const response = await fetch(`http://localhost:8000/discover_movie/?genre=${searchFilterValue}&page=${page}`);
@@ -245,14 +188,7 @@ export const fetchMoviesByGenre = async (searchFilterValue, moviesCallback, erro
   }
 };
 
-/**
- * uses the given movie title and movie year to call the movie database and return the details of
- * that specific movie
- * @param {String} title - specific movie title
- * @param {String} year - specific movie year
- * @param {Function} errorCallback -
- * @return {JSON <object>} - search results
- */
+
 export const fetchMovieDetailsByTitleAndYear = async (title, year, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?t=${title}&y=${year}&apikey=3d39d278`);

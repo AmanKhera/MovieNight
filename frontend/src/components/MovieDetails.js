@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
-// ADDED: Import useQueryClient for cache invalidation
 import { useQueryClient } from "@tanstack/react-query";
 import FriendsWhoWatched from './FriendsWhoWatched';
 
@@ -10,7 +9,6 @@ const MovieDetailsPage = () => {
   const queryParams = new URLSearchParams(location.search);
   const release_date = queryParams.get("release_date");
 
-  // ADDED: Initialize queryClient for cache invalidation
   const queryClient = useQueryClient();
 
   const [userId, setUserId] = useState(null);
@@ -23,7 +21,6 @@ const MovieDetailsPage = () => {
 
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [message, setMessage] = useState(null);
-  // ADDED: Animation state for success message
   const [messageAnimating, setMessageAnimating] = useState(false);
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -40,26 +37,21 @@ const MovieDetailsPage = () => {
   const [showGroupList, setShowGroupList] = useState(false);
   const [showFriendList, setShowFriendList] = useState(false);
 
-  // ADDED: New state for watchlist submenu
   const [userWatchlists, setUserWatchlists] = useState([]);
   const [showWatchlistSubmenu, setShowWatchlistSubmenu] = useState(false);
   const [loadingWatchlists, setLoadingWatchlists] = useState(false);
 
-  // ADDED: Enhanced message display function with animations
   const showAnimatedMessage = (text, type = "success") => {
     setMessage({ text, type });
     
-    // Trigger slide-in animation
     setTimeout(() => {
       setMessageAnimating(true);
     }, 10);
     
-    // Start slide-out animation after 2.5 seconds
     setTimeout(() => {
       setMessageAnimating(false);
     }, 2500);
     
-    // Remove message completely after slide-out completes
     setTimeout(() => {
       setMessage(null);
     }, 3000);
@@ -197,7 +189,6 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // ADDED: Function to fetch user's watchlists
   const fetchUserWatchlists = async () => {
     setLoadingWatchlists(true);
     try {
@@ -219,13 +210,11 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // UPDATED: Modified to show watchlist submenu instead of popup
   const addToWatchlist = async () => {
     await fetchUserWatchlists();
     setShowWatchlistSubmenu(true);
   };
 
-  // ADDED: Function to add movie to specific watchlist
   const addToSpecificWatchlist = async (watchlistName) => {
     setLoadingAdd(true);
     try {
@@ -235,7 +224,6 @@ const MovieDetailsPage = () => {
       const d = await resp.json();
       
       if (resp.ok) {
-        // SUCCESS: Invalidate watchlist cache to show updated data immediately
         await queryClient.invalidateQueries({ 
           queryKey: ['watchlistMovies'] 
         });
@@ -311,7 +299,6 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // UPDATED: Enhanced cache invalidation for watched movies
   const addToWatched = async () => {
     if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
@@ -332,14 +319,12 @@ const MovieDetailsPage = () => {
       showAnimatedMessage(d.message, resp.ok ? "success" : "error");
 
       if (resp.ok) {
-        // ENHANCED: Invalidate all relevant caches including watchlist
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['recentlyWatched'] }),
           queryClient.invalidateQueries({ queryKey: ['reviewedMovies', userId] }),
           queryClient.invalidateQueries({ queryKey: ['movieDetails', id] }),
           queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
           queryClient.invalidateQueries({ queryKey: ['watchedMovies'] }),
-          // ADDED: Also invalidate the specific watchlistMovies query key
           queryClient.invalidateQueries({ queryKey: ['watchlistMovies'] }),
         ]);
       }
@@ -388,7 +373,7 @@ const MovieDetailsPage = () => {
                 onClick={() => { 
                   setShowAddMenu(s => !s); 
                   setShowWatchedForm(false); 
-                  setShowWatchlistSubmenu(false); // Reset watchlist submenu when toggling main menu
+                  setShowWatchlistSubmenu(false);
                 }}
                 disabled={loadingAdd}
               >
@@ -398,7 +383,6 @@ const MovieDetailsPage = () => {
               {showAddMenu && (
                 <div style={styles.addMenu} key={showWatchlistSubmenu ? 'watchlist' : 'main'}>
                   {!showWatchlistSubmenu ? (
-                    // Main menu options
                     <>
                       <button 
                         style={styles.menuButton}
@@ -435,7 +419,6 @@ const MovieDetailsPage = () => {
                       </button>
                     </>
                   ) : (
-                    // Watchlist selection submenu
                     <>
                       <button 
                         style={styles.backButton}
@@ -462,8 +445,6 @@ const MovieDetailsPage = () => {
                   )}
                 </div>
               )}
-
-              {/* REMOVED: Watchlist selection popup */}
             </div>
 
             <div style={styles.info}>
@@ -546,8 +527,6 @@ const MovieDetailsPage = () => {
           </div>
         </div>
       )}
-
-
 
       {showGroupList && (
         <div style={styles.modalOverlay}>
@@ -737,7 +716,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    minHeight: "0", // Add this to prevent height artifacts
+    minHeight: "0",
   },
   menuButton: {
     padding: "12px 16px",

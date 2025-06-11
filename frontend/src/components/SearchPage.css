@@ -1,8 +1,4 @@
-/*
-Style page for SearchPage.js
-Formats the initial look of the search page as well as the search results
-after the user has searched for something
-*/
+
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300&display=swap');
 
 button {
@@ -49,7 +45,6 @@ button {
 }
 
 #search-button-actual:hover, #filter-options button:hover {
-  /*background-position: right center; /* change the direction of the change here */
   color: #9900ff;
   text-decoration: none;
 }
@@ -83,7 +78,6 @@ button {
   margin: 10px;
   padding: 10px 35px;
   text-align: center;
-  /*text-transform: uppercase;*/
   transition: 0.5s;
   background-size: 200% auto;
   color: rgb(255, 255, 255);
@@ -104,7 +98,7 @@ button {
 }
 
 .follow-button:hover {
-  background-position: right center; /* change the direction of the change here */
+  background-position: right center; 
             color: #fff;
             text-decoration: none;
             border: 1.5px solid #ffffff;

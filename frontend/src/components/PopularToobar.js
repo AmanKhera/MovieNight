@@ -13,17 +13,16 @@ function PopularToolbar() {
   const [scrollOpacity, setScrollOpacity] = useState(0);
   const navigate = useNavigate();
   
-  // State for popup and upload functionality
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false); // ← ADDED THIS
+  const [showInstructions, setShowInstructions] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
-      const maxScroll = 300; // Distance over which to transition from transparent to opaque
-      const opacity = Math.min(scrollTop / maxScroll, 1); // Calculate opacity (0 to 1)
+      const maxScroll = 300;
+      const opacity = Math.min(scrollTop / maxScroll, 1);
       setScrollOpacity(opacity);
     };
 
@@ -55,21 +54,18 @@ function PopularToolbar() {
     navigate("/UserWatchlists");
   };
   
-  // Modified profile button to show popup instead of navigating
   const profileButtonAction = () => {
     setShowProfilePopup(true);
-    setUploadStatus(''); // Clear any previous status
+    setUploadStatus('');
   };
 
-  // Close popup
   const closePopup = () => {
     setShowProfilePopup(false);
-    setShowInstructions(false); // ← ADDED THIS
+    setShowInstructions(false);
     setIsUploading(false);
     setUploadStatus('');
   };
 
-  // Helper function to get cookie value
   const getCookie = (name) => {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -85,7 +81,6 @@ function PopularToolbar() {
     return cookieValue;
   };
 
-  // Upload file to S3 via Django backend
   const uploadFileToS3 = async (file) => {
     try {
       setIsUploading(true);
@@ -93,7 +88,6 @@ function PopularToolbar() {
 
       const formData = new FormData();
       formData.append('file', file);
-      // No folder parameter needed - uploads directly to bucket root
 
       const response = await fetch('http://localhost:8000/upload-file/', {
         method: 'POST',
@@ -119,12 +113,10 @@ function PopularToolbar() {
     }
   };
 
-  // UPDATED: Show Letterboxd instructions first (instead of opening file dialog)
   const handleLetterboxdUpload = () => {
     setShowInstructions(true);
   };
 
-  // NEW: Proceed with actual file upload after instructions
   const proceedWithUpload = () => {
     setShowInstructions(false);
     const fileInput = document.createElement('input');
@@ -134,19 +126,16 @@ function PopularToolbar() {
       const file = event.target.files[0];
       if (file) {
         try {
-          // Validate file type
           if (!file.name.endsWith('.csv')) {
             alert('Please upload a CSV file');
             return;
           }
 
-          // Validate file size (10MB limit)
           if (file.size > 10 * 1024 * 1024) {
             alert('File size must be less than 10MB');
             return;
           }
 
-          // Upload to S3 - will be saved as {user_id}_rating.csv
           const result = await uploadFileToS3(file);
           
           console.log('Letterboxd CSV uploaded as:', result.file_name);
@@ -159,10 +148,8 @@ function PopularToolbar() {
     fileInput.click();
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
-      // Call logout endpoint
       const response = await fetch('http://localhost:8000/logout/', {
         method: 'POST',
         credentials: 'include',
@@ -172,11 +159,9 @@ function PopularToolbar() {
         console.log('User logged out');
         setShowProfilePopup(false);
         
-        // Clear any local storage/session data
         localStorage.clear();
         sessionStorage.clear();
         
-        // Navigate to login page
         navigate("/");
       } else {
         console.error('Logout failed');
@@ -242,7 +227,6 @@ function PopularToolbar() {
         </div>
       </nav>
 
-      {/* UPDATED Profile Popup with Instructions */}
       {showProfilePopup && (
         <div className="popup-overlay" onClick={closePopup}>
           <div className="popup-content" onClick={(e) => e.stopPropagation()}>
@@ -314,7 +298,6 @@ function PopularToolbar() {
                     🚪 Log Out
                   </button>
                   
-                  {/* Upload Status */}
                   {uploadStatus && (
                     <div className="upload-status">
                       {isUploading && <div className="loading-spinner">⏳</div>}

@@ -1,7 +1,6 @@
-// src/components/FriendsPageComponents.jsx
 import React, { useState, useEffect } from "react";
 
-/** Helper to read a named cookie (for CSRF) */
+
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -25,7 +24,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [friendUsernameToAdd, setFriendUsernameToAdd] = useState("");
 
-  // Styling
+
   const sidebarStyle = {
     width: "15%",
     padding: "1rem",
@@ -89,7 +88,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     }
   }, []);
 
-  // 1) Fetch current user ID
+
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -107,7 +106,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     fetchUserInfo();
   }, []);
 
-  // 2) Fetch mutual friends
+
   const fetchMutualFriends = async (userId) => {
     if (!userId) return;
     try {
@@ -130,7 +129,7 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
     if (currentUserId) fetchMutualFriends(currentUserId);
   }, [currentUserId]);
 
-  // 3) Add/Remove friend
+
   const handleAddFriend = async () => {
     if (!currentUserId || !friendUsernameToAdd) return;
     try {
@@ -223,13 +222,13 @@ export const FriendsSidebar = ({ selectedFriend, onSelectFriend }) => {
   );
 };
 
-/** ========== 1-ON-1 CHAT SECTION ========== */
+// CHAT SECTION
 export const FriendChatSection = ({ selectedFriend }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Changed width to flex:1 so chat fills remaining space
+
   const chatStyle = {
     flex: 1,
     display: "flex",
@@ -260,7 +259,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
     padding: "0.5rem",
   };
 
-  // 1) Fetch current user info
+
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -278,7 +277,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
     fetchUserInfo();
   }, []);
 
-  // Fetch messages from both sides
+
   const fetchMessages = async () => {
     if (!selectedFriend || !currentUser) return;
     try {
@@ -306,7 +305,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
     }
   };
 
-  // 2) Poll messages when friend or user changes
+
   useEffect(() => {
     if (selectedFriend && currentUser) {
       fetchMessages();
@@ -315,7 +314,7 @@ export const FriendChatSection = ({ selectedFriend }) => {
     }
   }, [selectedFriend, currentUser]);
 
-  // 3) Send new message
+
   const handleSendMessage = async () => {
     if (!selectedFriend || !newMessage || !currentUser) return;
     try {
