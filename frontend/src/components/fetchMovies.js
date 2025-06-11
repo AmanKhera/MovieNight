@@ -142,11 +142,11 @@ export const fetchMoviesByContentRating = async (searchFilterValue, moviesCallba
 
       const moviesArray = [];
 
-      for (let i = (-10 + batchSize); i < batchSize; i++) {
+      for (let i = 0; i < batchSize; i++) {
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
-        if (movie != null && movie.Rated === data.movies[i].rating) {
+        if (movie != null && movie.Rated == data.movies[i].rating) {
           moviesArray.push(movie);
         }
       }
@@ -181,7 +181,7 @@ export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, er
     if (response.ok) {
       const moviesArray = [];
 
-      for (let i = (batchSize - 10); i < batchSize; i++) {
+      for (let i = (-10 + batchSize); i < batchSize; i++) {
         const title = data.movies[i].title;
         const year = data.movies[i].year;
         const movie = await fetchMovieDetailsByTitleAndYear(title, year, errorCallback);
@@ -215,12 +215,11 @@ export const fetchMoviesByRuntime = async (searchFilterValue, moviesCallback, er
  */
 export const fetchMoviesByGenre = async (searchFilterValue, moviesCallback, errorCallback, page) => {
   try {
+    searchFilterValue = searchFilterValue.toLowerCase();
     const response = await fetch(`http://localhost:8000/discover_movie/?genre=${searchFilterValue}&page=${page}`);
     const data = await response.json();
     if (response.ok) {
       const moviesArray = [];
-
-      console.log("genre data==>>" + JSON.stringify(data));
 
       for (let i = 0; i < data.results.length; i++) {
         const title = data.results[i].original_title;
@@ -241,7 +240,7 @@ export const fetchMoviesByGenre = async (searchFilterValue, moviesCallback, erro
     }
   } catch (error) {
     moviesCallback([]);
-    errorCallback('An error occured while fetching movie runtime data.');
+    errorCallback('An error occured while fetching movie genre data.');
   }
 };
 
