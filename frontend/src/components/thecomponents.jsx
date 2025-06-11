@@ -1,4 +1,3 @@
-// src/components/thecomponents.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,9 +22,9 @@ export function formatRelativeTime(timestamp) {
   const parsed = dayjs(timestamp);
   if (!parsed.isValid()) return "unknown";
 
-  return parsed.fromNow(); // e.g., "5 minutes ago"
+  return parsed.fromNow();
 }
-// Helper to read a named cookie (e.g., "csrftoken")
+
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== "") {
@@ -41,8 +40,7 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
-
-//Group Sidebar
+//Group Side Bar (left)
 export const GroupsSidebar = ({
   activeTab,
   onTabChange,
@@ -80,6 +78,18 @@ export const GroupsSidebar = ({
   const [showGroupMenu, setShowGroupMenu] = useState(null);
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
+  
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const showSuccessNotification = (message) => {
+    setSuccessMessage(message);
+    setShowSuccess(true);
+    
+    setTimeout(() => {
+      setShowSuccess(false);
+    }, 3000);
+  };
 
   const createGroupMutation = useMutation({
     mutationFn: ({ groupName, leaderId, genre }) =>
@@ -99,9 +109,16 @@ export const GroupsSidebar = ({
       ]);
       return { previousGroups };
     },
+    onSuccess: () => {
+      // Close the modal and clear form fields on successful creation
+      setShowGroupForm(false);
+      setGroupName("");
+      setGenre("");
+      showSuccessNotification("Group created successfully!");
+    },
     onError: (err, newGroup, context) => {
       queryClient.setQueryData(['userGroups', username], context.previousGroups);
-      setError("");
+      setError("Failed to create group. Please try again.");
     },
     onSettled: () => {
       queryClient.invalidateQueries(['userGroups', username]);
@@ -134,7 +151,6 @@ export const GroupsSidebar = ({
     }
   });
 
-
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
       addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
@@ -154,9 +170,12 @@ export const GroupsSidebar = ({
       }
       return { previousMembers, groupId };
     },
+    onSuccess: () => {
+      showSuccessNotification("Member added successfully!");
+    },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("");
+      setError("Failed to add member. Please try again.");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -165,7 +184,11 @@ export const GroupsSidebar = ({
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
-      removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
+      removeGroupMember(getCookie("csrftoken"), { 
+        username: username,
+        remove_id: userId, 
+        group_id: groupId 
+      }),
     onMutate: async ({ groupId, userId }) => {
       await queryClient.cancelQueries(['groupMembers', groupId]);
       const previousMembers = queryClient.getQueryData(['groupMembers', groupId]);
@@ -174,9 +197,12 @@ export const GroupsSidebar = ({
       );
       return { previousMembers, groupId };
     },
+    onSuccess: () => {
+      showSuccessNotification("Member removed successfully!");
+    },
     onError: (err, variables, context) => {
       queryClient.setQueryData(['groupMembers', context.groupId], context.previousMembers);
-      setError("");
+      setError("Failed to remove member. Please try again.");
     },
     onSettled: (data, error, variables) => {
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
@@ -195,12 +221,26 @@ export const GroupsSidebar = ({
 
   const handleAddMember = (groupId) => {
     if (!selectedMember) return;
-    addMemberMutation.mutate({ groupId, userId: selectedMember });
+    
+    const memberToAdd = selectedMember;
+    
+    setSelectedMember("");
+    setActionType(null);
+    setShowGroupMenu(null);
+    
+    addMemberMutation.mutate({ groupId, userId: memberToAdd });
   };
 
   const handleRemoveMember = (groupId) => {
     if (!selectedMember) return;
-    removeMemberMutation.mutate({ groupId, userId: selectedMember });
+    
+    const memberToRemove = selectedMember;
+    
+    setSelectedMember("");
+    setActionType(null);
+    setShowGroupMenu(null);
+    
+    removeMemberMutation.mutate({ groupId, userId: memberToRemove });
   };
 
   const handleGroupClick = async (group) => {
@@ -231,7 +271,6 @@ export const GroupsSidebar = ({
     position: "relative",
   };
 
-
   const tabContainerStyle = {
     display: "flex",
     justifyContent: "space-between",
@@ -239,7 +278,6 @@ export const GroupsSidebar = ({
     padding: "1.5rem",
     borderBottom: "1px solid #3a1f5c",
   };
-
 
   const tabButtonStyle = (isActive) => ({
     padding: "0.8rem 1.2rem",
@@ -250,7 +288,6 @@ export const GroupsSidebar = ({
     cursor: "pointer",
     borderRadius: "4px",
   });
-
 
   const listItemStyle = (active) => ({
     padding: "1rem",
@@ -294,8 +331,32 @@ export const GroupsSidebar = ({
     cursor: "pointer",
   };
 
+  const successNotificationStyle = {
+    position: "fixed",
+    top: "20px",
+    right: "20px",
+    backgroundColor: "#22c55e",
+    color: "white",
+    padding: "12px 20px",
+    borderRadius: "8px",
+    fontWeight: "500",
+    fontSize: "14px",
+    zIndex: 9999,
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+    transform: showSuccess ? "translateX(0)" : "translateX(100%)",
+    opacity: showSuccess ? 1 : 0,
+    transition: "all 0.3s ease-in-out",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  };
+
   return (
     <div style={sidebarStyle}>
+      <div style={successNotificationStyle}>
+        <span>✓</span>
+        {successMessage}
+      </div>
 
       <div style={tabContainerStyle}>
         <div>
@@ -334,7 +395,6 @@ export const GroupsSidebar = ({
           {error}
         </div>
       )}
-
 
       <div style={listContainerStyle}>
         {activeTab === "groups"
@@ -567,7 +627,6 @@ export const GroupsSidebar = ({
         </div>
       )}
 
-
       {showGroupForm && (
         <div
           style={{
@@ -602,7 +661,11 @@ export const GroupsSidebar = ({
             >
               <h3>Create New Group</h3>
               <button
-                onClick={() => setShowGroupForm(false)}
+                onClick={() => {
+                  setShowGroupForm(false);
+                  setGroupName("");
+                  setGenre("");
+                }}
                 style={{
                   background: "none",
                   border: "none",
@@ -749,13 +812,7 @@ export const GroupsSidebar = ({
   );
 };
 
-
-
-
-
-
-//***********CHAT SECTION************ */
-//*********************************** */
+//Chat (middle)
 export const ChatSection = ({ selectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -780,8 +837,6 @@ export const ChatSection = ({ selectedChat }) => {
     }
   };
 
-  
-  //get time relative to current time in simple terms like month, day, hour, instead of always an exact timestamp
   const getRelativeDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -814,7 +869,6 @@ export const ChatSection = ({ selectedChat }) => {
     fetchUserInfo();
   }, []);
 
-  //format chatId thats used as the chat room name to either a user chat or a group chat for the websocket address
   useEffect(() => {
     if (!selectedChat || !currentUser) return;
 
@@ -833,7 +887,6 @@ export const ChatSection = ({ selectedChat }) => {
       `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
     );
 
-    //fetch previous messages when entering the chatroom
     socketRef.current.onopen = () => {
       setMessages([]);
       setPage(1);
@@ -841,7 +894,6 @@ export const ChatSection = ({ selectedChat }) => {
       socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
     };
 
-    //handle auto scroll when message is sent
     socketRef.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
 
@@ -886,8 +938,6 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [selectedChat, currentUser]);
 
-  
-  //send message send to chatconsumer to be save in the message table
   const sendMessage = () => {
     if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
     const payload = {
@@ -912,7 +962,6 @@ export const ChatSection = ({ selectedChat }) => {
     scrollToBottom();
   };
 
-  //scroll helper function
   const handleScroll = () => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -1149,24 +1198,6 @@ const styles = {
   },
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-
 const fetchMovieDetails = async (title, year) => {
   try {
     const searchRes = await fetch(
@@ -1221,11 +1252,11 @@ const fetchMovieDetailsWithoutYear = async (title) => {
   }
 };
 
-
-
 const UP_VOTE = 1;
 const DOWN_VOTE = -1;
 
+
+//Movie recommednations, Right panel 
 export const MoviePoll = ({ selectedItem, activeTab }) => {
   const navigate = useNavigate();
 
@@ -1238,7 +1269,10 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const isGroup = activeTab === "groups";
 
   const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsLoaded, setRecommendationsLoaded] = useState(false);
+  const [lastLoadedItem, setLastLoadedItem] = useState(null);
   const [watchlist, setWatchlist] = useState([]);
+  const [watchlistLoaded, setWatchlistLoaded] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1250,10 +1284,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
 
-  // Success notification state
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
-  // Auto-hide success notification after 3 seconds
   useEffect(() => {
     if (showSuccessNotification) {
       const timer = setTimeout(() => {
@@ -1269,6 +1301,18 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .then((js) => setCurrentUserId(js.id))
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const currentItemKey = `${selectedItem?.group_id || selectedItem?.id}-${activeTab}`;
+    if (lastLoadedItem !== currentItemKey) {
+      setRecommendationsLoaded(false);
+      setRecommendations([]);
+      setUserVotes({});
+      setWatchlistLoaded(false);
+      setWatchlist([]);
+      setLastLoadedItem(currentItemKey);
+    }
+  }, [selectedItem, activeTab]);
 
   const fetchGroupThreshold = async () => {
     if (!isGroup || !selectedItem?.group_id) return;
@@ -1371,7 +1415,11 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           }
         }
 
-        loadWatchlist();
+        if (watchlistLoaded) {
+          setTimeout(() => {
+            updateWatchlistWithNewMovie();
+          }, 500);
+        }
       }
 
     } catch (e) {
@@ -1429,8 +1477,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   };
 
   const loadWatchlist = async () => {
-    // Clear previous watchlist content
-    setWatchlist([]);
+    if (!watchlistLoaded) {
+      setWatchlist([]);
+    }
 
     try {
       const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
@@ -1462,16 +1511,130 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
           })
         );
 
-        setWatchlist(watchlistWithDetails);
+        const validWatchlistItems = watchlistWithDetails.filter(item => {
+          if (!item.movieDetails || !item.movieDetails.poster) {
+            console.log(`Filtering out movie "${item.title}" - no poster found`);
+            return false;
+          }
+          const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
+                               item.movieDetails.poster.includes('placeholder');
+          if (isPlaceholder) {
+            console.log(`Filtering out movie "${item.title}" - only placeholder poster available`);
+            return false;
+          }
+          return true;
+        });
+
+        const uniqueWatchlistItems = validWatchlistItems.filter((item, index, self) => 
+          index === self.findIndex(t => t.movie_id === item.movie_id)
+        );
+
+        if (validWatchlistItems.length !== uniqueWatchlistItems.length) {
+          console.log(`Removed ${validWatchlistItems.length - uniqueWatchlistItems.length} duplicate movies from watchlist`);
+        }
+
+        const sortedWatchlist = uniqueWatchlistItems.sort((a, b) => {
+          if (a.id && b.id) {
+            return b.id - a.id;
+          }
+          if (a.created_at && b.created_at) {
+            return new Date(b.created_at) - new Date(a.created_at);
+          }
+          if (a.date_added && b.date_added) {
+            return new Date(b.date_added) - new Date(a.date_added);
+          }
+          if (a.timestamp && b.timestamp) {
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          }
+          return 0;
+        });
+
+        setWatchlist(sortedWatchlist);
+        setWatchlistLoaded(true);
       } else {
-        // If request fails, keep watchlist empty (will show "No movies" message)
         console.error("Failed to fetch watchlist items:", watchlistResp.status);
-        setWatchlist([]);
+        if (!watchlistLoaded) {
+          setWatchlist([]);
+        }
       }
     } catch (e) {
       console.error("Error loading watchlist:", e);
-      // If request fails, keep watchlist empty (will show "No movies" message)
-      setWatchlist([]);
+      if (!watchlistLoaded) {
+        setWatchlist([]);
+      }
+    }
+  };
+
+  const updateWatchlistWithNewMovie = async () => {
+    try {
+      const watchlistUrl = new URL("http://localhost:8000/watchlist_items/");
+      watchlistUrl.searchParams.set("id", selectedItem.group_id);
+      watchlistUrl.searchParams.set("watchlist_name", "Watchlist");
+
+      const watchlistResp = await fetch(watchlistUrl, { credentials: "include" });
+      if (watchlistResp.ok) {
+        const watchlistData = await watchlistResp.json();
+        const newItems = watchlistData.watchlist || [];
+
+        const currentMovieIds = new Set(watchlist.map(item => item.movie_id));
+        const newMovies = newItems.filter(item => !currentMovieIds.has(item.movie_id));
+
+        if (newMovies.length > 0) {
+          console.log(`Found ${newMovies.length} new movie(s) to add to watchlist`);
+          
+          const newMoviesWithDetails = await Promise.all(
+            newMovies.map(async (item) => {
+              try {
+                const movieDetails = await fetchMovieDetailsById(item.movie_id);
+                return {
+                  ...item,
+                  title: movieDetails?.title || `Movie ${item.movie_id}`,
+                  movieDetails: movieDetails
+                };
+              } catch (e) {
+                console.error("Error fetching movie details for new watchlist item:", e);
+                return {
+                  ...item,
+                  title: `Movie ${item.movie_id}`,
+                  movieDetails: null
+                };
+              }
+            })
+          );
+
+          const validNewMovies = newMoviesWithDetails.filter(item => {
+            if (!item.movieDetails || !item.movieDetails.poster) {
+              console.log(`Filtering out new movie "${item.title}" - no poster found`);
+              return false;
+            }
+            const isPlaceholder = item.movieDetails.poster.includes('via.placeholder.com') || 
+                                 item.movieDetails.poster.includes('placeholder');
+            if (isPlaceholder) {
+              console.log(`Filtering out new movie "${item.title}" - only placeholder poster available`);
+              return false;
+            }
+            return true;
+          });
+
+          if (validNewMovies.length > 0) {
+            const currentMovieIdsUpdated = new Set(watchlist.map(item => item.movie_id));
+            const trulyNewMovies = validNewMovies.filter(item => !currentMovieIdsUpdated.has(item.movie_id));
+            
+            if (trulyNewMovies.length > 0) {
+              setWatchlist(prev => [...trulyNewMovies, ...prev]);
+              console.log(`Successfully added ${trulyNewMovies.length} new movies to top of watchlist`);
+            } else {
+              console.log("All valid movies were already in the watchlist - no duplicates added");
+            }
+          } else {
+            console.log("No valid movies with posters found to add to watchlist");
+          }
+        } else {
+          console.log("No new movies found to add to watchlist");
+        }
+      }
+    } catch (e) {
+      console.error("Error updating watchlist with new movie:", e);
     }
   };
 
@@ -1591,6 +1754,82 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  const loadRecommendations = async () => {
+    try {
+      const memberUrl = new URL("http://localhost:8000/group_recommendation/");
+      memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+
+      const memberResp = await fetch(memberUrl, { credentials: "include" });
+      let memberRecs = [];
+
+      if (memberResp.ok) {
+        const memberData = await memberResp.json();
+        const recs = memberData.Recommendations || [];
+        const memberDetails = await Promise.all(
+          recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
+        );
+
+        const memberDetailsWithUsernames = await Promise.all(
+          memberDetails.map(async (d, i) => {
+            if (!d) return null;
+            const username = await fetchUsername(recs[i].member_suggested_id);
+            return {
+              ...d,
+              recId: recs[i].id,
+              upvotes: recs[i].upvotes || 0,
+              downvotes: recs[i].downvotes || 0,
+              threshold: recs[i].threshold || 3,
+              recommended: recs[i].recommended || 0,
+              isInWatchlist: recs[i].recommended === 1,
+              source: 'member',
+              username: username
+            };
+          })
+        );
+
+        memberRecs = memberDetailsWithUsernames.filter(Boolean);
+      }
+
+      let finalList = [...memberRecs];
+
+      if (finalList.length < 10) {
+        const generatedUrl = new URL("http://localhost:8000/group_recs/");
+        generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
+
+        const generatedResp = await fetch(generatedUrl, { credentials: "include" });
+        if (generatedResp.ok) {
+          const generatedData = await generatedResp.json();
+          const existing = generatedData.recommendations || [];
+
+          const enrichedExisting = (
+            await Promise.all(
+              existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
+            )
+          )
+            .map((d, i) => d && {
+              ...d,
+              recId: existing[i].id,
+              upvotes: existing[i].upvotes || 0,
+              downvotes: existing[i].downvotes || 0,
+              threshold: existing[i].threshold || 3,
+              recommended: existing[i].recommended || 0,
+              isInWatchlist: existing[i].recommended === 1,
+              source: 'generated'
+            })
+            .filter(Boolean);
+
+          finalList = finalList.concat(enrichedExisting.slice(0, 10 - finalList.length));
+        }
+      }
+
+      setRecommendations(finalList);
+      setRecommendationsLoaded(true);
+    } catch (e) {
+      console.error(e);
+      setError(e.message);
+    }
+  };
+
   const handleScheduleMovie = async () => {
     if (!currentUserId || !selectedMovieForSchedule || !scheduleDate || !scheduleTime) {
       setError("Please fill in all fields");
@@ -1617,7 +1856,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         setSelectedMovieForSchedule(null);
         setScheduleDate("");
         setScheduleTime("");
-        setShowSuccessNotification(true); // Show success notification instead of alert
+        setShowSuccessNotification(true);
         loadProposals();
       } else {
         const errorData = await resp.json();
@@ -1725,80 +1964,13 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       }
 
       if (pollView === "recommendations") {
-        try {
-          const memberUrl = new URL("http://localhost:8000/group_recommendation/");
-          memberUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-
-          const memberResp = await fetch(memberUrl, { credentials: "include" });
-          let memberRecs = [];
-
-          if (memberResp.ok) {
-            const memberData = await memberResp.json();
-            const recs = memberData.Recommendations || [];
-            const memberDetails = await Promise.all(
-              recs.map((r) => fetchMovieDetails(r.movie_title, r.movie_year))
-            );
-
-            const memberDetailsWithUsernames = await Promise.all(
-              memberDetails.map(async (d, i) => {
-                if (!d) return null;
-                const username = await fetchUsername(recs[i].member_suggested_id);
-                return {
-                  ...d,
-                  recId: recs[i].id,
-                  upvotes: recs[i].upvotes || 0,
-                  downvotes: recs[i].downvotes || 0,
-                  threshold: recs[i].threshold || 3,
-                  recommended: recs[i].recommended || 0,
-                  isInWatchlist: recs[i].recommended === 1,
-                  source: 'member',
-                  username: username
-                };
-              })
-            );
-
-            memberRecs = memberDetailsWithUsernames.filter(Boolean);
-          }
-
-          let finalList = [...memberRecs];
-
-          if (finalList.length < 10) {
-            const generatedUrl = new URL("http://localhost:8000/group_recs/");
-            generatedUrl.searchParams.set("group_id", isGroup ? selectedItem.group_id : selectedItem.id);
-
-            const generatedResp = await fetch(generatedUrl, { credentials: "include" });
-            if (generatedResp.ok) {
-              const generatedData = await generatedResp.json();
-              const existing = generatedData.recommendations || [];
-
-              const enrichedExisting = (
-                await Promise.all(
-                  existing.map((r) => fetchMovieDetailsWithoutYear(r.movie_title))
-                )
-              )
-                .map((d, i) => d && {
-                  ...d,
-                  recId: existing[i].id,
-                  upvotes: existing[i].upvotes || 0,
-                  downvotes: existing[i].downvotes || 0,
-                  threshold: existing[i].threshold || 3,
-                  recommended: existing[i].recommended || 0,
-                  isInWatchlist: existing[i].recommended === 1,
-                  source: 'generated'
-                })
-                .filter(Boolean);
-
-              finalList = finalList.concat(enrichedExisting.slice(0, 10 - finalList.length));
-            }
-          }
-
-          setRecommendations(finalList);
-        } catch (e) {
-          console.error(e);
-          setError(e.message);
+        if (!recommendationsLoaded) {
+          await loadRecommendations();
         }
       } else if (pollView === "watchlist") {
-        await loadWatchlist();
+        if (!watchlistLoaded) {
+          await loadWatchlist();
+        }
       } else if (pollView === "proposals") {
         await loadProposals();
         await loadVotesForProposals();
@@ -1808,7 +1980,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     };
 
     loadData();
-  }, [selectedItem, activeTab, pollView]);
+  }, [selectedItem, activeTab, pollView, recommendationsLoaded]);
 
   const formatDate = (isoString) => {
     const date = new Date(isoString);
@@ -1890,7 +2062,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
         position: "relative",
       }}
     >
-      {/* Success Notification */}
       {showSuccessNotification && (
         <div
           style={{
@@ -2700,7 +2871,6 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     </div>
   );
 };
-
 
 
 

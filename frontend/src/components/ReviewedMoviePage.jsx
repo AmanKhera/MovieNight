@@ -1,4 +1,3 @@
-// src/pages/ReviewedMoviesPage.jsx
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,7 +7,6 @@ const ReviewedMoviesPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // 1) get user info
   const {
     data: userInfo,
     isLoading: userLoading,
@@ -20,7 +18,6 @@ const ReviewedMoviesPage = () => {
     staleTime: Infinity,
   });
 
-  // 2) get reviewed movies once we know the user ID
   const {
     data: reviews,
     isLoading: reviewsLoading,
@@ -30,11 +27,9 @@ const ReviewedMoviesPage = () => {
     queryKey: ['reviewedMovies', userInfo?.id],
     queryFn: () => fetchRecentlyWatched(userInfo.id),
     enabled: Boolean(userInfo?.id),
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 10,
   });
 
-
-  // 3) as soon as reviews arrive, prefetch each movie's poster
   useEffect(() => {
     if (!reviews) return;
     reviews.forEach((r) => {

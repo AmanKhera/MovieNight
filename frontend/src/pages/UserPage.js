@@ -6,7 +6,6 @@ import UsernameDisplay from "../components/UsernameDisplay";
 import RecentlyWatchedCarousel from "../components/RecentlyWatchedCarousel";
 
 const UserPage = () => {
-  // Inline CSS for layout
   const layoutCSS = `
     .user-layout {
       display: flex;

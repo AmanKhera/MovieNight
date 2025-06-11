@@ -5,7 +5,6 @@ const RecommendMovie = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [error, setError] = useState("");
 
-  // Fetch current user info so we know our ID.
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -26,7 +25,6 @@ const RecommendMovie = () => {
     fetchUserInfo();
   }, []);
 
-  // Once we have the current user, fetch group recommendations.
   useEffect(() => {
     if (!currentUser) return;
     const fetchRecommendations = async () => {

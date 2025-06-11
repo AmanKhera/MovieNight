@@ -10,21 +10,21 @@ import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
 function Toolbar() {
-  // Get the 'navigate' function from react-router-dom
+  
   const navigate = useNavigate();
   
-  // State to control popup visibility and loading
+ 
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false); // ← ADDED THIS
+  const [showInstructions, setShowInstructions] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
-  // Use navigate("/") to redirect to the home page
+  
   const homeButtonAction = () => {
     navigate("/");
   };
 
-  // Keep the alerts for the other actions as-is
+  
   const searchButtonAction = () => {
     navigate("/search");
   };
@@ -59,7 +59,7 @@ function Toolbar() {
     setUploadStatus('');
   };
 
-  // Get CSRF token for Django requests
+  
   const getCSRFToken = async () => {
     try {
       const response = await fetch('/get-csrf-token/', {
@@ -77,7 +77,7 @@ function Toolbar() {
     return getCookie('csrftoken');
   };
 
-  // Helper function to get cookie value
+  
   const getCookie = (name) => {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -93,7 +93,7 @@ function Toolbar() {
     return cookieValue;
   };
 
-  // Upload file to S3 via Django backend
+  // Upload file to S3 
   const uploadFileToS3 = async (file) => {
     try {
       setIsUploading(true);
@@ -127,12 +127,12 @@ function Toolbar() {
     }
   };
 
-  // UPDATED: Show Letterboxd instructions first (instead of opening file dialog)
+ 
   const handleLetterboxdUpload = () => {
     setShowInstructions(true);
   };
 
-  // NEW: Proceed with actual file upload after instructions
+  
   const proceedWithUpload = () => {
     setShowInstructions(false);
     const fileInput = document.createElement('input');
@@ -142,19 +142,19 @@ function Toolbar() {
       const file = event.target.files[0];
       if (file) {
         try {
-          // Validate file type
+          
           if (!file.name.endsWith('.csv')) {
             alert('Please upload a CSV file');
             return;
           }
 
-          // Validate file size (10MB limit)
+          
           if (file.size > 10 * 1024 * 1024) {
             alert('File size must be less than 10MB');
             return;
           }
 
-          // Upload to S3 - will be saved as {user_id}_rating.csv
+         
           const result = await uploadFileToS3(file);
           
           console.log('Letterboxd CSV uploaded as:', result.file_name);
@@ -170,7 +170,7 @@ function Toolbar() {
   // Handle logout
   const handleLogout = async () => {
     try {
-      // Call logout endpoint if you have one
+      // Call logout endpoint
       const response = await fetch('http://localhost:8000/logout/', {
         method: 'POST',
         credentials: 'include',
@@ -185,7 +185,7 @@ function Toolbar() {
         sessionStorage.clear();
         
         // Navigate to login page
-        //navigate("/login");
+        navigate("/");
       } else {
         console.error('Logout failed');
         alert('Logout failed. Please try again.');
@@ -244,7 +244,7 @@ function Toolbar() {
         </div>
       </nav>
 
-      {/* UPDATED Profile Popup with Instructions */}
+      
       {showProfilePopup && (
         <div className="popup-overlay" onClick={closePopup}>
           <div className="popup-content" onClick={(e) => e.stopPropagation()}>
@@ -316,7 +316,7 @@ function Toolbar() {
                     🚪 Log Out
                   </button>
                   
-                  {/* Upload Status */}
+                  
                   {uploadStatus && (
                     <div className="upload-status">
                       {isUploading && <div className="loading-spinner">⏳</div>}

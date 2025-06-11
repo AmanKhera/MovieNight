@@ -1,4 +1,3 @@
-// src/components/DiscoverCardStack.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaTimes, FaCheck } from "react-icons/fa";
@@ -7,7 +6,6 @@ const CARD_WIDTH = 400;
 const CARD_HEIGHT = 550;
 const ARROW_GAP = 200;
 
-// Accepts title and recId
 const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
   const [userId, setUserId] = useState(null);
   const [movies, setMovies] = useState([]);
@@ -15,7 +13,6 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
   const [flipped, setFlipped] = useState(false);
   const navigate = useNavigate();
 
-  // 1) Fetch current user ID
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
       .then((r) => r.json())
@@ -23,7 +20,6 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
       .catch(console.error);
   }, []);
 
-  // 2) Generate recommendations when both userId and recId are available
   useEffect(() => {
     if (!userId || !recId) return;
 
@@ -44,7 +40,6 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
         const parsed = JSON.parse(recJson.summary);
         const titles = parsed.recommendations || [];
 
-        // Enrich titles with movie details and poster
         const enriched = await Promise.all(
           titles.map(async (t) => {
             let info = {};
@@ -89,7 +84,6 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
     fetchRecs();
   }, [userId, recId]);
 
-  // 3) Send like/dislike to backend
   const handleReview = (movieTitle, liked) => {
     if (!userId) return;
     fetch("http://localhost:8000/movie_review/", {
@@ -156,11 +150,9 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
               >
                 {isTop ? (
                   <div className={`card-inner ${flipped ? "flipped" : ""}`}>
-                    {/* front */}
                     <div className="card-front">
                       <img src={movie.poster_url} alt={movie.title} />
                     </div>
-                    {/* back */}
                     <div className="card-back">
                       <h3>{movie.title}</h3>
                       <p>
@@ -281,10 +273,6 @@ const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
           z-index: 5; transition: transform 0.1s, background 0.1s;
         }
         .icon-btn:active {
-          transform: scale(0.85);
-          background: rgba(255,255,255,0.2);
-        }
-        .icon-btn.di
           transform: scale(0.85);
           background: rgba(255,255,255,0.2);
         }

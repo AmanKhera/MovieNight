@@ -1,4 +1,3 @@
-// src/components/ProtectedRoute.jsx
 import React, { useEffect, useState } from "react";
 
 const ProtectedRoute = ({ children }) => {

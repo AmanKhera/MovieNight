@@ -3,10 +3,8 @@ import Toolbar from "../components/Toolbar";
 import { FriendsSidebar, FriendChatSection } from "../components/FriendsPageComponents";
 
 const FriendsPage = () => {
-  // Use state to track the currently selected friend.
   const [selectedFriend, setSelectedFriend] = useState(null);
 
-  // CSS styles updated for the friends page layout.
   const cssStyles = `
     .friends-page {
       display: flex;

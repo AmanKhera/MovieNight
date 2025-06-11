@@ -82,7 +82,7 @@ const UserWatchlists = () => {
       
       //Shows success if successfully created
       setShowSuccessPopup(true);
-      setTimeout(() => setShowSuccessPopup(false), 3000); // Hide after 3 seconds
+      setTimeout(() => setShowSuccessPopup(false), 3000); 
       
       try {
         await queryClient.refetchQueries(['userWatchlists']);

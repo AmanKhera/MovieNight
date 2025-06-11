@@ -12,7 +12,7 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
   });
 
   const [message, setMessage] = useState(null);
-  const [loading, setLoading] = useState({}); // for add-to-watchlist button
+  const [loading, setLoading] = useState({}); 
 
   const addToWatchlist = async (movie) => {
     const titleParam = movie.title || movie.original_title;
@@ -49,7 +49,7 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
     }
   };
 
-  // Helper function to return the correct poster URL
+
   const getPosterUrl = (movie) => {
     if (movie.poster) {
       return movie.poster;
@@ -62,7 +62,7 @@ const WatchlistStack = ({ title = "Your Watchlist" }) => {
     return "https://via.placeholder.com/200x300?text=No+Image";
   };
 
-  // Limit to 5 movies for the stack display
+
   const moviesToShow = movies ? movies.slice(0, 5) : [];
 
   if (isLoading) {

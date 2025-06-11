@@ -1,4 +1,3 @@
-// src/components/MainLayout.jsx
 import React from "react";
 import Toolbar from "./Toolbar";
 

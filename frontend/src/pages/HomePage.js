@@ -1,4 +1,3 @@
-// src/pages/HomePage.jsx
 import React, { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Toolbar from '../components/Toolbar';
