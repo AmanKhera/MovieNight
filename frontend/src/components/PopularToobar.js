@@ -177,7 +177,7 @@ function PopularToolbar() {
         sessionStorage.clear();
         
         // Navigate to login page
-        navigate("/login");
+        navigate("/");
       } else {
         console.error('Logout failed');
         alert('Logout failed. Please try again.');
