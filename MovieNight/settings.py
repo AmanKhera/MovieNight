@@ -14,7 +14,7 @@ from pathlib import Path
 
 import os
 from dotenv import load_dotenv
-
+from decouple import config
 load_dotenv()  # Load environment variables from .env file
 from pathlib import Path
 
@@ -35,6 +35,41 @@ DEBUG = True
 
 
 ALLOWED_HOSTS = ['testserver','127.0.0.1', 'localhost', 'frontend.local']
+
+
+
+
+
+
+
+
+
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+AWS_S3_BUCKET_NAME = config('AWS_S3_BUCKET_NAME')
+AWS_S3_REGION = config('AWS_S3_REGION', default='us-east-1')
+AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default=f'{AWS_S3_BUCKET_NAME}.s3.amazonaws.com')
+
+# S3 Storage Settings
+AWS_DEFAULT_ACL = 'public-read'
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+AWS_LOCATION = 'media'  # folder in S3 bucket
+
+# File upload settings
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+# Media files URL
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+
+
+
+
+
+
+
+
 
 
 # Application definition
@@ -162,7 +197,7 @@ AWS_COGNITO_CLIENT_SECRET = "1m88e24rnk628ba6v2mkpia6ba6q6ukg993ag96b6n844an7v73
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Los_Angeles'
 
 USE_I18N = True
 

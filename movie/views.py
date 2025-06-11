@@ -523,6 +523,7 @@ def generate_recommendations(request):
             "Use the `liked` list to infer genres or themes the user enjoys. "
             "Avoid anything from `disliked` or `seen`. "
             "Respond ONLY with a valid JSON object using this format: "
+            "Do not recommend a movie that is already present in the user's liked, disliked or seen list"
             "{\"recommendations\": [\"Movie Title 1\", \"Movie Title 2\", ..., \"Movie Title 21\"]}. "
             "Do not include any explanations or extra text — just the JSON."
         )
@@ -558,19 +559,25 @@ def generate_recommendations(request):
 #Params: Must send post request, user_id: (Integer) id of user reviewing recommendation, movie_title: (String) title of movie, review: (Boolean) True if user likes movie, false otherwise
 #Returns: Json containing if recommendation was created or updated, user_id, movie_id, and liked (boolean) 
 @csrf_exempt
+@require_POST
 def review_recommendations(request):
 
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
 
     try:
         data = json.loads(request.body)
-        user_id = data.get('user_id', {})
+        user_id = data.get('user_id')
         user = User.objects.get(id = user_id)
         movie_title = data.get("movie_title")
         review = data.get('review')
+        
+
+        if not Movie.objects.filter(title=movie_title).exists():
+            created = api_movie_search_helper(movie_title)
+            if created == False:
+                return JsonResponse({"error": "Movie does not exist"})
 
         movie = Movie.objects.get(title=movie_title)
+
 
         #if user likes movie we add it to their main watchlist
         if review == True:
@@ -581,7 +588,7 @@ def review_recommendations(request):
             # Add the movie to the watchlist
             WatchlistItem.objects.create(watchlist=watchlist_main, movie_id=movie.id)
 
-
+        
         feedback_updated, created = RecommendationFeedback.objects.update_or_create(user = user, movie=movie, liked = review)
 
         return JsonResponse({
@@ -595,3 +602,48 @@ def review_recommendations(request):
         return JsonResponse({'error': 'Invalid JSON.'}, status=400)
 
 
+#API Movie Search Function
+#If search function does not return correct movie us this function instead
+#params: title: title of movie, and release date: the year the movie is released
+#returns the correct movie and the movie is also added to our database
+def api_movie_search_helper(title):
+    # Get movie title and release date from query parameters
+    movie_title = title
+
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+    omdb_url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}"
+
+    # Build the query parameters for the OMDb API
+    query_params = {
+        't': movie_title,
+    }
+
+    try:
+        response = requests.get(omdb_url, params=query_params)
+        data = response.json()
+
+        if data.get('Response') == 'False':
+            return JsonResponse({'error': data.get('Error', 'Movie not found.')}, status=404)
+
+        # Check if runtime exists and is in the expected format
+        runtime_str = data.get('Runtime', '0 min')  # Default to '0 min' if not found
+        try:
+            runtime = int(runtime_str.split()[0])  # Extract the number from something like '120 min'
+        except (ValueError, IndexError):
+            runtime = 0  # Default to 0 if the runtime is not in the expected format
+
+        # Use both title and year as lookup fields to ensure uniqueness
+        movie, created = Movie.objects.update_or_create(
+            title=data.get("Title", "Unknown Title"),
+            year=data.get('Year', 'Unknown Year'),
+            defaults={
+                'runtime': runtime,
+                'rating': data.get('Rated', 'N/A'),
+#                'plot': data.get('Plot', 'No plot available.'),
+                'director': data.get('Director', 'Unknown Director'),
+            }
+        )
+
+        return True
+    except:
+        return False

@@ -20,7 +20,7 @@ from django.db.models import Max, OuterRef, Subquery
 from django.db.models import Subquery, OuterRef
 from math import ceil
 from django.shortcuts import get_object_or_404
-
+import traceback
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -140,17 +140,19 @@ def add_member_to_group(request):
         group.save(update_fields=['voting_limit'])
 
         #Grabs groups watched movies
-        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_id).values_list('movie_id', flat = True))
+
+        group_user = User.objects.get(id=group_id)
+
+        group_movie_ids = set(UserMovieJournal.objects.filter(user=group_user).values_list('movie_id', flat = True))
 
         #grabs new users watched movies
-        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member.id).values_list('movie_id', flat = True))
+        new_member_movie_id = set(UserMovieJournal.objects.filter(user=member).values_list('movie_id', flat = True))
 
         #Find intersection of movies watched by group and new user
         keep_ids = group_movie_ids & new_member_movie_id
         #removes movies not seen by everyone
         UserMovieJournal.objects.filter(user=group_id).exclude(movie_id__in=keep_ids).delete()
 
-        group_user = User.objects.get(id=group_id)
         group_watchlist = Watchlist.objects.get(user=group_user)
         new_member_watchlist = Watchlist.objects.get(user=member.id, type = 'main')
 
@@ -176,14 +178,14 @@ def add_member_to_group(request):
         ]
         WatchlistItem.objects.bulk_create(new_items)       
 
-
-
         return JsonResponse({'message': 'Member added to group!'})
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
 
 
 
@@ -194,25 +196,29 @@ def add_member_to_group(request):
 #username: username of leader
 #Returns:Success
 @csrf_exempt
+@require_POST
 def remove_member_from_group(request):
     try:
         data = json.loads(request.body)
-        username = data.get("username")
-        current_user_id = User.objects.get(username=username).id  #Ensure leader is the one removing members
+        user_id = data.get("user_id")
+        current_user_id = User.objects.get(id=user_id) #Ensure leader is the one removing members
         member_to_be_removed_id = data.get('remove_id')
         group_id = data.get("group_id")
+        user_group = User.objects.get(pk=int(group_id))
 
 
         # Use get to retrieve a single group instance
-        group = Group.objects.get(group_id=group_id)
-        if group.leader_id != current_user_id:
+        group = Group.objects.get(group_id=user_group)
+        if group.leader_id != current_user_id.id:
             return JsonResponse({"error": "Not authorized to remove member"}, status=403)
 
-        GroupMember.objects.filter(group=group, member_id=member_to_be_removed_id).delete()
+
+        user_removed = User.objects.get(id = member_to_be_removed_id)
+        GroupMember.objects.filter(group=group, member=user_removed).delete()
         total_members = GroupMember.objects.filter(group=group).count()
         group.voting_limit = ceil(total_members / 2)
         group.save(update_fields=["voting_limit"])
-        
+
         #Groups Current journal
         group_movie_ids = set(
             UserMovieJournal.objects
@@ -221,8 +227,7 @@ def remove_member_from_group(request):
         )
 
         #Grabbing current Members
-        remaining_member_ids = GroupMember.objects.filter(group=group) \
-            .values_list("member_id", flat=True)
+        remaining_member_ids = GroupMember.objects.filter(group=group).values_list("member_id", flat=True)
 
         #Grab all movies in common
         for mid in remaining_member_ids:
@@ -284,6 +289,7 @@ def remove_member_from_group(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON input'}, status=400)
     except Exception as e:
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -347,6 +353,7 @@ def group_recommendation(request):
 
         return JsonResponse({"Recommendations": recommendations_list})
     except Exception as e:
+        
         return JsonResponse({"error": str(e)}, status=500)
 
 
@@ -677,8 +684,9 @@ def members_in_group(request):
     return JsonResponse({
         "group_id": group.group_id.id,
         "group_name": group.group_name,
-        "members": member_data
-    }, status=200)    
+        "members": member_data,
+        "Threshold": group.voting_limit
+    }, status=200) 
 
 
 

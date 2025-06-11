@@ -157,6 +157,357 @@ body {
   opacity: 1;
 }
 
+/* POPUP STYLES */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(16, 0, 43, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.popup-content {
+  background-color: #240046;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  width: 300px;
+  max-width: 90vw;
+  animation: popupSlideIn 0.3s ease-out;
+}
+
+@keyframes popupSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px 15px 25px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-family: 'Patua One', serif;
+  font-size: 18px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.popup-body {
+  padding: 20px 25px 25px 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.popup-option {
+  background-color: #10002B;
+  color: #ffffff;
+  border: 2px solid transparent;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.popup-option:hover:not(:disabled) {
+  background-color: #ffffff;
+  color: #10002B;
+  border-color: #10002B;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+}
+
+.popup-option:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* DISABLED BUTTON STYLING */
+.popup-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #4a0e4e;
+  color: #cccccc;
+  border-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+.popup-option:disabled:hover {
+  background-color: #4a0e4e;
+  color: #cccccc;
+  border-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+/* UPLOAD STATUS STYLING */
+.upload-status {
+  margin-top: 15px;
+  padding: 15px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left: 4px solid #ffffff;
+  backdrop-filter: blur(5px);
+  animation: statusSlideIn 0.3s ease-out;
+}
+
+@keyframes statusSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.upload-status p {
+  margin: 0;
+  font-size: 14px;
+  color: #ffffff;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Success status styling */
+.upload-status:has(p[text*="✅"]) {
+  border-left-color: #4CAF50;
+}
+
+/* Error status styling */
+.upload-status:has(p[text*="❌"]) {
+  border-left-color: #F44336;
+}
+
+/* LOADING SPINNER */
+.loading-spinner {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { 
+    transform: rotate(0deg); 
+  }
+  100% { 
+    transform: rotate(360deg); 
+  }
+}
+
+/* Enhanced loading state for buttons */
+.popup-option:disabled .loading-spinner {
+  margin-right: 8px;
+}
+
+/* File upload progress indicator */
+.upload-progress {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10002B, #ffffff);
+  width: 0%;
+  transition: width 0.3s ease;
+  animation: progressShimmer 1.5s infinite;
+}
+
+@keyframes progressShimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* Enhanced popup content for better file upload UX */
+.popup-content.uploading {
+  pointer-events: none;
+}
+
+.popup-content.uploading .popup-option:not(:disabled) {
+  opacity: 0.5;
+}
+
+/* INSTRUCTIONS STYLING */
+.instructions-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+  margin-bottom: 20px;
+}
+
+.instruction-step {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #ffffff;
+}
+
+.instruction-step h4 {
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  font-family: 'Patua One', serif;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.instruction-step p {
+  margin: 0;
+  color: #ffffff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.instruction-step strong {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.instruction-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.instruction-button {
+  background-color: #4CAF50 !important;
+  color: #ffffff !important;
+}
+
+.instruction-button:hover:not(:disabled) {
+  background-color: #45a049 !important;
+  color: #ffffff !important;
+  border-color: #45a049 !important;
+}
+
+.proceed-button {
+  background-color: #2196F3 !important;
+  color: #ffffff !important;
+}
+
+.proceed-button:hover:not(:disabled) {
+  background-color: #1976D2 !important;
+  color: #ffffff !important;
+  border-color: #1976D2 !important;
+}
+
+.back-button {
+  background-color: #666666 !important;
+  color: #ffffff !important;
+}
+
+.back-button:hover:not(:disabled) {
+  background-color: #555555 !important;
+  color: #ffffff !important;
+  border-color: #555555 !important;
+}
+
+/* Custom scrollbar for instructions */
+.instructions-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.instructions-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.instructions-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.instructions-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Enhanced hover effects for accessibility */
+@media (prefers-reduced-motion: no-preference) {
+  .popup-option:hover:not(:disabled) {
+    animation: buttonHover 0.3s ease;
+  }
+}
+
+@keyframes buttonHover {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Focus styles for accessibility */
+.popup-option:focus {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.close-button:focus {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .main-toolbar {
@@ -185,6 +536,58 @@ body {
   .main-toolbar-hover-text,
   .main-toolbar-hover-text-logo {
     display: none; /* Hide tooltips on mobile */
+  }
+  
+  /* Mobile popup adjustments */
+  .popup-content {
+    width: 280px;
+    margin: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  
+  .popup-header {
+    padding: 15px 20px 10px 20px;
+  }
+  
+  .popup-body {
+    padding: 15px 20px 20px 20px;
+  }
+  
+  .popup-option {
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+  
+  .upload-status {
+    padding: 12px;
+  }
+  
+  .upload-status p {
+    font-size: 13px;
+  }
+  
+  /* Mobile instructions adjustments */
+  .instructions-content {
+    max-height: 250px;
+    padding-right: 5px;
+  }
+  
+  .instruction-step {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+  
+  .instruction-step h4 {
+    font-size: 13px;
+  }
+  
+  .instruction-step p {
+    font-size: 12px;
+  }
+  
+  .instruction-buttons {
+    gap: 8px;
   }
 }
 

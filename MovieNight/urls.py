@@ -72,7 +72,7 @@ urlpatterns = [
 
     path('add_members/', group_views.add_member_to_group, name='add_members'),
 
-    path('remove_member/', group_views.remove_member_from_group, name='remove_member'),  
+    path('remove_group_member/', group_views.remove_member_from_group, name='remove_member'),  
 
     path('add_to_watched/', user_views.add_to_watched, name='add_to_watched'),
 
@@ -124,6 +124,8 @@ urlpatterns = [
     path("chat/", include("chat.urls")),
     path("proposal_accepted/", user_views.proposal_accepted, name="proposal_accepted"),
     path("remove_movie_from_watchlist/", user_views.remove_movie_from_watchlist, name="remove_movie_from_watchlist"),
+    path('upload-file/', user_views.upload_file_to_s3, name='upload_file_s3'),
+    path('logout/', user_views.logout_user, name='logout_user'),
     ]
 
 
