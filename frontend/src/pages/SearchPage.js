@@ -112,6 +112,10 @@ const SearchPage = () => {
     }
   }
 
+  /**
+   * toggle to display the 'Genre' button as clicked or not and display/hide the genre filter
+   * options (when the 'Genre' button is unclicked, all of the genre buttons are unclicked too)
+   */
   const filterGenreButtonAction = () => {
     toggleFilterOptions("genre-filter-options");
     toggleButtonClicked("filter-genre-button");
@@ -137,14 +141,13 @@ const SearchPage = () => {
 
   const genreFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
-    const buttonClicked = document.getElementById(`${clicked.target.id}`);
-    if (buttonClicked.classList.contains("clicked")) {
-      let tokens = (clicked.target.id).split("-");
-      let genre = tokens[2];
-      console.log("genre: " + genre);
-    }
   };
 
+  /**
+   * toggle to display the 'Content Rating' button as clicked or not and display/hide the content
+   * rating filter options (when the 'Content Rating' button is unclicked, all of the content rating
+   * buttons are unclicked too)
+   */
   const filterContentRatingButtonAction = () => {
     toggleFilterOptions("content-rating-filter-options");
     toggleButtonClicked("filter-content-rating-button");
@@ -158,14 +161,12 @@ const SearchPage = () => {
 
   const contentRatingFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
-    const buttonClicked = document.getElementById(`${clicked.target.id}`);
-    if (buttonClicked.classList.contains("clicked")) {
-      let tokens = (clicked.target.id).split("-");
-      let contentRating = tokens[0];
-      console.log("content rating: " + contentRating);
-    }
   };
 
+  /**
+   * toggle to display the 'Runtime' button as clicked or not and display/hide the runtime filter
+   * options (when the 'Runtime' button is unclicked, all of the runtime buttons are unclicked too)
+   */
   const filterRuntimeButtonAction = () => {
     toggleFilterOptions("runtime-filter-options");
     toggleButtonClicked("filter-runtime-button");
@@ -178,14 +179,12 @@ const SearchPage = () => {
 
   const runtimeFilterButtonAction = (clicked) => {
     toggleButtonClicked(clicked.target.id);
-    const buttonClicked = document.getElementById(`${clicked.target.id}`);
-    if (buttonClicked.classList.contains("clicked")) {
-      let tokens = (clicked.target.id).split("-");
-      let runtime = tokens[0];
-      console.log("runtime: " + runtime);
-    }
   };
 
+  /**
+   * toggle to display the 'Director' button as clicked or not and display/hide the search
+   * instructions for searching by director
+   */
   const filterDirectorButtonAction = () => {
     toggleButtonClicked("filter-director-button");
     if (document.getElementById('filter-director-button').classList.contains("clicked")) {
@@ -193,9 +192,12 @@ const SearchPage = () => {
     } else {
       document.getElementById('search-input').placeholder = "Type your search here...";
     }
-    toggleFilterOptions("director-filter-options");
   };
 
+  /**
+   * toggle to display the 'Year' button as clicked or not and display/hide the search
+   * instructions for searching by year
+   */
   const filterYearButtonAction = () => {
     toggleButtonClicked("filter-year-button");
     if (document.getElementById('filter-year-button').classList.contains("clicked")) {
@@ -203,14 +205,15 @@ const SearchPage = () => {
     } else {
       document.getElementById('search-input').placeholder = "Type your search here...";
     }
-    toggleFilterOptions("year-filter-options");
   };
 
   /**
-   * execute user's search for users/movies
+   * execute the user's search request
    */
-  const searchButtonAction = async (query) => {
+  const searchButtonAction = async () => {
 
+    let query;
+    // JSON representation of the user's filtered search query based on what button they clicked
     if (document.getElementById("filter-content-rating-button").classList.contains("clicked") ||
       document.getElementById("filter-runtime-button").classList.contains("clicked") ||
       document.getElementById("filter-genre-button").classList.contains("clicked")) {
@@ -247,9 +250,8 @@ const SearchPage = () => {
       };
     }
 
-    console.log("query==>>" + JSON.stringify(query));
-
-    const finalQuery = query || searchInputText;
+    // finalize search page apperance after user hits the search button
+    const finalQuery = searchInputText;
     toggleButtonClicked("search-button-actual");
     setEnteredSearchText(finalQuery);
     document.getElementById("no-search-error").classList.add("hidden");
@@ -257,168 +259,23 @@ const SearchPage = () => {
     document.getElementById("search-result-user").innerHTML = "";
     document.getElementById("search-result-movie").innerHTML = "";
 
-    if (finalQuery === "") {
+    // check that a search was actually made
+    if (finalQuery === "" && !query) {
       document.getElementById("spinner").classList.add("hidden");
       document.getElementById("no-search-error").classList.remove("hidden");
       return;
     }
 
-    if (document.getElementById('filter-director-button').classList.contains("clicked")) {
+    // handle filtered search or search by director or search by movie release year or search by
+    // search bar input text
+    if (query) {
+      await handleFilteredSearch(query);
+    } else if (document.getElementById('filter-director-button').classList.contains("clicked")) {
       let directorResult = await fetchMoviesByDirector(finalQuery, setMovies, setError);
       await displayMovieSearchResult(directorResult);
     } else if (document.getElementById('filter-year-button').classList.contains("clicked")) {
       let yearResult = await fetchMoviesByYear(finalQuery, setMovies, setError);
       await displayMovieSearchResult(yearResult);
-    } else if (document.getElementById("filter-content-rating-button").classList.contains("clicked")) {
-      let batchSize = 10;
-      if (query.Rated.G) {
-        while (batchSize !== 30) {
-          let ratedResult = await fetchMoviesByContentRating("g", setMovies, setError, batchSize);
-          await displayMovieSearchResult(ratedResult);
-          batchSize += 10;
-        }
-      }
-      if (query.Rated.PG) {
-        while (batchSize !== 30) {
-          let ratedResult = await fetchMoviesByContentRating("pg", setMovies, setError, batchSize);
-          await displayMovieSearchResult(ratedResult);
-          batchSize += 10;
-        }
-      }
-      if (query.Rated.PG13) {
-        while (batchSize !== 30) {
-          let ratedResult = await fetchMoviesByContentRating("pg-13", setMovies, setError, batchSize);
-          await displayMovieSearchResult(ratedResult);
-          batchSize += 10;
-        }
-      }
-      if (query.Rated.R) {
-        while (batchSize !== 30) {
-          let ratedResult = await fetchMoviesByContentRating("r", setMovies, setError, batchSize);
-          await displayMovieSearchResult(ratedResult);
-          batchSize += 10;
-        }
-      }
-    } else if (document.getElementById("filter-runtime-button").classList.contains("clicked")) {
-      let batchSize = 10;
-      if (query.Runtime.Ninety) {
-        while (batchSize !== 20) {
-          let runtimeResult = await fetchMoviesByRuntime("90", setMovies, setError, batchSize);
-          await displayMovieSearchResult(runtimeResult);
-          batchSize += 10;
-        }
-      }
-      if (query.Runtime.OneTwenty) {
-        while (batchSize !== 20) {
-          let runtimeResult = await fetchMoviesByRuntime("120", setMovies, setError, batchSize);
-          await displayMovieSearchResult(runtimeResult);
-          batchSize += 10;
-        }
-      }
-      if (query.Runtime.OneEighty) {
-        while (batchSize !== 20) {
-          let runtimeResult = await fetchMoviesByRuntime("180", setMovies, setError, batchSize);
-          await displayMovieSearchResult(runtimeResult);
-          batchSize += 10;
-        }
-      }
-    } else if (document.getElementById("filter-genre-button").classList.contains("clicked")) {
-      if (query.Genre.Action) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("action", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Adventure) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("adventure", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Animation) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("animation", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Comedy) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("comedy", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Crime) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("crime", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Documentary) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("documentary", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Drama) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("drama", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Family) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("family", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Fantasy) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("fantasy", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.History) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("history", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Horror) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("horror", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Mystery) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("mystery", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Romance) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("romance", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.ScienceFiction) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("science fiction", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.Thriller) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("thriller", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
-      if (query.Genre.War) {
-        for (let i = 1; i < 2; i++) {
-          let genreResult = await fetchMoviesByGenre("war", setMovies, setError, i);
-          await displayMovieSearchResult(genreResult);
-        }
-      }
     } else {
       let userResult = await fetchUser(finalQuery, setUsers, setError);
       if (userResult.length === 0) {
@@ -434,6 +291,222 @@ const SearchPage = () => {
         await displayMovieSearchResult(movieResult);
       }
     }
+  };
+
+  /**
+   * execute the user's filtered search request
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   */
+  const handleFilteredSearch = async (query) => {
+    // create empty movie set
+    let movieSet = new Set();
+
+    // add movies to movieSet based on any genre filters
+    movieSet = await filterByGenre(query, movieSet);
+
+    // add movies to movieSet based on any content rating filters
+    if (movieSet.size == 0) {
+      movieSet = await filterByContentRating(query, movieSet);
+    } else {
+      movieSet = crossFilterByContentRating(query, movieSet);
+    }
+
+    // add movies to movieSet based on any runtime filters
+    if (movieSet.size == 0) {
+      movieSet = await filterByRuntime(query, movieSet);
+    } else {
+      movieSet = crossFilterByRuntime(query, movieSet);
+    }
+
+    // mix up results so cross filter results are not in chunks
+    // (ex. instead of all rated G results and then all rated PG results, they are mixed)
+    let movieArray = [...movieSet].sort(() => Math.random() - 0.5);
+
+    // get rid of any duplicates
+    let duplicates = [];
+
+    for (let i = 0; i < movieArray.length - 1; i++) {
+      for (let j = i + 1; j < movieArray.length; j++) {
+        if (movieArray[i].imdbID == movieArray[j].imdbID) {
+          duplicates.push(i);
+        }
+      }
+    }
+
+    for (let i = 0; i < duplicates.length; i++) {
+      delete movieArray[duplicates[i]];
+    }
+
+    let uniqueMovieArray = [];
+    for (let i = 0; i < movieArray.length; i++) {
+      if (movieArray[i]) {
+        uniqueMovieArray.push(movieArray[i]);
+      }
+    }
+
+    console.log(uniqueMovieArray);
+
+    // if the search fails, remove the loading spinner display and send an error message, otherwise
+    // display the results
+    if (uniqueMovieArray.length == 0) {
+      document.getElementById("spinner").classList.add("hidden");
+      document.getElementById("search-result-movie").innerHTML = "No movies found by those search filters";
+    } else {
+    await displayMovieSearchResult(uniqueMovieArray);
+    }
+  };
+
+  /**
+   * check if the user clicked any genre filter buttons and if so, add movies of that genre to
+   * the movieSet and return it
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   * @param {Set} movieSet - set of movies from the user's search result
+   * @return {Set} - set of movies from the user's search result based on the genre filters
+   */
+  const filterByGenre = async (query, movieSet) => {
+    let genreFilters = {filters: []};
+
+    for (const genre in query.Genre) {
+      const genreIsClicked = query.Genre[genre];
+      if (genreIsClicked) {
+        for (let i = 1; i < 6; i++) {
+          let genreFetchResult = await fetchMoviesByGenre(`${genre}`, setMovies, setError, i);
+          let genreQuery = {};
+          genreQuery[genre] = genreFetchResult;
+          genreFilters.filters.push(genreQuery);
+        }
+      }
+    }
+
+    genreFilters.filters.forEach(filter => {
+      for (const genreKey in filter) {
+        const movies = filter[genreKey];
+        movies.forEach(movie => {
+          movieSet.add(movie);
+        });
+      }
+    });
+    return movieSet;
+  };
+
+  /**
+   * based on the given movieSet, check if the user clicked any content rating filter buttons and
+   * if so, return only the movies in the set that have the desired content rating
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   * @param {Set} movieSet - set of movies from the user's search result
+   * @return {Set} - set of movies from the user's search result based on the content rating filters
+   */
+  const crossFilterByContentRating = (query, movieSet) => {
+    let moviesToKeep = new Set();
+    for (const rating in query.Rated) {
+      const contentRatingIsClicked = query.Rated[rating];
+      if (contentRatingIsClicked) {
+        let rated = rating;
+        if (rated == "PG13") {
+          rated = "PG-13";
+        }
+        // keep movies from movieSet with desired content ratings
+        movieSet.forEach(movie => {
+          if (rated == movie.Rated) {
+            moviesToKeep.add(movie);
+          }
+        });
+      }
+    }
+    if (moviesToKeep.size == 0) {
+      return movieSet;
+    }
+    return moviesToKeep;
+  };
+
+  /**
+   * check if the user clicked any content rating filter buttons and if so, add movies of that
+   * content rating to the movieSet and return it
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   * @param {Set} movieSet - set of movies from the user's search result
+   * @return {Set} - set of movies from the user's search result based on the content rating filters
+   */
+  const filterByContentRating = async (query, movieSet) => {
+    for (const rating in query.Rated) {
+      const contentRatingIsClicked = query.Rated[rating];
+      if (contentRatingIsClicked) {
+        let rated = rating;
+        rated = rated.toLowerCase();
+        if (rated == "pg13") {
+          rated = "pg-13";
+        }
+        let ratedResult = await fetchMoviesByContentRating(`${rated}`, setMovies, setError, 50);
+        for (let i = 0; i < ratedResult.length; i++) {
+          movieSet.add(ratedResult[i]);
+        }
+      }
+    }
+    return movieSet;
+  };
+
+  /**
+   * based on the given movieSet, check if the user clicked any runtime filter buttons and
+   * if so, return only the movies in the set that are under the desired maximum runtime
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   * @param {Set} movieSet - set of movies from the user's search result
+   * @return {Set} - set of movies from the user's search result based on the runtime filters
+   */
+  const crossFilterByRuntime = (query, movieSet) => {
+    let moviesToKeep = new Set();
+    for (const runtime in query.Runtime) {
+      const runtimeIsClicked = query.Runtime[runtime];
+      if (runtimeIsClicked) {
+        let runtimeNumber = runtime;
+        if (runtimeNumber == "Ninety") {
+          runtimeNumber = 90;
+        } else if (runtimeNumber == "OneTwenty") {
+          runtimeNumber = 120;
+        } else if (runtimeNumber == "OneEighty") {
+          runtimeNumber = 180;
+        }
+        // keep movies from movieSet with desired runtime
+        movieSet.forEach(movie => {
+          let runtimeFull = movie.Runtime + "";
+          let runtimeSlice = runtimeFull.slice(0, -4);
+          let runtimeSliceNumber = +runtimeSlice;
+          if (runtimeNumber >= runtimeSliceNumber) {
+            moviesToKeep.add(movie);
+          }
+        });
+      }
+    }
+    if (moviesToKeep.size == 0) {
+      return movieSet;
+    }
+    return moviesToKeep;
+  };
+
+  /**
+   * check if the user clicked any runtime filter buttons and if so, add movies of that maximum
+   * runtime to the movieSet and return it
+   * @param {JSON <object>} query - JSON of the filter buttons that the user clicked in their search
+   * @param {Set} movieSet - set of movies from the user's search result
+   * @return {Set} - set of movies from the user's search result based on the runtime filters
+   */
+  const filterByRuntime = async (query, movieSet) => {
+    for (const runtime in query.Runtime) {
+      const runtimeIsClicked = query.Runtime[runtime];
+      if (runtimeIsClicked) {
+        let runtimeNumber = runtime;
+        if (runtimeNumber == "Ninety") {
+          runtimeNumber = 90;
+        } else if (runtimeNumber == "OneTwenty") {
+          runtimeNumber = 120;
+        } else if (runtimeNumber == "OneEighty") {
+          runtimeNumber = 180;
+        }
+        let runtimeResult = await fetchMoviesByRuntime(`${runtimeNumber}`, setMovies, setError, 50);
+        for (let i = 0; i < runtimeResult.length; i++) {
+          movieSet.add(runtimeResult[i]);
+        }
+      }
+    }
+    return movieSet;
   };
 
   /**
