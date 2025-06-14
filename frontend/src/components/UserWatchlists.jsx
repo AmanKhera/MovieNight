@@ -6,7 +6,12 @@ import {
   createWatchlist, 
   fetchWatchlistMoviesById
 } from "../api";
-
+/**
+ * 
+ * Displays the user's watchlist in the following manner:
+ *  - Tabs at the top indicating which watchlist is being displayed
+ *  - Followed by the movies in the watchlist being displayed
+ */
 const UserWatchlists = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();

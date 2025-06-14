@@ -9,6 +9,11 @@ import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
 
+/**
+ * A version of the Toolbar.js but only used in the Home Page.
+ * This toolbar is unique compared to Toolbar.js as its transparent when the user is at the top of the page and slowly turns purple as the user scrolls
+ */
+
 function PopularToolbar() {
   const [scrollOpacity, setScrollOpacity] = useState(0);
   const navigate = useNavigate();
@@ -66,21 +71,7 @@ function PopularToolbar() {
     setUploadStatus('');
   };
 
-  const getCookie = (name) => {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  };
-
+  //Upload user's letterboxd data to Amazon S3 bucket
   const uploadFileToS3 = async (file) => {
     try {
       setIsUploading(true);
@@ -117,6 +108,7 @@ function PopularToolbar() {
     setShowInstructions(true);
   };
 
+  //The user has their Letterboxd file and wants to upload
   const proceedWithUpload = () => {
     setShowInstructions(false);
     const fileInput = document.createElement('input');
@@ -163,7 +155,7 @@ function PopularToolbar() {
         sessionStorage.clear();
         
 
-        // Navigate to login page
+        // Navigate to Home page
         navigate("/");
       } else {
         console.error('Logout failed');

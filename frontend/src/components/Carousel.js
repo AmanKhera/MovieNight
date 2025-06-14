@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import "./Carousel.css";
-
+/**
+ * 
+ * --------------------------------- DEPRICATED -----------------------------
+ * First iteration of the carousel, not used anymore replaced by Discover and Popular carousel.
+ */
 const Carousel = ({ title = "In a Mood" }) => {
   const shows = Array.from({ length: 20 }, (_, index) => ({
     title: `Placeholder ${index + 1}`,

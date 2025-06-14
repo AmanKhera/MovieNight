@@ -8,18 +8,21 @@ import ratingImage from '../images/rating-btn.png';
 import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
-
+/**
+ * Toolbar that allows navigation throughout the site. This is used in all pages EXCEPT the homepage which has its own toolbar named "PopularToolbar"
+ *
+ */
 function Toolbar() {
   
   const navigate = useNavigate();
   
  
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false); 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
-  
+  //Navigational urls
   const homeButtonAction = () => {
     navigate("/");
   };
@@ -45,55 +48,23 @@ function Toolbar() {
     navigate("/UserWatchlists");
   };
 
-  // Modified profile button to show popup
+  // When a user presses the profile this is executed (a pop up with letterbox info/sign out optoin)
   const profileButtonAction = () => {
     setShowProfilePopup(true);
-    setUploadStatus(''); // Clear any previous status
+    setUploadStatus(''); 
   };
 
-  // Close popup
+  //X button
   const closePopup = () => {
     setShowProfilePopup(false);
-    setShowInstructions(false); // ← ADDED THIS
+    setShowInstructions(false); 
     setIsUploading(false);
     setUploadStatus('');
   };
 
   
-  const getCSRFToken = async () => {
-    try {
-      const response = await fetch('/get-csrf-token/', {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (response.ok) {
-        return response.headers.get('X-CSRFToken') || 
-               document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-               getCookie('csrftoken');
-      }
-    } catch (error) {
-      console.error('Error getting CSRF token:', error);
-    }
-    return getCookie('csrftoken');
-  };
 
-  
-  const getCookie = (name) => {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  };
-
-  // Upload file to S3 
+  // Upload user's letterboxd to AWS s3 bucket
   const uploadFileToS3 = async (file) => {
     try {
       setIsUploading(true);
@@ -101,8 +72,8 @@ function Toolbar() {
 
       const formData = new FormData();
       formData.append('file', file);
-      // No folder parameter needed - uploads directly to bucket root
 
+      //call backend upload file function
       const response = await fetch('http://localhost:8000/upload-file/', {
         method: 'POST',
         body: formData,
@@ -128,11 +99,12 @@ function Toolbar() {
   };
 
  
+  //If the user presses upload to letterboxd
   const handleLetterboxdUpload = () => {
     setShowInstructions(true);
   };
 
-  
+  //User has CSV file from Letterboxd and wants to upload
   const proceedWithUpload = () => {
     setShowInstructions(false);
     const fileInput = document.createElement('input');
@@ -184,7 +156,7 @@ function Toolbar() {
         localStorage.clear();
         sessionStorage.clear();
         
-        // Navigate to login page
+        // Navigate to home page
         navigate("/");
       } else {
         console.error('Logout failed');

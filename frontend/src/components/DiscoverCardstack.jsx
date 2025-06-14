@@ -9,6 +9,11 @@ import {
   fetchMoviePoster,
 } from "../api";
 
+/**
+ * A carousel (despite the name) that displays movies tailored specifically to the user.
+ * Used in Discover page.
+ */
+
 const CARD_WIDTH = 550;
 const CARD_HEIGHT = 700;
 const SPACING_FACTOR = 0.7;
@@ -16,7 +21,7 @@ const VISIBLE_RANGE = 3;
 
 const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
+  const [flipped, setFlipped] = useState(false); //If a user presses the card, display information about the movie
   const [movieTitles, setMovieTitles] = useState([]);
 
   const [reviewCount, setReviewCount] = useState(0);
@@ -27,12 +32,14 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  //Call API.js (Precaching) for user info
   const { data: userInfo, isLoading: userLoading } = useQuery({
     queryKey: ["userInfo"],
     queryFn: fetchUserInfo,
     staleTime: Infinity,
   });
 
+  //Call API.js (Precaching) for movie recommendations
   const {
     data: recommendations,
     isLoading: recLoading,
@@ -44,6 +51,7 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
     staleTime: 1000 * 60 * 10,
   });
 
+  
   useEffect(() => {
     if (recLoading || !recommendations?.summary?.recommendations) {
       return;

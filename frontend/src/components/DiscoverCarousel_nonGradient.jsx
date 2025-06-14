@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+/**
+ * 
+ * Discover component non gradient version. See DiscoverCarousel.jsx for more indepth comments
+ */
 const DiscoverCarousel_nonGradient = ({ 
   id, 
   title = `${id.charAt(0).toUpperCase()}${id.slice(1)} Movies` 

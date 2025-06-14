@@ -8,8 +8,6 @@ import MovieDetailsParentPage from './pages/MovieDetails';
 import GroupPage from './pages/GroupPage';
 import UserWatchlistPage from './pages/UserWatchlistPage';
 import SearchPage from './pages/SearchPage';
-import UserPage from './pages/UserPage';
-import FriendsPage from './pages/FriendsPage';
 import DiscoverPage from './pages/DiscoverPage';
 import ReviewPage from './pages/ReviewPage';
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -27,6 +25,7 @@ import {
   fetchMovieDetails
 } from './api';
 
+//The basis of React pre caching. Allows for data to be presistent even if the page is refreshed
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -48,7 +47,7 @@ persistQueryClient({
 });
 
 function App() {
-  //queryClient.clear();
+  //queryClient.clear(); 
   useEffect(() => {
     async function prefetchCriticalData() {
       try {
@@ -188,6 +187,7 @@ function App() {
 
     prefetchCriticalData();
 
+    //How often data should be refetched
     const interval = setInterval(() => {
       queryClient.invalidateQueries({
         queryKey: ['recentlyWatched'],
@@ -236,18 +236,6 @@ function App() {
               </ProtectedRoute>
             }
             />
-            <Route path="/UserProfile" element={
-              <ProtectedRoute>
-                <UserPage />
-              </ProtectedRoute>
-            }
-            />
-            <Route path="/FriendsPage" element={
-              <ProtectedRoute>
-                <FriendsPage />
-              </ProtectedRoute>
-            }
-            />
             <Route path="/DiscoverPage" element={<ProtectedRoute>
               <DiscoverPage />
             </ProtectedRoute>
@@ -264,8 +252,6 @@ function App() {
             <Route path="/groups" element={<GroupPage />} />
             <Route path="/UserWatchlists" element={<UserWatchlistPage />} />
             <Route path="/search" element={<SearchPage />} />
-            <Route path="/UserProfile" element={<UserPage />} />
-            <Route path="/FriendsPage" element={<FriendsPage />} />
             <Route path="/DiscoverPage" element={<DiscoverPage />} />
             <Route path="/ReviewedPage" element={<ReviewPage />} />
 

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-
+/**
+ * Displays which friends have seen the current movie.
+ * Requires movieID which is the ID of the movie being displayed
+ * Requires userID which is the current user's ID (not the friends)
+ */
 const FriendsWhoWatched = ({ movieId, userId }) => {
   const [friendsWatched, setFriendsWatched] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -7,6 +11,7 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
   const hasCalledAPI = useRef(false);
   const abortControllerRef = useRef(null);
 
+  //Get which friends have watched the current movie from the user's friends page
   useEffect(() => {
     if (!movieId || !userId || hasCalledAPI.current) return;
 
@@ -55,10 +60,13 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     };
   }, [movieId, userId]);
 
+
+
   useEffect(() => {
     hasCalledAPI.current = false;
   }, [movieId, userId]);
 
+  //Parse date into usuable data
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -68,6 +76,7 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     });
   };
 
+  //Used to show friend's rating in terms of stars
   const renderStars = (rating) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   };

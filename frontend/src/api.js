@@ -1,3 +1,7 @@
+/**
+ * API.JS is used to pre-cache backend data to allow for fast retrival and data presistance on reload.
+ */
+
 const handleResponse = async (response) => {
   const data = await response.json();
   if (!response.ok) {
