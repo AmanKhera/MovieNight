@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+/** 
+ * Uses the Discover Movie backend method to display movies from a specific genre in a carousel manner
+ * Used in Home Page
+ * 
+*/
 
 const DiscoverCarousel = ({ 
   id, 
@@ -34,6 +39,7 @@ const DiscoverCarousel = ({
 
     fetchDiscoverMovies();
 
+    //Change number of movies displayed based on webpage size
     const updateItemsPerPage = () => {
       const width = window.innerWidth;
       let newItemsPerPage;
@@ -58,16 +64,19 @@ const DiscoverCarousel = ({
     ...movies.slice(0, itemsPerPage),
   ];
 
+  //If the user presses the right arrow, advance current index
   const nextSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex + itemsToScroll);
   };
 
+  //If the user presses the left arrow, decrease current index
   const prevSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex - itemsToScroll);
   };
 
+  //Transition when user presses either left or right arrow.
   const handleTransitionEnd = () => {
     if (currentIndex >= totalItems + itemsPerPage) {
       setEnableTransition(false);
@@ -84,7 +93,7 @@ const DiscoverCarousel = ({
     return `translateX(-${translateValue}%)`;
   };
 
-
+  //DEPRICATED. used to be used when there were still + to add movies to the watchlist directly from the Home page
   const addToWatchlist = async (movieId) => {
     if (!movieId) {
       setMessage({ text: "Invalid movie ID.", type: "error" });
@@ -114,6 +123,7 @@ const DiscoverCarousel = ({
     }
   };
 
+  //If a user presses a movie, navigate to the movie's respective MovieDetails apge
   const handleMovieClick = (movie) => {
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
     const releaseDate = movie.release_date; // TMDb usually provides release_date

@@ -1,3 +1,7 @@
+/**
+ * 
+ * Used in Search Page to fetch any site users the current user may have searched.
+ */
 
 export const fetchUser = async (searchText, usersCallback, errorCallback) => {
   try {

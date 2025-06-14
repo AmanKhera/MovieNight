@@ -1,3 +1,7 @@
+/**
+ * Used by search page to fetch movies
+ */
+
 export const fetchMovies = async (searchText, moviesCallback, errorCallback) => {
   try {
     const response = await fetch(`http://www.omdbapi.com/?s=${searchText}&apikey=3d39d278&type=movie`);

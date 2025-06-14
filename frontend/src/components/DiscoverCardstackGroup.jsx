@@ -5,7 +5,11 @@ import { FaTimes, FaCheck } from "react-icons/fa";
 const CARD_WIDTH = 400;
 const CARD_HEIGHT = 550;
 const ARROW_GAP = 200;
-
+/**
+ * 
+ * DEPREICATED COMPONENT
+ * Used to be used in the Discover Page to show movie recommendations. Outdated by DiscoverCardstack component.
+ */
 const DiscoverCardStackGroup = ({ title = "Movie Stack", recId }) => {
   const [userId, setUserId] = useState(null);
   const [movies, setMovies] = useState([]);

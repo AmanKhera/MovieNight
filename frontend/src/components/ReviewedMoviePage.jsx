@@ -2,11 +2,15 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchUserInfo, fetchRecentlyWatched, fetchMoviePoster } from "../api";
-
+/**
+ * Displays the movies the user has seen and rated
+ * 
+ */
 const ReviewedMoviesPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  //Retrive user's info from already pre-cached data from api.js
   const {
     data: userInfo,
     isLoading: userLoading,
@@ -18,6 +22,7 @@ const ReviewedMoviesPage = () => {
     staleTime: Infinity,
   });
 
+  //Retrive user's reviewed movies from already pre-cached data from api.js
   const {
     data: reviews,
     isLoading: reviewsLoading,
@@ -27,9 +32,10 @@ const ReviewedMoviesPage = () => {
     queryKey: ['reviewedMovies', userInfo?.id],
     queryFn: () => fetchRecentlyWatched(userInfo.id),
     enabled: Boolean(userInfo?.id),
-    staleTime: 1000 * 60 * 10,
+    staleTime: Infinity,
   });
 
+  //Retrieve user's movie posters for reviewed movies from already pre-cached data from api.js
   useEffect(() => {
     if (!reviews) return;
     reviews.forEach((r) => {
@@ -58,6 +64,7 @@ const ReviewedMoviesPage = () => {
 
         {console.log("REVIEWS ARE " + reviews)}
         
+        {/*Maps the users reviewed movies recieved from backend in a grid fasion*/}
         {reviews.map((r) => (
           <div
             key={`${r.title}-${r.date_watched}`}

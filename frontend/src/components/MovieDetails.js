@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import FriendsWhoWatched from './FriendsWhoWatched';
-
+/**
+ * When a user presses a movie, this is the component that displays all the movies details.
+ * Displays the movie's title, description, director, poster, and friends who have watched (FriendsWhoWatched component)
+ */
 const MovieDetailsPage = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -41,6 +44,7 @@ const MovieDetailsPage = () => {
   const [showWatchlistSubmenu, setShowWatchlistSubmenu] = useState(false);
   const [loadingWatchlists, setLoadingWatchlists] = useState(false);
 
+  //When a user sucessfully performs an action such as sending a movie to a watchlist
   const showAnimatedMessage = (text, type = "success") => {
     setMessage({ text, type });
     
@@ -57,6 +61,7 @@ const MovieDetailsPage = () => {
     }, 3000);
   };
 
+  //Retrieve user's info
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -74,6 +79,7 @@ const MovieDetailsPage = () => {
     fetchUser();
   }, []);
 
+  //Gets user's groups and friends
   useEffect(() => {
     if (!username || !userId) return;
     const fetchGroupsAndFriends = async () => {
@@ -93,6 +99,8 @@ const MovieDetailsPage = () => {
     fetchGroupsAndFriends();
   }, [username, userId]);
 
+
+  //Fetch movie details using movie ID using API (if movie is not present in database)
   useEffect(() => {
     const fetchOMDB = async () => {
       try {
@@ -123,6 +131,7 @@ const MovieDetailsPage = () => {
       }
     };
 
+    //Fetch movie details using title and year that are present in our database
     const fetchLocalId = async (title, year) => {
       try {
         const resp = await fetch(`http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`);
@@ -142,21 +151,12 @@ const MovieDetailsPage = () => {
           enhancePlot(m);
           hasEnhancedPlot.current = true;
         }
-        fetchBackdrop(m.title);
       }
     });
   }, [id, release_date]);
 
-  const fetchBackdrop = async title => {
-    try {
-      const resp = await fetch(`http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`);
-      const d = await resp.json();
-      if (d.backdrop) setBackdropURL(d.backdrop);
-    } catch (e) {
-      console.error("Backdrop fetch failed", e);
-    }
-  };
 
+  //Retrieve movie poster
   useEffect(() => {
     if (!movie) return;
     (async () => {
@@ -170,6 +170,7 @@ const MovieDetailsPage = () => {
     })();
   }, [movie]);
 
+  //Use backend chat gpt generator to enchance the 1-2 sentence description given by API database
   const enhancePlot = async m => {
     setLoadingPlot(true);
     try {
@@ -189,6 +190,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Fetch user's watchlist
   const fetchUserWatchlists = async () => {
     setLoadingWatchlists(true);
     try {
@@ -210,11 +212,14 @@ const MovieDetailsPage = () => {
     }
   };
 
+
+  //When user presses "Add to Watchlist" in + modal
   const addToWatchlist = async () => {
     await fetchUserWatchlists();
     setShowWatchlistSubmenu(true);
   };
 
+  //Sends movie to the user's selected watchlist
   const addToSpecificWatchlist = async (watchlistName) => {
     setLoadingAdd(true);
     try {
@@ -241,6 +246,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Sends movie to user's selected group
   const sendToGroup = async (groupId) => {
     setLoadingAdd(true);
     try {
@@ -270,6 +276,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Sends movie to user's selected friend
   const sendToFriend = async (friendId) => {
     setLoadingAdd(true);
     try {
@@ -299,6 +306,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Add movie to user's watched list (Reviews)
   const addToWatched = async () => {
     if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
