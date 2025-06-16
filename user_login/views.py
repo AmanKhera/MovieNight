@@ -146,7 +146,7 @@ def hosted_ui_login(request):
 #         if "error" in result:
 #             return JsonResponse({"error": result["error"]}, status=500)
 
-#         #Handle existing users without creating new ones
+#         #Handles existing users without creating new ones
 #         if "message" in result and result["message"] == "User already exists, no update or creation needed.":
 #             is_new_user = False
 #         else:
@@ -257,7 +257,7 @@ def update_or_create_user_from_cognito(access_token):
 
         user, created = User.objects.update_or_create(
             email=email,
-            name = username
+            defaults={"name": username}
         )
 
         #Returns user and whether they are new
