@@ -1,4 +1,14 @@
-// src/components/thecomponents.jsx
+
+/**
+ * All the components in this file are used in the Group Page.
+ * This was when I first learned you can have multiple components in one .jsx file which I was testing so I named it "thecomponents"
+ * which ended up being a mistake because in the long run having multiple components in one .jsx file results in a VERY long file. Lesson learned.
+ * 
+ * The following has components"
+ *  - Group sidebar >> used to display the user's groups/friends
+ *  - Chat >> used as a chat from the user's selected group/friend 
+ *  - MoviePoll >> used as a component that houses the Recommendations, Watchlist and Proposals tab on the right side of the page
+ */
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,6 +59,7 @@ export const GroupsSidebar = ({
   selectedChat,
   onSelectChat
 }) => {
+  //Get user info from pre-cached api.js data
   const queryClient = useQueryClient();
   const { data: userInfo } = useQuery({
     queryKey: ['userInfo'],
@@ -58,6 +69,7 @@ export const GroupsSidebar = ({
   const leaderId = userInfo?.id;
   const username = userInfo?.username;
 
+  //Get userGroups info from precached data in api.js
   const { data: userGroups = [] } = useQuery({
     queryKey: ['userGroups', username],
     queryFn: () => fetchUserGroups(username),
@@ -81,6 +93,7 @@ export const GroupsSidebar = ({
   const [actionType, setActionType] = useState(null);
   const [selectedMember, setSelectedMember] = useState("");
 
+  //Create group functionality
   const createGroupMutation = useMutation({
     mutationFn: ({ groupName, leaderId, genre }) =>
       createGroup(getCookie("csrftoken"), { group_name: groupName, leader_id: leaderId, genre }),
@@ -108,6 +121,8 @@ export const GroupsSidebar = ({
     }
   });
 
+
+  //Add friend functionality
   const addFriendMutation = useMutation({
     mutationFn: (friendId) =>
       addFriend(getCookie("csrftoken"), { friend_id: friendId }),
@@ -135,6 +150,7 @@ export const GroupsSidebar = ({
   });
 
 
+  //Add member functionality
   const addMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
       addGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
@@ -163,6 +179,7 @@ export const GroupsSidebar = ({
     }
   });
 
+  //Remove member functionality
   const removeMemberMutation = useMutation({
     mutationFn: ({ groupId, userId }) =>
       removeGroupMember(getCookie("csrftoken"), { group_id: groupId, user_id: userId }),
@@ -182,6 +199,8 @@ export const GroupsSidebar = ({
       queryClient.invalidateQueries(['groupMembers', variables.groupId]);
     }
   });
+
+
 
   const handleCreateGroup = () => {
     if (!groupName || !leaderId) return;
@@ -208,6 +227,8 @@ export const GroupsSidebar = ({
     await fetchMembersForGroup(group.group_id);
   };
 
+
+  //When a user selects a group, the group members are fetched from api.js to use for various functions (remove member)
   const fetchMembersForGroup = async (groupId) => {
     if (!loadedMembers[groupId]) {
       const members = await queryClient.fetchQuery({
@@ -781,7 +802,7 @@ export const ChatSection = ({ selectedChat }) => {
   };
 
   
-  //get time relative to current time in simple terms like month, day, hour, instead of always an exact timestamp
+  //Get time translated to year, month and day to be used
   const getRelativeDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -799,6 +820,7 @@ export const ChatSection = ({ selectedChat }) => {
     return dayjs(timestamp).fromNow();
   };
 
+  //Fetch user_info from backend
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -1166,7 +1188,7 @@ const styles = {
 
 
 /** ========== GROUP RECOMMENDATION (MOVIE POLL) ========== */
-
+//Fetch movie detail by title and year
 const fetchMovieDetails = async (title, year) => {
   try {
     const searchRes = await fetch(
@@ -1193,7 +1215,7 @@ const fetchMovieDetails = async (title, year) => {
     return null;
   }
 };
-
+//Fetch movie by title alone
 const fetchMovieDetailsWithoutYear = async (title) => {
   try {
     const searchRes = await fetch(
@@ -1250,10 +1272,9 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
 
-  // Success notification state
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
-  // Auto-hide success notification after 3 seconds
+  //If a user sucessfully performs an action such as adding a group member to a group the green success message is visible on the top right
   useEffect(() => {
     if (showSuccessNotification) {
       const timer = setTimeout(() => {
@@ -1263,6 +1284,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   }, [showSuccessNotification]);
 
+  //fetch user info
   useEffect(() => {
     fetch("http://localhost:8000/user_info/", { credentials: "include" })
       .then((r) => r.json())
@@ -1270,6 +1292,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       .catch(console.error);
   }, []);
 
+  //fetch group threshold (determines how many votes required to get movie added to watchlist)
   const fetchGroupThreshold = async () => {
     if (!isGroup || !selectedItem?.group_id) return;
 
@@ -1287,6 +1310,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //fetch frontend username of user
   const fetchUsername = async (userId) => {
     try {
       const resp = await fetch(`http://localhost:8000/frontend_user/?user_id=${userId}`, {
@@ -1302,6 +1326,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return "Member";
   };
 
+  //if a user up votes or down votes a movie
   const sendVoteAndUpdate = async (recId, voteValue) => {
     if (!currentUserId) return;
 
@@ -1380,6 +1405,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //fetch movie to display using title
   const fetchMoviePoster = async (title) => {
     try {
       const posterUrl = new URL("http://localhost:8000/movie_poster/");
@@ -1396,6 +1422,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return null;
   };
 
+  //fetch movie details by Movie ID using our local database
   const fetchMovieDetailsById = async (movieId) => {
     try {
       const searchUrl = new URL("http://localhost:8000/search/");
@@ -1428,6 +1455,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return null;
   };
 
+  //Loads watchlist when the user presses the Watchlist tab at the top.
   const loadWatchlist = async () => {
     // Clear previous watchlist content
     setWatchlist([]);
@@ -1475,6 +1503,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //Allows user to vote on proposal in Proposal tab
   const voteOnProposal = async (proposalId, votingValue) => {
     if (!currentUserId) return;
 
@@ -1517,6 +1546,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //If any votes have already been cast beforehand, they are loaded and displayed
   const loadVotesForProposals = async () => {
     try {
       const votesUrl = new URL("http://localhost:8000/retrieve_vote_proposals/");
@@ -1555,6 +1585,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //Load the groups proposals for the Proposal tab
   const loadProposals = async () => {
     try {
       const proposalsUrl = new URL("http://localhost:8000/retrieve_group_event_proposals/");
@@ -1591,6 +1622,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }
   };
 
+  //When a movie has reached the Watchlist, this allows the user to schedule a movie at a time to be seen in the Prosposal tab
   const handleScheduleMovie = async () => {
     if (!currentUserId || !selectedMovieForSchedule || !scheduleDate || !scheduleTime) {
       setError("Please fill in all fields");
@@ -1628,7 +1660,8 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
       setError("Failed to create proposal");
     }
   };
-
+  
+  //When the user presses Schedule on a movie, open the modal to allow the user to input Date an d Time
   const openScheduleModal = (movie) => {
     setSelectedMovieForSchedule(movie);
     setShowScheduleModal(true);
@@ -1640,19 +1673,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     setScheduleTime("19:00");
   };
 
-  const getNextTwoWeeks = () => {
-    const days = [];
-    const today = new Date();
-
-    for (let i = 0; i < 14; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      days.push(date);
-    }
-
-    return days;
-  };
-
+  //Get if the passed date has any proposals
   const getProposalsForDate = (date) => {
     if (!date) return [];
 
@@ -1663,6 +1684,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     }).sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
   };
 
+  //Check for time conflicts between proposals on a given date
   const checkTimeConflicts = (dateProposals) => {
     const conflicts = [];
     for (let i = 0; i < dateProposals.length - 1; i++) {
@@ -1678,27 +1700,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return conflicts;
   };
 
-  const getProposalsByDate = () => {
-    const proposalsByDate = {};
-    proposals.forEach(proposal => {
-      const date = new Date(proposal.proposed_datetime).toISOString().split('T')[0];
-      if (!proposalsByDate[date]) {
-        proposalsByDate[date] = [];
-      }
-      proposalsByDate[date].push(proposal);
-    });
-
-    Object.keys(proposalsByDate).forEach(date => {
-      proposalsByDate[date].sort((a, b) => new Date(a.proposed_datetime) - new Date(b.proposed_datetime));
-      const conflicts = checkTimeConflicts(proposalsByDate[date]);
-      proposalsByDate[date].forEach(proposal => {
-        proposal.hasConflict = conflicts.includes(proposal.proposal_id);
-      });
-    });
-
-    return proposalsByDate;
-  };
-
+  //If a user presses a movie in the calendar, switch to the list to show the user the proposal in list view
   const handleMovieClick = (proposalId) => {
     setSelectedProposalId(proposalId);
     setCalendarView('list');
@@ -1714,6 +1716,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     return new Date(datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  //On load retrieves the selected groups recommendations for the Recommandations tab
   useEffect(() => {
     if (!selectedItem) return;
     setError(null);
@@ -1810,11 +1813,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
     loadData();
   }, [selectedItem, activeTab, pollView]);
 
-  const formatDate = (isoString) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
+  //Fields to be used for Proposal tab
   const getStatusBadge = (status) => {
     const statusConfig = {
       0: { text: "Pending", color: "#ff9800" },
@@ -2288,6 +2287,7 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
                       const startOfWeek = new Date(currentDate);
                       startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
 
+                      //Display only 14 days or else it makes the component look overcrowded
                       const calendarDays = [];
                       for (let i = 0; i < 14; i++) {
                         const date = new Date(startOfWeek);
@@ -2709,141 +2709,3 @@ export const MoviePoll = ({ selectedItem, activeTab }) => {
 
 
 
-/** ========== USER PROFILE ========== */
-export const UserProfile = () => {
-  const [userInfo, setUserInfo] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          setErrorMessage(errorData.error || "Unknown error");
-          return;
-        }
-        const data = await response.json();
-        if (data.error) {
-          setErrorMessage(data.error);
-        } else {
-          setUserInfo(data);
-        }
-      } catch (error) {
-        setErrorMessage(error.toString());
-      }
-    };
-    fetchUserInfo();
-  }, []);
-
-  const containerStyle = {
-    marginTop: "1rem",
-    padding: "1rem",
-    backgroundColor: "#240046",
-    color: "white",
-    borderRadius: "4px",
-  };
-
-  if (errorMessage) {
-    return (
-      <div style={containerStyle}>
-        <h3>User Info</h3>
-        <p style={{ color: "red" }}>{errorMessage}</p>
-      </div>
-    );
-  }
-
-  if (!userInfo) {
-    return (
-      <div style={containerStyle}>
-        <h3>User Info</h3>
-        <p>Loading user info...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={containerStyle}>
-      <h3>User Info</h3>
-      <p>
-        <strong>ID:</strong> {userInfo.id}
-      </p>
-      <p>
-        <strong>Username:</strong> {userInfo.username}
-      </p>
-      <p>
-        <strong>Email:</strong> {userInfo.email}
-      </p>
-      <p>
-        <strong>Date Joined:</strong> {new Date(userInfo.date_joined).toLocaleString()}
-      </p>
-    </div>
-  );
-};
-
-/** ========== USER USERNAME ========== */
-export const UserUsername = () => {
-  const [username, setUsername] = useState("");
-  const [error, setError] = useState("");
-  const [userId, setUserId] = useState(null);
-
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        const data = await response.json();
-        if (response.ok) {
-          setUserId(data.id);
-        } else {
-          setError(data.error || "");
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-    };
-
-    fetchUserInfo();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
-      const fetchUsername = async () => {
-        try {
-          const response = await fetch(
-            `http://localhost:8000/frontend_username/?user_id=${userId}`,
-            { credentials: "include" }
-          );
-          const data = await response.json();
-          if (response.ok) {
-            setUsername(data.Username);
-          } else {
-            setError(data.Failure || "");
-          }
-        } catch (err) {
-          setError(err.message);
-        }
-      };
-
-      fetchUsername();
-    }
-  }, [userId]);
-
-  const containerStyle = {
-    marginTop: "1rem",
-    padding: "1rem",
-    backgroundColor: "#240046",
-    color: "white",
-    borderRadius: "4px",
-  };
-
-  return (
-    <div style={containerStyle}>
-      <h3>User Username</h3>
-      {error ? <p style={{ color: "red" }}>{error}</p> : <p>{username}</p>}
-    </div>
-  );
-};

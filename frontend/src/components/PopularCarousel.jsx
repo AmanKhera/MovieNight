@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+/**
+ * 
+ * Displays the most popular movies in a carousel manner with large images of the movie's poster.
+ * Only used in Home Page
+ */
 const PopularCarousel = ({ title = "" }) => {
   const [movies, setMovies] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -10,6 +14,7 @@ const PopularCarousel = ({ title = "" }) => {
 
   const navigate = useNavigate();
 
+  //Retrive movies to be displayed in the carousel from the backend
   useEffect(() => {
     const fetchPopularMovies = async () => {
       try {
@@ -17,7 +22,6 @@ const PopularCarousel = ({ title = "" }) => {
         if (!response.ok) throw new Error("Failed to fetch movies");
         const data = await response.json();
 
-        // ✅ Filter only movies with backdrops
         const filteredMovies = (data.results || []).filter(
           (movie) => movie.backdrop_path
         );
@@ -29,6 +33,7 @@ const PopularCarousel = ({ title = "" }) => {
     fetchPopularMovies();
   }, []);
 
+    //See previous movie (Left arrow) logic
   const goToPrevious = () => {
     setFadeTransition(true);
     setTimeout(() => {
@@ -36,9 +41,10 @@ const PopularCarousel = ({ title = "" }) => {
         prevIndex === 0 ? movies.length - 1 : prevIndex - 1
       );
       setFadeTransition(false);
-    }, 300); // match transition duration
+    }, 300);
   };
 
+   //See next movie (Right arrow) logic
   const goToNext = () => {
     setFadeTransition(true);
     setTimeout(() => {
@@ -46,9 +52,10 @@ const PopularCarousel = ({ title = "" }) => {
         prevIndex === movies.length - 1 ? 0 : prevIndex + 1
       );
       setFadeTransition(false);
-    }, 300); // match transition duration
+    }, 300);
   };
 
+  //If a user presses te bubbles at the bottom, it goes to the respective movie in the carousel
   const goToSlide = (index) => {
     setFadeTransition(true);
     setTimeout(() => {
@@ -57,6 +64,7 @@ const PopularCarousel = ({ title = "" }) => {
     }, 300);
   };
 
+  //If a user presses a movie poster, the user is navigated to the MovieDetails page of that movie
   const handleMovieClick = (movie) => {
     const titleParam = encodeURIComponent(
       movie.title || movie.original_title
@@ -71,6 +79,7 @@ const PopularCarousel = ({ title = "" }) => {
     );
   };
 
+  //Still loading
   if (!movies.length) return <div>Loading popular movies...</div>;
 
   const currentMovie = movies[currentIndex];
@@ -82,13 +91,13 @@ const PopularCarousel = ({ title = "" }) => {
           position: relative;
           width: 100%;
           overflow: hidden;
-          margin: 0; /* Remove margins to fill full width */
-          height: 96vh; /* Full viewport height */
+          margin: 0;
+          height: 96vh;
         }
         
         .carousel-title {
           position: absolute;
-          top: 80px; /* Position below the toolbar */
+          top: 80px;
           left: 20px;
           color: white;
           text-transform: uppercase;
@@ -101,7 +110,7 @@ const PopularCarousel = ({ title = "" }) => {
         .carousel-slide {
           position: relative;
           width: 100%;
-          height: 100vh; /* Full viewport height */
+          height: 100vh;
           cursor: pointer;
           overflow: hidden;
         }
@@ -197,7 +206,6 @@ const PopularCarousel = ({ title = "" }) => {
           background-color: white;
         }
         
-        /* Mobile responsiveness */
         @media (max-width: 1024px) {
           .carousel-slide {
             height: 80vh;
@@ -247,7 +255,6 @@ const PopularCarousel = ({ title = "" }) => {
           }`}
         />
 
-        {/* ✅ Title Overlay */}
         <div className="carousel-overlay">
           <h2>{currentMovie.title || currentMovie.original_title}</h2>
         </div>

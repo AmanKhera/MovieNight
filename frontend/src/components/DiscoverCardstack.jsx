@@ -9,6 +9,11 @@ import {
   fetchMoviePoster,
 } from "../api";
 
+/**
+ * A carousel (despite the name) that displays movies tailored specifically to the user.
+ * Used in Discover page.
+ */
+
 const CARD_WIDTH = 550;
 const CARD_HEIGHT = 700;
 const SPACING_FACTOR = 0.7;
@@ -16,27 +21,25 @@ const VISIBLE_RANGE = 3;
 
 const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
+  const [flipped, setFlipped] = useState(false); //If a user presses the card, display information about the movie
   const [movieTitles, setMovieTitles] = useState([]);
 
-  // track how many movies have been reviewed in this batch
   const [reviewCount, setReviewCount] = useState(0);
 
-  // toast notification state
   const [notifVisible, setNotifVisible] = useState(false);
   const [notifMessage, setNotifMessage] = useState("");
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Fetch user info
+  //Call API.js (Precaching) for user info
   const { data: userInfo, isLoading: userLoading } = useQuery({
     queryKey: ["userInfo"],
     queryFn: fetchUserInfo,
     staleTime: Infinity,
   });
 
-  // Fetch recommendations (and grab refetch)
+  //Call API.js (Precaching) for movie recommendations
   const {
     data: recommendations,
     isLoading: recLoading,
@@ -48,7 +51,7 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Once recommendations arrive, either initialize or append unseen titles
+  
   useEffect(() => {
     if (recLoading || !recommendations?.summary?.recommendations) {
       return;
@@ -56,13 +59,11 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
 
     const fetched = recommendations.summary.recommendations;
 
-    // First-time load: movieTitles is empty
     if (movieTitles.length === 0) {
       setMovieTitles(fetched);
       setCurrentIndex(0);
       setFlipped(false);
 
-      // Pre-fetch details + poster for all
       fetched.forEach((movTitle) => {
         queryClient.prefetchQuery(
           ["movieDetails", movTitle],
@@ -74,11 +75,9 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
         );
       });
     } else {
-      // Subsequent loads: append only those not already present
       const unseen = fetched.filter((t) => !movieTitles.includes(t));
       if (unseen.length > 0) {
         unseen.forEach((movTitle) => {
-          // prefetch details + poster for each new title
           queryClient.prefetchQuery(
             ["movieDetails", movTitle],
             () => fetchMovieDetailsByTitle(movTitle)
@@ -89,15 +88,12 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
           );
         });
         setMovieTitles((prev) => [...prev, ...unseen]);
-        // keep currentIndex/flipped so that visible cards don't jump
       }
     }
 
-    // reset review counter
     setReviewCount(0);
   }, [recLoading, recommendations]);
 
-  // Fire off individual queries for details & poster
   const movieDetailsQueries = useQueries({
     queries:
       movieTitles.map((movTitle) => ({
@@ -116,10 +112,8 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
       })) || [],
   });
 
-  // As soon as all poster queries settle, filter out any title with no poster
   useEffect(() => {
     if (movieTitles.length === 0) return;
-    // if any posters are still loading, wait
     if (moviePosterQueries.some((q) => q.isLoading)) return;
 
     const filtered = movieTitles.filter((title, idx) => {
@@ -134,7 +128,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
     }
   }, [moviePosterQueries]);
 
-  // Build a full "movies" array from movieTitles + query data
   const movies = movieTitles.map((movTitle, idx) => ({
     id: movTitle,
     title: movTitle,
@@ -142,7 +135,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
     poster_url: moviePosterQueries[idx]?.data || "",
   }));
 
-  // handleReview updates reviewCount and, if it hits 3, refetches recommendations
   const handleReview = (movieTitle, liked) => {
     if (!userInfo?.id) return;
 
@@ -169,7 +161,7 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
           const newCount = prev + 1;
           if (newCount >= 3) {
             refetchRecommendations();
-            return 0; // reset after triggering refetch
+            return 0;
           }
           return newCount;
         });
@@ -182,7 +174,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
       });
   };
 
-  // Remove a movie from the stack
   const removeMovie = (movieTitle) => {
     const idx = movieTitles.indexOf(movieTitle);
     if (idx === -1) return;
@@ -239,7 +230,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
     return <div className="loading-text">No more movies to show</div>;
   }
 
-  // Build the visible range around currentIndex
   const visibleItems = [];
   for (let offset = -VISIBLE_RANGE; offset <= VISIBLE_RANGE; offset++) {
     const idx =
@@ -253,7 +243,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
 
   return (
     <div className="carousel-wrapper">
-      {/* TOAST */}
       <div className={`toast-notification ${notifVisible ? "show" : ""}`}>
         {notifMessage}
       </div>
@@ -303,7 +292,6 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
                         loading="lazy"
                       />
 
-                      {/* Buttons */}
                       <button
                         className="icon-btn dislike"
                         onClick={(e) => {
@@ -378,7 +366,7 @@ const DiscoverCardstack = ({ title = "Movie Carousel" }) => {
           font-size: 1.8rem;
           font-weight: bold;
           text-transform: uppercase;
-          margin: 20px 0;
+          margin: 100px 0;
           text-align: center;
         }
 

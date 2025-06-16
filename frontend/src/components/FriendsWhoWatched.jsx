@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-
+/**
+ * Displays which friends have seen the current movie.
+ * Requires movieID which is the ID of the movie being displayed
+ * Requires userID which is the current user's ID (not the friends)
+ */
 const FriendsWhoWatched = ({ movieId, userId }) => {
   const [friendsWatched, setFriendsWatched] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -7,16 +11,15 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
   const hasCalledAPI = useRef(false);
   const abortControllerRef = useRef(null);
 
+  //Get which friends have watched the current movie from the user's friends page
   useEffect(() => {
     if (!movieId || !userId || hasCalledAPI.current) return;
 
     const fetchFriendsWhoWatched = async () => {
-      // Cancel any previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
 
-      // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
 
       setLoading(true);
@@ -50,7 +53,6 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
 
     fetchFriendsWhoWatched();
 
-    // Cleanup function to abort request if component unmounts
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -58,11 +60,13 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     };
   }, [movieId, userId]);
 
-  // Reset the ref when movieId or userId changes
+
+
   useEffect(() => {
     hasCalledAPI.current = false;
   }, [movieId, userId]);
 
+  //Parse date into usuable data
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -72,6 +76,7 @@ const FriendsWhoWatched = ({ movieId, userId }) => {
     });
   };
 
+  //Used to show friend's rating in terms of stars
   const renderStars = (rating) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   };

@@ -8,23 +8,26 @@ import ratingImage from '../images/rating-btn.png';
 import messageImage from '../images/message-btn.png';
 import friendsImage from '../images/friends-btn.png';
 import profileImage from '../images/profile-btn.png';
-
+/**
+ * Toolbar that allows navigation throughout the site. This is used in all pages EXCEPT the homepage which has its own toolbar named "PopularToolbar"
+ *
+ */
 function Toolbar() {
-  // Get the 'navigate' function from react-router-dom
+  
   const navigate = useNavigate();
   
-  // State to control popup visibility and loading
+ 
   const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false); // ← ADDED THIS
+  const [showInstructions, setShowInstructions] = useState(false); 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
-  // Use navigate("/") to redirect to the home page
+  //Navigational urls
   const homeButtonAction = () => {
     navigate("/");
   };
 
-  // Keep the alerts for the other actions as-is
+  
   const searchButtonAction = () => {
     navigate("/search");
   };
@@ -45,55 +48,23 @@ function Toolbar() {
     navigate("/UserWatchlists");
   };
 
-  // Modified profile button to show popup
+  // When a user presses the profile this is executed (a pop up with letterbox info/sign out optoin)
   const profileButtonAction = () => {
     setShowProfilePopup(true);
-    setUploadStatus(''); // Clear any previous status
+    setUploadStatus(''); 
   };
 
-  // Close popup
+  //X button
   const closePopup = () => {
     setShowProfilePopup(false);
-    setShowInstructions(false); // ← ADDED THIS
+    setShowInstructions(false); 
     setIsUploading(false);
     setUploadStatus('');
   };
 
-  // Get CSRF token for Django requests
-  const getCSRFToken = async () => {
-    try {
-      const response = await fetch('/get-csrf-token/', {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (response.ok) {
-        return response.headers.get('X-CSRFToken') || 
-               document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-               getCookie('csrftoken');
-      }
-    } catch (error) {
-      console.error('Error getting CSRF token:', error);
-    }
-    return getCookie('csrftoken');
-  };
+  
 
-  // Helper function to get cookie value
-  const getCookie = (name) => {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  };
-
-  // Upload file to S3 via Django backend
+  // Upload user's letterboxd to AWS s3 bucket
   const uploadFileToS3 = async (file) => {
     try {
       setIsUploading(true);
@@ -101,8 +72,8 @@ function Toolbar() {
 
       const formData = new FormData();
       formData.append('file', file);
-      // No folder parameter needed - uploads directly to bucket root
 
+      //call backend upload file function
       const response = await fetch('http://localhost:8000/upload-file/', {
         method: 'POST',
         body: formData,
@@ -127,12 +98,13 @@ function Toolbar() {
     }
   };
 
-  // UPDATED: Show Letterboxd instructions first (instead of opening file dialog)
+ 
+  //If the user presses upload to letterboxd
   const handleLetterboxdUpload = () => {
     setShowInstructions(true);
   };
 
-  // NEW: Proceed with actual file upload after instructions
+  //User has CSV file from Letterboxd and wants to upload
   const proceedWithUpload = () => {
     setShowInstructions(false);
     const fileInput = document.createElement('input');
@@ -142,19 +114,19 @@ function Toolbar() {
       const file = event.target.files[0];
       if (file) {
         try {
-          // Validate file type
+          
           if (!file.name.endsWith('.csv')) {
             alert('Please upload a CSV file');
             return;
           }
 
-          // Validate file size (10MB limit)
+          
           if (file.size > 10 * 1024 * 1024) {
             alert('File size must be less than 10MB');
             return;
           }
 
-          // Upload to S3 - will be saved as {user_id}_rating.csv
+         
           const result = await uploadFileToS3(file);
           
           console.log('Letterboxd CSV uploaded as:', result.file_name);
@@ -170,7 +142,7 @@ function Toolbar() {
   // Handle logout
   const handleLogout = async () => {
     try {
-      // Call logout endpoint if you have one
+      // Call logout endpoint
       const response = await fetch('http://localhost:8000/logout/', {
         method: 'POST',
         credentials: 'include',
@@ -184,8 +156,8 @@ function Toolbar() {
         localStorage.clear();
         sessionStorage.clear();
         
-        // Navigate to login page
-        //navigate("/login");
+        // Navigate to home page
+        navigate("/");
       } else {
         console.error('Logout failed');
         alert('Logout failed. Please try again.');
@@ -244,7 +216,7 @@ function Toolbar() {
         </div>
       </nav>
 
-      {/* UPDATED Profile Popup with Instructions */}
+      
       {showProfilePopup && (
         <div className="popup-overlay" onClick={closePopup}>
           <div className="popup-content" onClick={(e) => e.stopPropagation()}>
@@ -316,7 +288,7 @@ function Toolbar() {
                     🚪 Log Out
                   </button>
                   
-                  {/* Upload Status */}
+                  
                   {uploadStatus && (
                     <div className="upload-status">
                       {isUploading && <div className="loading-spinner">⏳</div>}

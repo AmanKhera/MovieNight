@@ -1,11 +1,10 @@
-// src/components/Footnote.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-export default function Footnote() {
-  const navigate = useNavigate();
-
-  // --- inline styles -------------------------------------------------
+/**
+ * Footer used to pad bottom of page
+ */
+export default function Footnote() {  
   const bar = {
     position: 'relative',
     bottom: 0,
@@ -21,42 +20,11 @@ export default function Footnote() {
     fontFamily: "'Patua One', serif",
   };
 
-  const group = { display: 'flex', gap: 24 };
 
-  const btn = {
-    all: 'unset',                     // resets every property
-    cursor: 'pointer',
-    padding: '8px 14px',
-    borderRadius: 6,
-    fontSize: 16,
-    fontWeight: 500,
-    textAlign: 'center',
-    transition: 'background .25s',
-  };
 
-  const hoverBg = '#10002B';          // hover colour
 
-  // helper: same button component for every item
-  const Item = ({ label, path }) => (
-    <button
-      style={btn}
-      onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-      onClick={() => navigate(path)}
-    >
-      {label}
-    </button>
-  );
-
-  // -------------------------------------------------------------------
   return (
     <footer style={bar}>
-      <div style={group}>
-        <Item label=""   path="/about"    />
-        <Item label=""   path="/terms"    />
-        <Item label="" path="/privacy"  />
-        <Item label="" path="/contact"  />
-      </div>
     </footer>
   );
 }

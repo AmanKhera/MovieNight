@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
-// ADDED: Import useQueryClient for cache invalidation
 import { useQueryClient } from "@tanstack/react-query";
 import FriendsWhoWatched from './FriendsWhoWatched';
-
+/**
+ * When a user presses a movie, this is the component that displays all the movies details.
+ * Displays the movie's title, description, director, poster, and friends who have watched (FriendsWhoWatched component)
+ */
 const MovieDetailsPage = () => {
   const { id } = useParams();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const release_date = queryParams.get("release_date");
 
-  // ADDED: Initialize queryClient for cache invalidation
   const queryClient = useQueryClient();
 
   const [userId, setUserId] = useState(null);
@@ -23,7 +24,6 @@ const MovieDetailsPage = () => {
 
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [message, setMessage] = useState(null);
-  // ADDED: Animation state for success message
   const [messageAnimating, setMessageAnimating] = useState(false);
 
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -40,31 +40,28 @@ const MovieDetailsPage = () => {
   const [showGroupList, setShowGroupList] = useState(false);
   const [showFriendList, setShowFriendList] = useState(false);
 
-  // ADDED: New state for watchlist submenu
   const [userWatchlists, setUserWatchlists] = useState([]);
   const [showWatchlistSubmenu, setShowWatchlistSubmenu] = useState(false);
   const [loadingWatchlists, setLoadingWatchlists] = useState(false);
 
-  // ADDED: Enhanced message display function with animations
+  //When a user sucessfully performs an action such as sending a movie to a watchlist
   const showAnimatedMessage = (text, type = "success") => {
     setMessage({ text, type });
     
-    // Trigger slide-in animation
     setTimeout(() => {
       setMessageAnimating(true);
     }, 10);
     
-    // Start slide-out animation after 2.5 seconds
     setTimeout(() => {
       setMessageAnimating(false);
     }, 2500);
     
-    // Remove message completely after slide-out completes
     setTimeout(() => {
       setMessage(null);
     }, 3000);
   };
 
+  //Retrieve user's info
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -82,6 +79,7 @@ const MovieDetailsPage = () => {
     fetchUser();
   }, []);
 
+  //Gets user's groups and friends
   useEffect(() => {
     if (!username || !userId) return;
     const fetchGroupsAndFriends = async () => {
@@ -101,6 +99,8 @@ const MovieDetailsPage = () => {
     fetchGroupsAndFriends();
   }, [username, userId]);
 
+
+  //Fetch movie details using movie ID using API (if movie is not present in database)
   useEffect(() => {
     const fetchOMDB = async () => {
       try {
@@ -131,6 +131,7 @@ const MovieDetailsPage = () => {
       }
     };
 
+    //Fetch movie details using title and year that are present in our database
     const fetchLocalId = async (title, year) => {
       try {
         const resp = await fetch(`http://localhost:8000/search/?filter=movie&q=${encodeURIComponent(title)}&year=${encodeURIComponent(year)}`);
@@ -150,21 +151,12 @@ const MovieDetailsPage = () => {
           enhancePlot(m);
           hasEnhancedPlot.current = true;
         }
-        fetchBackdrop(m.title);
       }
     });
   }, [id, release_date]);
 
-  const fetchBackdrop = async title => {
-    try {
-      const resp = await fetch(`http://localhost:8000/movie_backdrop/?title=${encodeURIComponent(title)}`);
-      const d = await resp.json();
-      if (d.backdrop) setBackdropURL(d.backdrop);
-    } catch (e) {
-      console.error("Backdrop fetch failed", e);
-    }
-  };
 
+  //Retrieve movie poster
   useEffect(() => {
     if (!movie) return;
     (async () => {
@@ -178,6 +170,7 @@ const MovieDetailsPage = () => {
     })();
   }, [movie]);
 
+  //Use backend chat gpt generator to enchance the 1-2 sentence description given by API database
   const enhancePlot = async m => {
     setLoadingPlot(true);
     try {
@@ -197,7 +190,7 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // ADDED: Function to fetch user's watchlists
+  //Fetch user's watchlist
   const fetchUserWatchlists = async () => {
     setLoadingWatchlists(true);
     try {
@@ -219,13 +212,14 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // UPDATED: Modified to show watchlist submenu instead of popup
+
+  //When user presses "Add to Watchlist" in + modal
   const addToWatchlist = async () => {
     await fetchUserWatchlists();
     setShowWatchlistSubmenu(true);
   };
 
-  // ADDED: Function to add movie to specific watchlist
+  //Sends movie to the user's selected watchlist
   const addToSpecificWatchlist = async (watchlistName) => {
     setLoadingAdd(true);
     try {
@@ -235,7 +229,6 @@ const MovieDetailsPage = () => {
       const d = await resp.json();
       
       if (resp.ok) {
-        // SUCCESS: Invalidate watchlist cache to show updated data immediately
         await queryClient.invalidateQueries({ 
           queryKey: ['watchlistMovies'] 
         });
@@ -253,6 +246,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Sends movie to user's selected group
   const sendToGroup = async (groupId) => {
     setLoadingAdd(true);
     try {
@@ -282,6 +276,7 @@ const MovieDetailsPage = () => {
     }
   };
 
+  //Sends movie to user's selected friend
   const sendToFriend = async (friendId) => {
     setLoadingAdd(true);
     try {
@@ -311,7 +306,7 @@ const MovieDetailsPage = () => {
     }
   };
 
-  // UPDATED: Enhanced cache invalidation for watched movies
+  //Add movie to user's watched list (Reviews)
   const addToWatched = async () => {
     if (!watchedRating || userId == null) return;
     setLoadingAdd(true);
@@ -332,14 +327,12 @@ const MovieDetailsPage = () => {
       showAnimatedMessage(d.message, resp.ok ? "success" : "error");
 
       if (resp.ok) {
-        // ENHANCED: Invalidate all relevant caches including watchlist
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['recentlyWatched'] }),
           queryClient.invalidateQueries({ queryKey: ['reviewedMovies', userId] }),
           queryClient.invalidateQueries({ queryKey: ['movieDetails', id] }),
           queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
           queryClient.invalidateQueries({ queryKey: ['watchedMovies'] }),
-          // ADDED: Also invalidate the specific watchlistMovies query key
           queryClient.invalidateQueries({ queryKey: ['watchlistMovies'] }),
         ]);
       }
@@ -388,7 +381,7 @@ const MovieDetailsPage = () => {
                 onClick={() => { 
                   setShowAddMenu(s => !s); 
                   setShowWatchedForm(false); 
-                  setShowWatchlistSubmenu(false); // Reset watchlist submenu when toggling main menu
+                  setShowWatchlistSubmenu(false);
                 }}
                 disabled={loadingAdd}
               >
@@ -398,7 +391,6 @@ const MovieDetailsPage = () => {
               {showAddMenu && (
                 <div style={styles.addMenu} key={showWatchlistSubmenu ? 'watchlist' : 'main'}>
                   {!showWatchlistSubmenu ? (
-                    // Main menu options
                     <>
                       <button 
                         style={styles.menuButton}
@@ -435,7 +427,6 @@ const MovieDetailsPage = () => {
                       </button>
                     </>
                   ) : (
-                    // Watchlist selection submenu
                     <>
                       <button 
                         style={styles.backButton}
@@ -462,8 +453,6 @@ const MovieDetailsPage = () => {
                   )}
                 </div>
               )}
-
-              {/* REMOVED: Watchlist selection popup */}
             </div>
 
             <div style={styles.info}>
@@ -546,8 +535,6 @@ const MovieDetailsPage = () => {
           </div>
         </div>
       )}
-
-
 
       {showGroupList && (
         <div style={styles.modalOverlay}>
@@ -737,7 +724,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    minHeight: "0", // Add this to prevent height artifacts
+    minHeight: "0",
   },
   menuButton: {
     padding: "12px 16px",

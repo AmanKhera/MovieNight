@@ -1,17 +1,17 @@
 .group-chat-page {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Make it full viewport height if desired */
+    height: 100vh; 
   }
   
-  /* The main content area after the Toolbar */
+
   .main-content {
     flex: 1;
     display: flex;
     background-color: #f7f7f7;
   }
   
-  /* Chat Section (left side) */
+
   .chat-section {
     flex: 2;
     display: flex;
@@ -43,9 +43,8 @@
   }
   
   .group-page nav {
-    /* Increase min-height, padding, etc. for vertical sizing: */
-    min-height: 140px !important;            /* example: 80px tall */
-    padding: 1.5rem 2rem !important;        /* extra vertical and horizontal space */
+    min-height: 140px !important;           
+    padding: 1.5rem 2rem !important;       
   }
 
   .input-area input {
@@ -57,7 +56,7 @@
     padding: 0.5rem 1rem;
   }
   
-  /* Poll/Scheduling Section (right side) */
+
   .poll-section {
     flex: 1;
     display: flex;
@@ -68,14 +67,14 @@
     background-color: #fafafa;
   }
   
-  /* When closed, shrink the poll section to show just a header */
+  
   .poll-section.closed {
-    width: 40px; /* or any minimal width you want */
+    width: 40px;
     overflow: hidden;
   }
   
   .poll-section.open {
-    width: 400px; /* or any desired width */
+    width: 400px; 
   }
   
   .poll-header {

@@ -1,6 +1,8 @@
-// src/components/ProtectedRoute.jsx
 import React, { useEffect, useState } from "react";
-
+/**
+ * 
+ * Used to check if the user is logged in when navigating through different pages
+ */
 const ProtectedRoute = ({ children }) => {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);

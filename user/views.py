@@ -36,7 +36,7 @@ s3_client = boto3.client(
 #S3 Config
 AWS_S3_BUCKET_NAME = 'letterbox-information-retrieval'
 AWS_S3_CUSTOM_DOMAIN = 'letterbox-information-retrieval.s3.amazonaws.com'
-AWS_LOCATION = 'media'  # folder in S3 bucket
+AWS_LOCATION = 'media'  #folder in S3 bucket
 
 
 #remove in production
@@ -70,13 +70,10 @@ def get_user_username(access_token):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-# S3 File Upload Views
+#S3 File Upload Views
 @csrf_exempt
 @require_POST
 def upload_file_to_s3(request):
-    """
-    Upload file to S3 bucket with format {user_id}_rating.csv
-    """
     try:
         if 'file' not in request.FILES:
             return JsonResponse({
@@ -85,7 +82,7 @@ def upload_file_to_s3(request):
         
         uploaded_file = request.FILES['file']
         
-        # Validate file type - must be CSV
+        #Validate file type
         if not uploaded_file.name.endswith('.csv'):
             return JsonResponse({
                 'error': 'File must be a CSV file'
@@ -98,7 +95,7 @@ def upload_file_to_s3(request):
                 'error': f'File size exceeds {max_size/1024/1024}MB limit'
             }, status=400)
         
-        # Get user ID from session token
+        #Get user id from session token
         try:
             username_data = get_user_username(request.session.get("access_token"))
             if isinstance(username_data, JsonResponse):
@@ -112,14 +109,14 @@ def upload_file_to_s3(request):
                 'error': 'Unable to identify user'
             }, status=401)
         
-        # Set filename as {user_id}_rating.csv
+        #Set filename as {user_id}_rating.csv
         filename = f"{user_id}_rating.csv"
         
-        # Upload directly to bucket root (no folder)
+        #Upload directly to bucket
         s3_key = filename
         
         try:
-            # Upload to S3
+            #Upload to S3
             s3_client.upload_fileobj(
                 uploaded_file,
                 AWS_S3_BUCKET_NAME,
@@ -129,7 +126,7 @@ def upload_file_to_s3(request):
                 }
             )
             
-            # Generate file URL
+            #File url
             file_url = f"https://{AWS_S3_CUSTOM_DOMAIN}/{s3_key}"
             
             return JsonResponse({
@@ -160,14 +157,9 @@ def upload_file_to_s3(request):
 def logout_user(request):
     if request.method == 'POST':
         try:
-            # Clear all session data
+            #Clears all session data
             request.session.flush()
             
-            # Alternative: Clear specific session keys if you prefer
-            # session_keys_to_clear = ['access_token', 'id_token', 'refresh_token', 'user_id']
-            # for key in session_keys_to_clear:
-            #     if key in request.session:
-            #         del request.session[key]
             
             return JsonResponse({
                 'success': True,

@@ -62,7 +62,7 @@ def create_group(request):
             email=f"{group_name.replace(' ', '_').lower()}_{user.id}@group.local"
         )
 
-
+        print(111111111111111111111)
         Group_ = Group.objects.create(
             group_id=New_Group,
             leader_id=user.id,
@@ -75,7 +75,7 @@ def create_group(request):
             member=user,
             role='admin'
         )
-
+        print(22222222222222222222222222)
         #populates groups user movie journal with movies the user has seen
         leader_watched_movies = UserMovieJournal.objects.filter(user=user)
         group_watched = [
@@ -85,15 +85,16 @@ def create_group(request):
             )
             for entry in leader_watched_movies
         ]      
+        print(3333333333333333333)
         UserMovieJournal.objects.bulk_create(group_watched)
-
+        print(44444444444444444)
 
         watchlist = Watchlist.objects.create(user_id=New_Group.id)
-
+        print(55555555555555)
         leaderWatchlist = Watchlist.objects.get(user=user, type='MAIN')
-
+        print(55555555555555)
         leader_watchlist = WatchlistItem.objects.filter(watchlist=leaderWatchlist)
-
+        print(55555555555555)
         group_watchlist = [
             WatchlistItem(
                 watchlist = watchlist,

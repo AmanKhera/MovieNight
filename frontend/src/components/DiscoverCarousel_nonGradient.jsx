@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+/**
+ * 
+ * Discover component non gradient version. See DiscoverCarousel.jsx for more indepth comments
+ */
 const DiscoverCarousel_nonGradient = ({ 
   id, 
   title = `${id.charAt(0).toUpperCase()}${id.slice(1)} Movies` 
 }) => {
   const [movies, setMovies] = useState([]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const itemsToScroll = 3; // Scroll one item per click
+  const itemsToScroll = 3;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enableTransition, setEnableTransition] = useState(true);
-  const [message, setMessage] = useState(null); // For user feedback
-  const [loading, setLoading] = useState({}); // Track loading state per movie
+  const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState({});
 
   const navigate = useNavigate();
   const totalItems = movies.length;
 
-  // Fetch discover movies from the backend
   useEffect(() => {
     const fetchDiscoverMovies = async () => {
       try {
@@ -26,7 +28,6 @@ const DiscoverCarousel_nonGradient = ({
         }
         const data = await response.json();
         setMovies(data.results || []);
-        // For infinite scrolling, set the current index to the end of the fetched array
         setCurrentIndex(data.results.length);
       } catch (error) {
         console.error("Error fetching discover movies:", error);
@@ -53,26 +54,22 @@ const DiscoverCarousel_nonGradient = ({
     };
   }, [id]);
 
-  // Clone items for infinite scrolling
   const extendedItems = [
     ...movies.slice(-itemsPerPage),
     ...movies,
     ...movies.slice(0, itemsPerPage),
   ];
 
-  // Handle next slide
   const nextSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex + itemsToScroll);
   };
 
-  // Handle previous slide
   const prevSlide = () => {
     setEnableTransition(true);
     setCurrentIndex((prevIndex) => prevIndex - itemsToScroll);
   };
 
-  // Reset position after transition for infinite scrolling
   const handleTransitionEnd = () => {
     if (currentIndex >= totalItems + itemsPerPage) {
       setEnableTransition(false);
@@ -89,14 +86,12 @@ const DiscoverCarousel_nonGradient = ({
     return `translateX(-${translateValue}%)`;
   };
 
-  // Function to add a movie to the watchlist
   const addToWatchlist = async (movieId) => {
     if (!movieId) {
       setMessage({ text: "Invalid movie ID.", type: "error" });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-    // Set loading state for this movie
     setLoading((prev) => ({ ...prev, [movieId]: true }));
     try {
       const params = new URLSearchParams({ movie_id: movieId });
@@ -119,11 +114,9 @@ const DiscoverCarousel_nonGradient = ({
     }
   };
 
-  // Navigate to movie details using the movie title and release date via query parameters
   const handleMovieClick = (movie) => {
-    // Use the movie title for the details lookup.
     const titleParam = encodeURIComponent(movie.title || movie.original_title);
-    const releaseDate = movie.release_date; // TMDb usually provides release_date
+    const releaseDate = movie.release_date;
     if (releaseDate) {
       navigate(`/movie/${titleParam}?release_date=${encodeURIComponent(releaseDate)}`);
     } else {
@@ -131,9 +124,7 @@ const DiscoverCarousel_nonGradient = ({
     }
   };
 
-  // Inline CSS styles
   const styles = `
-    /* Container for the entire carousel */
     .popular-carousel {
       width: 100vw;
       margin: 0 auto;
@@ -204,11 +195,10 @@ const DiscoverCarousel_nonGradient = ({
     .right-arrow {
       right: 10px;
     }
-    /* Container for image and add button */
     .image-container {
       position: relative;
       width: 100%;
-      padding-top: 150%; /* Aspect ratio */
+      padding-top: 150%;
       overflow: hidden;
       border-radius: 8px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -273,7 +263,6 @@ const DiscoverCarousel_nonGradient = ({
         transform: translateX(-50%) translateY(-20px);
       }
     }
-    /* Responsive Adjustments */
     @media (max-width: 1400px) {
       .carousel-item {
         flex: 0 0 12.5%;
