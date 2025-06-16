@@ -788,7 +788,7 @@ export const ChatSection = ({ selectedChat }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
   // Chat state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -797,68 +797,43 @@ export const ChatSection = ({ selectedChat }) => {
   const [roomUsers, setRoomUsers] = useState([]);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  
+
   // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef();
 
-  // Configuration - Your Railway deployment
-  const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://movienightchat-production.up.railway.app';
-  const DJANGO_URL = process.env.REACT_APP_DJANGO_URL || 'http://localhost:8000';
+  // Configuration
+  const SOCKET_URL =
+    process.env.REACT_APP_SOCKET_URL ||
+    'https://movienightchat-production.up.railway.app';
+  const DJANGO_URL =
+    process.env.REACT_APP_DJANGO_URL || 'http://localhost:8000';
 
-  // Initialize Socket.IO connection
+  // Initialize Socket.IO & Django auth
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        console.log('🔍 Fetching user info from Django...');
-        const userInfoUrl = `${DJANGO_URL}/user_info/`;
-        
-        const res = await fetch(userInfoUrl, {
+        const res = await fetch(`${DJANGO_URL}/user_info/`, {
           credentials: "include",
         });
-        
-        console.log('📡 Django response status:', res.status);
-        
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log('📡 Django user data:', data);
-        
-        if (data && data.id && data.username) {
-          console.log('✅ User authenticated with Django:', data.username);
+        if (data?.id && data?.username) {
           setCurrentUser(data);
           return { success: true, user: data };
-        } else {
-          console.error('❌ Invalid user data from Django:', data);
-          return { success: false, error: 'Invalid user data' };
         }
-        
-      } catch (error) {
-        console.error("❌ Error fetching user info:", error);
-        return { success: false, error: error.message };
+        return { success: false, error: 'Invalid user data' };
+      } catch (err) {
+        console.error(err);
+        return { success: false, error: err.message };
       }
     };
 
     const initializeSocketIO = async () => {
-      console.log('🔌 Initializing Socket.IO connection...');
-      console.log('🌐 Socket.IO Server:', SOCKET_URL);
-      console.log('🌐 Django Server:', DJANGO_URL);
-      
-      // Get user authentication first
-      const authResult = await fetchUserInfo();
-      console.log('🔐 Auth result:', authResult);
-      
-      if (!authResult.success) {
-        console.log('❌ User not authenticated with Django:', authResult.error);
-        return;
-      }
-      
-      const userData = authResult.user;
-      console.log('👤 Connecting to Socket.IO with user:', userData.username);
-      
+      const auth = await fetchUserInfo();
+      if (!auth.success) return;
+
       const newSocket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 20000,
@@ -866,119 +841,85 @@ export const ChatSection = ({ selectedChat }) => {
         withCredentials: true,
       });
 
-      // Connection events
       newSocket.on('connect', () => {
-        console.log('✅ Connected to Socket.IO server');
         setIsConnected(true);
-        
-        const cookies = document.cookie;
-        
-        console.log('📤 Sending authentication data to Socket.IO...');
-        
-        // Send authentication with user data and Django URL
-        newSocket.emit('authenticate', { 
-          cookies: cookies,
-          user: userData,
+        newSocket.emit('authenticate', {
+          cookies: document.cookie,
+          user: auth.user,
           method: 'direct',
-          djangoUrl: DJANGO_URL
+          djangoUrl: DJANGO_URL,
         });
       });
 
-      newSocket.on('disconnect', (reason) => {
-        console.log('❌ Disconnected from Socket.IO server:', reason);
+      newSocket.on('disconnect', () => {
         setIsConnected(false);
         setIsAuthenticated(false);
       });
+      newSocket.on('connect_error', () => setIsConnected(false));
 
-      newSocket.on('connect_error', (error) => {
-        console.error('🔥 Connection error:', error);
-        setIsConnected(false);
-      });
-
-      // Authentication events
-      newSocket.on('authenticated', (data) => {
-        console.log('🔐 Authentication response:', data);
+      newSocket.on('authenticated', data => {
         if (data.success) {
-          console.log('✅ Successfully authenticated with Socket.IO!');
-          console.log('   Server type:', data.server);
-          console.log('   Method used:', data.method);
           setIsAuthenticated(true);
-        } else {
-          console.error('🚫 Socket.IO authentication failed:', data.error);
-          setIsAuthenticated(false);
         }
       });
 
-      // Chat events
-      newSocket.on('new_message', (message) => {
-        console.log('📨 New message received:', message);
+      newSocket.on('new_message', message => {
         setMessages(prev => {
-          // Prevent duplicates by checking message ID and content
-          const isDuplicate = prev.some(msg => 
-            msg.id === message.id || 
-            (msg.message_content === message.message_content && 
-             msg.user_sending === message.user_sending &&
-             Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 5000)
+          const dup = prev.some(
+            msg =>
+              msg.id === message.id ||
+              (msg.message_content === message.message_content &&
+                msg.user_sending === message.user_sending &&
+                Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 5000)
           );
-          
-          if (!isDuplicate) {
-            return [...prev, message];
-          }
-          return prev;
+          return dup ? prev : [...prev, message];
         });
       });
 
-      newSocket.on('user_joined', (data) => {
-        console.log('👋 User joined:', data);
+      newSocket.on('user_joined', data => {
         setMessages(prev => {
-          // Check if this join notification already exists
-          const isDuplicate = prev.some(msg => 
-            msg.isSystemMessage && 
-            msg.message === `${data.username} joined the chat`
+          const exists = prev.some(
+            msg =>
+              msg.isSystemMessage &&
+              msg.message === `${data.username} joined the chat`
           );
-          
-          if (!isDuplicate) {
-            return [...prev, {
+          if (exists) return prev;
+          return [
+            ...prev,
+            {
               isSystemMessage: true,
               message: `${data.username} joined the chat`,
-              timestamp: new Date().toISOString()
-            }];
-          }
-          return prev;
+              timestamp: new Date().toISOString(),
+            },
+          ];
         });
       });
 
-      newSocket.on('user_left', (data) => {
-        console.log('👋 User left:', data);
-        setMessages(prev => [...prev, {
-          isSystemMessage: true,
-          message: `${data.username} left the chat`,
-          timestamp: new Date().toISOString()
-        }]);
+      newSocket.on('user_left', data => {
+        setMessages(prev => [
+          ...prev,
+          {
+            isSystemMessage: true,
+            message: `${data.username} left the chat`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       });
 
-      newSocket.on('room_users', (data) => {
-        console.log('👥 Room users updated:', data.users?.length || 0, 'users');
+      newSocket.on('room_users', data => {
         setRoomUsers(data.users || []);
       });
 
-      newSocket.on('user_typing', (data) => {
-        // Only show typing indicators for other users
+      newSocket.on('user_typing', data => {
         if (data.userId !== currentUser?.id) {
           setTypingUsers(prev => {
             const filtered = prev.filter(u => u.userId !== data.userId);
-            if (data.isTyping) {
-              return [...filtered, data];
-            } else {
-              return filtered;
-            }
+            return data.isTyping ? [...filtered, data] : filtered;
           });
         }
       });
 
-      newSocket.on('error', (error) => {
-        console.error('🚫 Socket error:', error);
-      });
+      newSocket.on('error', err => console.error(err));
 
       setSocket(newSocket);
     };
@@ -986,304 +927,178 @@ export const ChatSection = ({ selectedChat }) => {
     initializeSocketIO();
 
     return () => {
-      console.log('🔌 Cleaning up Socket.IO connection');
       clearTimeout(typingTimeoutRef.current);
-      if (socket) {
-        socket.close();
-      }
+      socket?.close();
     };
   }, [SOCKET_URL, DJANGO_URL]);
 
-  // Load chat history from Django
-  const loadChatHistory = async (selectedChat) => {
-    if (!selectedChat) return;
-
+  // Load chat history (sorted oldest→newest)
+  const loadChatHistory = async chat => {
+    if (!chat) return;
     setIsLoadingHistory(true);
-    console.log('📚 Loading chat history for:', selectedChat);
-
     try {
-      const endpoint = selectedChat.group_id
-        ? `group_messages/?group_id=${selectedChat.group_id}`
-        : `group_messages/?group_id=${selectedChat.id}`;
-
-      const historyUrl = `${DJANGO_URL}/${endpoint}`;
-      console.log(`📡 Fetching from: ${historyUrl}`);
-
-      const response = await fetch(historyUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include'
+      const endpoint = chat.group_id
+        ? `group_messages/?group_id=${chat.group_id}`
+        : `group_messages/?group_id=${chat.id}`;
+      const res = await fetch(`${DJANGO_URL}/${endpoint}`, {
+        credentials: 'include',
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`✅ Chat history loaded: ${data.messages?.length || 0} messages`);
-      
-      // Format messages for display
-      const formattedMessages = (data.messages || []).map(msg => ({
-        id: msg.id,
-        message_content: msg.message_content,
-        user_sending: msg.user_sending,
-        sender_id: msg.user_id || msg.sender_id,
-        group_id: selectedChat.group_id || selectedChat.id,
-        timestamp: msg.date_sent || msg.timestamp,
-        status: msg.status || 'Sent',
-        isSystemMessage: false
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { messages: msgs = [] } = await res.json();
+      const sorted = msgs.sort(
+        (a, b) => new Date(a.date_sent) - new Date(b.date_sent)
+      );
+      const formatted = sorted.map(m => ({
+        id: m.id,
+        message_content: m.message_content,
+        user_sending: m.user_sending,
+        sender_id: m.user_id || m.sender_id,
+        group_id: chat.group_id || chat.id,
+        timestamp: m.date_sent,
+        status: m.status || 'Sent',
+        isSystemMessage: false,
       }));
-
-      setMessages(formattedMessages);
-    } catch (error) {
-      console.error('⚠️ Error loading chat history:', error);
+      setMessages(formatted);
+    } catch (err) {
+      console.error(err);
       setMessages([]);
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
-  // Handle selectedChat changes
+  // Join room & fetch history when ready
   useEffect(() => {
-    if (!socket || !isAuthenticated || !selectedChat) {
+    if (socket && isAuthenticated && selectedChat) {
+      socket.emit('join_chat', { selectedChat });
+      loadChatHistory(selectedChat);
+      setTypingUsers([]);
+    } else {
       setMessages([]);
       setTypingUsers([]);
-      return;
     }
-
-    console.log('🚪 Joining chat:', selectedChat);
-    
-    // Join the chat room via Socket.IO
-    socket.emit('join_chat', { selectedChat });
-    
-    // Load chat history directly from Django
-    loadChatHistory(selectedChat);
-    
-    // Clear typing users when switching chats
-    setTypingUsers([]);
-    
   }, [socket, isAuthenticated, selectedChat]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll on new messages
   useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Send message via Django first, then broadcast via Socket.IO
+  // Send message
   const sendMessage = async () => {
-    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim() || isSending) {
-      console.log('❌ Cannot send message:', {
-        hasSocket: !!socket,
-        isAuthenticated,
-        hasSelectedChat: !!selectedChat,
-        hasMessage: !!newMessage.trim(),
-        isSending
-      });
+    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim() || isSending)
       return;
-    }
-
     setIsSending(true);
-    const messageText = newMessage.trim();
-    setNewMessage(""); // Clear input immediately for better UX
-
+    const text = newMessage.trim();
+    setNewMessage('');
     try {
-      console.log('📤 Sending message to Django first...');
-      
-      // Step 1: Save to Django database (direct call - reliable)
-      const messageData = {
+      const payload = {
         user_sending: currentUser.id,
-        user_recieving: selectedChat.group_id || selectedChat.id, // group_id or user_id
-        message: messageText
+        user_recieving: selectedChat.group_id || selectedChat.id,
+        message: text,
       };
-
-      const response = await fetch(`${DJANGO_URL}/send_message/`, {
+      const res = await fetch(`${DJANGO_URL}/send_message/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(messageData)
+        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const savedMessage = await response.json();
-      console.log('✅ Message saved to Django:', savedMessage);
-
-      // Step 2: Broadcast via Socket.IO for real-time delivery
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const saved = await res.json();
       socket.emit('broadcast_message', {
         selectedChat,
-        message: messageText,
-        messageData: savedMessage
+        message: text,
+        messageData: saved,
       });
-
-      console.log('📡 Message broadcasted via Socket.IO');
-
-      // Clear typing status
-      stopTyping();
-
-    } catch (error) {
-      console.error('❌ Error sending message:', error);
-      // Restore message if it failed
-      setNewMessage(messageText);
-      alert('Failed to send message. Please try again.');
+    } catch (err) {
+      console.error(err);
+      setNewMessage(text);
+      alert('Failed to send message, please try again.');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Handle Enter key press
-  const handleKeyPress = (e) => {
+  // Typing indicator helpers
+  const startTyping = () => socket?.emit('typing_start');
+  const stopTyping = () => socket?.emit('typing_stop');
+  const handleInputChange = e => {
+    setNewMessage(e.target.value);
+    startTyping();
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => stopTyping(), 1000);
+  };
+  const handleKeyPress = e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  // Typing indicators
-  const startTyping = () => {
-    if (socket && isAuthenticated) {
-      socket.emit('typing_start');
-    }
-  };
-
-  const stopTyping = () => {
-    if (socket && isAuthenticated) {
-      socket.emit('typing_stop');
-    }
-  };
-
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    
-    // Start typing indicator
-    startTyping();
-    
-    // Clear existing timeout
-    clearTimeout(typingTimeoutRef.current);
-    
-    // Stop typing after 1 second of inactivity
-    typingTimeoutRef.current = setTimeout(() => {
-      stopTyping();
-    }, 1000);
-  };
-
-  // Format message for display
-  const formatMessage = (message) => {
+  // Format each message
+  const formatMessage = message => {
     if (message.isSystemMessage) {
       return (
-        <div key={`system-${message.timestamp}`} style={styles.systemMessage}>
+        <div key={message.timestamp} style={styles.systemMessage}>
           <em>{message.message}</em>
         </div>
       );
     }
-
-    const isOwnMessage = message.sender_id === currentUser?.id || message.user_sending === currentUser?.username;
-    const messageStyle = isOwnMessage ? styles.sent : styles.received;
-    
+    const isOwn =
+      message.sender_id === currentUser?.id ||
+      message.user_sending === currentUser?.username;
     return (
-      <div key={`msg-${message.id || message.timestamp}`} style={{ 
-        ...styles.messageWrapper,
-        alignItems: isOwnMessage ? 'flex-end' : 'flex-start'
-      }}>
-        <div style={styles.senderUsername}>
-          {message.user_sending || `User ${message.sender_id}`}
+      <div
+        key={message.id || message.timestamp}
+        style={{
+          ...styles.messageWrapper,
+          alignItems: isOwn ? 'flex-end' : 'flex-start',
+        }}
+      >
+        {/* Sender & timestamp on top */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '0.5rem',
+            justifyContent: isOwn ? 'flex-end' : 'flex-start',
+            width: '100%',
+            padding: '0 0.5rem',
+            fontSize: '0.75rem',
+            color: '#bbb',
+          }}
+        >
+          <span>{message.user_sending || `User ${message.sender_id}`}</span>
+          <span>{new Date(message.timestamp).toLocaleTimeString()}</span>
         </div>
-        <div style={messageStyle}>
+
+        {/* Message bubble */}
+        <div style={isOwn ? styles.sent : styles.received}>
           {message.message_content || message.message}
         </div>
-        <div style={styles.meta}>
-          <span style={styles.timestamp}>
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </span>
-          {isOwnMessage && (
-            <span style={styles.status}>
-              {message.status || 'Sent'}
-            </span>
-          )}
-        </div>
+
+        {/* Status for own messages */}
+        {isOwn && (
+          <div style={styles.statusWrapper}>
+            <span style={styles.status}>{message.status}</span>
+          </div>
+        )}
       </div>
     );
   };
 
-  // Connection status indicator
   const getConnectionStatus = () => {
-    if (!isConnected) return "🔴 Disconnected";
-    if (!isAuthenticated) return "🟡 Connecting...";
-    return "🟢 Connected to Cloud";
-  };
-
-  // Component styles (keeping your existing purple theme)
-  const chatStyle = {
-    width: "75%",
-    height: "90vh",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#2a0252",
-    color: "white",
-    position: "relative",
-  };
-
-  const headerStyle = {
-    padding: "1.5rem",
-    backgroundColor: "#240046",
-    borderBottom: "2px solid #3a1f5c",
-    flexShrink: 0,
-  };
-
-  const messagesStyle = {
-    flex: 1,
-    overflowY: "auto",
-    padding: "1.5rem",
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  const inputContainerStyle = {
-    padding: "1.5rem",
-    borderTop: "2px solid #3a1f5c",
-    display: "flex",
-    gap: "1rem",
-    backgroundColor: "#2a0252",
-    flexShrink: 0,
-  };
-
-  const inputStyle = {
-    flex: 1,
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid #6a0dad",
-    backgroundColor: "#1a0133",
-    color: "white",
-    outline: "none",
-  };
-
-  const buttonStyle = {
-    backgroundColor: "#6a0dad",
-    color: "white",
-    border: "none",
-    padding: "1rem 1.5rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    opacity: (!isConnected || !isAuthenticated || !newMessage.trim() || isSending) ? 0.5 : 1,
+    if (!isConnected) return '🔴 Disconnected';
+    if (!isAuthenticated) return '🟡 Connecting...';
+    return '🟢 Connected';
   };
 
   return (
     <div style={chatStyle}>
+      {/* Header */}
       <div style={headerStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <h2>
-            {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+            {selectedChat?.group_name || selectedChat?.username || 'Select a chat'}
           </h2>
           <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
             {getConnectionStatus()}
@@ -1295,67 +1110,71 @@ export const ChatSection = ({ selectedChat }) => {
           </div>
         )}
         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
-          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'} | 
-          Messages: {messages.length}
+          {/*}Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'} |{' '}
+          Messages: {messages.length}{*/}
         </div>
       </div>
 
+      {/* Messages */}
       <div style={messagesStyle} ref={messagesContainerRef}>
         {isLoadingHistory ? (
-          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+          <div style={{ textAlign: 'center', marginTop: '2rem', color: '#aaa' }}>
             Loading chat history...
           </div>
         ) : messages.length > 0 ? (
           <>
-            <div style={{ flex: 1, minHeight: 0 }} />
-            {messages.map((message, index) => formatMessage(message))}
-            
-            {/* Only show typing indicator if there are OTHER users typing */}
-            {typingUsers.filter(user => user.userId !== currentUser?.id).length > 0 && (
+            {messages.map(formatMessage)}
+            {typingUsers.filter(u => u.userId !== currentUser?.id).length > 0 && (
               <div style={styles.typingIndicator}>
                 <em>
                   {typingUsers
-                    .filter(user => user.userId !== currentUser?.id)
-                    .map(user => user.username)
-                    .join(', ')} 
-                  {typingUsers.filter(user => user.userId !== currentUser?.id).length === 1 ? ' is' : ' are'} typing...
+                    .filter(u => u.userId !== currentUser?.id)
+                    .map(u => u.username)
+                    .join(', ')}
+                  {typingUsers.filter(u => u.userId !== currentUser?.id).length === 1
+                    ? ' is'
+                    : ' are'}{' '}
+                  typing...
                 </em>
               </div>
             )}
-            
             <div ref={messagesEndRef} />
           </>
         ) : (
-          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+          <div style={{ textAlign: 'center', marginTop: '2rem', color: '#aaa' }}>
             {selectedChat
-              ? isAuthenticated 
-                ? "No messages yet - start the conversation!" 
-                : "Connecting to chat server..."
-              : "Select a chat to start messaging"}
+              ? isAuthenticated
+                ? 'No messages yet - start the conversation!'
+                : 'Connecting to chat server...'
+              : 'Select a chat to start messaging'}
           </div>
         )}
       </div>
 
+      {/* Input */}
       {selectedChat && (
         <div style={inputContainerStyle}>
           <input
             type="text"
             value={newMessage}
             onChange={handleInputChange}
-            placeholder={
-              isSending ? "Sending..." :
-              isConnected && isAuthenticated ? "Type your message..." : "Connecting..."
-            }
-            style={inputStyle}
             onKeyPress={handleKeyPress}
+            placeholder={
+              isSending
+                ? 'Sending...'
+                : isConnected && isAuthenticated
+                ? 'Type your message...'
+                : 'Connecting...'
+            }
             disabled={!isConnected || !isAuthenticated || isSending}
+            style={inputStyle}
           />
           <button
             onClick={sendMessage}
-            style={buttonStyle}
             disabled={!isConnected || !isAuthenticated || !newMessage.trim() || isSending}
+            style={buttonStyle}
           >
-            {isSending ? "📤" : "Send"}
+            {isSending ? '📤' : 'Send'}
           </button>
         </div>
       )}
@@ -1363,84 +1182,114 @@ export const ChatSection = ({ selectedChat }) => {
   );
 };
 
-// Enhanced styles with your existing theme
+// Styles
+const chatStyle = {
+  width: '75%',
+  height: '90vh',
+  display: 'flex',
+  flexDirection: 'column',
+  backgroundColor: '#2a0252',
+  color: 'white',
+  position: 'relative',
+};
+
+const headerStyle = {
+  padding: '1.5rem',
+  backgroundColor: '#240046',
+  borderBottom: '2px solid #3a1f5c',
+  flexShrink: 0,
+};
+
+const messagesStyle = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '1.5rem',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const inputContainerStyle = {
+  padding: '1.5rem',
+  borderTop: '2px solid #3a1f5c',
+  display: 'flex',
+  gap: '1rem',
+  backgroundColor: '#2a0252',
+  flexShrink: 0,
+};
+
+const inputStyle = {
+  flex: 1,
+  padding: '1rem',
+  borderRadius: '6px',
+  border: '1px solid #6a0dad',
+  backgroundColor: '#1a0133',
+  color: 'white',
+  outline: 'none',
+};
+
+const buttonStyle = {
+  backgroundColor: '#6a0dad',
+  color: 'white',
+  border: 'none',
+  padding: '1rem 1.5rem',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontWeight: 'bold',
+};
+
 const styles = {
   messageWrapper: {
-    display: "flex",
-    flexDirection: "column",
-    marginBottom: "1.5rem",
-    width: "100%",
+    display: 'flex',
+    flexDirection: 'column',
+    marginBottom: '1.5rem',
+    width: '100%',
   },
-  
-  senderUsername: {
-    fontSize: "0.75rem",
-    marginBottom: "0.25rem",
-    color: "#bbb",
-    paddingLeft: "0.5rem",
-    paddingRight: "0.5rem",
-  },
-  
   sent: {
-    backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
-    color: "white",
-    border: "1px solid rgb(161, 79, 255)",
-    borderRadius: "20px",
-    borderBottomRightRadius: "20px",
-    borderBottomLeftRadius: "20px",
-    padding: "0.75rem 1.2rem",
-    marginBottom: "0.25rem",
-    maxWidth: "70%",
-    wordBreak: "break-word",
+    backgroundImage:
+      'linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)',
+    color: 'white',
+    border: '1px solid rgb(161, 79, 255)',
+    borderRadius: '20px',
+    padding: '0.75rem 1.2rem',
+    maxWidth: '70%',
+    wordBreak: 'break-word',
   },
-
   received: {
-    backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
-    color: "black",
-    border: "1px solid rgb(248, 253, 255)",
-    borderRadius: "20px",
-    borderBottomRightRadius: "20px",
-    borderBottomLeftRadius: "20px",
-    padding: "0.75rem 1.2rem",
-    marginBottom: "0.25rem",
-    maxWidth: "70%",
-    wordBreak: "break-word",
+    backgroundImage:
+      'linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)',
+    color: 'black',
+    border: '1px solid rgb(248, 253, 255)',
+    borderRadius: '20px',
+    padding: '0.75rem 1.2rem',
+    maxWidth: '70%',
+    wordBreak: 'break-word',
   },
-
   systemMessage: {
-    textAlign: "center",
-    color: "#ccc",
-    fontStyle: "italic",
-    margin: "1rem 0",
-    padding: "0.5rem",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: "8px",
+    textAlign: 'center',
+    color: '#ccc',
+    fontStyle: 'italic',
+    margin: '1rem 0',
+    padding: '0.5rem',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
   },
-
-  meta: {
-    fontSize: "0.8rem",
-    color: "#ccc",
-    marginTop: "0.3rem",
-    display: "flex",
-    gap: "0.5rem",
-    justifyContent: "space-between",
-    paddingLeft: "0.5rem",
-    paddingRight: "0.5rem",
+  statusWrapper: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    padding: '0 0.5rem',
+    marginTop: '0.25rem',
+    fontSize: '0.8rem',
   },
-
-  timestamp: {
-    opacity: 0.8,
-  },
-
   status: {
     opacity: 0.6,
-    fontStyle: "italic",
+    fontStyle: 'italic',
   },
-
   typingIndicator: {
-    padding: "0.5rem",
-    fontStyle: "italic",
-    color: "#bbb",
-    fontSize: "0.9rem",
+    padding: '0.5rem',
+    fontStyle: 'italic',
+    color: '#bbb',
+    fontSize: '0.9rem',
   },
 };
 
