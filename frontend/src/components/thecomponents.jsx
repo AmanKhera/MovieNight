@@ -783,15 +783,37 @@ export const GroupsSidebar = ({
 
 const socket = io.connect("http://localhost:3001"); //Express Chat Socket.IO
 
+const getRoomId = (selectedChat) => {
+  if (!selectedChat) return null;
+  
+  if (selectedChat.group_id) {
+    return `group_${selectedChat.group_id}`;
+  } else {
+    // For individual chats, create consistent room ID
+    const ids = [
+      selectedChat.sender_id || selectedChat.id, 
+      selectedChat.receiver_id || selectedChat.id
+    ].filter(id => id).sort((a, b) => a - b);
+    return `chat_${ids[0]}_${ids[1]}`;
+  }
+};
+
 export const ChatSection = ({ selectedChat }) => {
   // Socket.IO state
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // Chat state
-  const [messages, setMessages] = useState([]);
+  // Persistent message storage - keeps messages for each room
+  const [roomMessages, setRoomMessages] = useState(new Map()); // Room ID -> Messages array
+  const [roomHistory, setRoomHistory] = useState(new Map());   // Room ID -> History loaded flag
+  
+  // Current room state
+  const [currentRoomId, setCurrentRoomId] = useState(null);
+  const [messages, setMessages] = useState([]); // Current visible messages
   const [newMessage, setNewMessage] = useState("");
+  
+  // User and room state
   const [currentUser, setCurrentUser] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]);
@@ -801,7 +823,7 @@ export const ChatSection = ({ selectedChat }) => {
   const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef();
 
-  // Configuration - Your Railway deployment
+  // Configuration
   const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://movienightchat-production.up.railway.app';
   const DJANGO_URL = process.env.REACT_APP_DJANGO_URL || 'http://localhost:8000';
 
@@ -845,7 +867,6 @@ export const ChatSection = ({ selectedChat }) => {
       console.log('🌐 Socket.IO Server:', SOCKET_URL);
       console.log('🌐 Django Server:', DJANGO_URL);
       
-      // Get user authentication first
       const authResult = await fetchUserInfo();
       console.log('🔐 Auth result:', authResult);
       
@@ -870,10 +891,8 @@ export const ChatSection = ({ selectedChat }) => {
         setIsConnected(true);
         
         const cookies = document.cookie;
-        
         console.log('📤 Sending authentication data to Socket.IO...');
         
-        // Send authentication with user data and Django URL
         newSocket.emit('authenticate', { 
           cookies: cookies,
           user: userData,
@@ -898,8 +917,6 @@ export const ChatSection = ({ selectedChat }) => {
         console.log('🔐 Authentication response:', data);
         if (data.success) {
           console.log('✅ Successfully authenticated with Socket.IO!');
-          console.log('   Server type:', data.server);
-          console.log('   Method used:', data.method);
           setIsAuthenticated(true);
         } else {
           console.error('🚫 Socket.IO authentication failed:', data.error);
@@ -907,28 +924,82 @@ export const ChatSection = ({ selectedChat }) => {
         }
       });
 
-      // Chat events
+      // Chat events with room-based storage
       newSocket.on('new_message', (message) => {
         console.log('📨 New message received:', message);
-        setMessages(prev => [...prev, message]);
+        
+        const roomId = message.room || currentRoomId;
+        if (roomId) {
+          // Add message to room-specific storage
+          setRoomMessages(prev => {
+            const newMap = new Map(prev);
+            const roomMsgs = newMap.get(roomId) || [];
+            newMap.set(roomId, [...roomMsgs, message]);
+            return newMap;
+          });
+          
+          // If it's for the current room, also update visible messages
+          if (roomId === currentRoomId) {
+            setMessages(prev => [...prev, message]);
+          }
+        }
       });
 
       newSocket.on('chat_history', (data) => {
         console.log('📚 Chat history loaded:', data.messages?.length || 0, 'messages');
-        if (data.error) {
-          console.warn('⚠️ Chat history error:', data.error);
+        
+        if (currentRoomId && data.messages) {
+          // Store history in room-specific storage
+          setRoomMessages(prev => {
+            const newMap = new Map(prev);
+            newMap.set(currentRoomId, data.messages);
+            return newMap;
+          });
+          
+          // Mark history as loaded for this room
+          setRoomHistory(prev => {
+            const newMap = new Map(prev);
+            newMap.set(currentRoomId, true);
+            return newMap;
+          });
+          
+          // Update visible messages for current room
+          setMessages(data.messages);
         }
-        setMessages(data.messages || []);
       });
 
       newSocket.on('user_joined', (data) => {
         console.log('👋 User joined:', data);
-        setMessages(prev => [...prev, data]);
+        const roomId = currentRoomId;
+        if (roomId) {
+          // Add to room storage
+          setRoomMessages(prev => {
+            const newMap = new Map(prev);
+            const roomMsgs = newMap.get(roomId) || [];
+            newMap.set(roomId, [...roomMsgs, data]);
+            return newMap;
+          });
+          
+          // Add to current view
+          setMessages(prev => [...prev, data]);
+        }
       });
 
       newSocket.on('user_left', (data) => {
         console.log('👋 User left:', data);
-        setMessages(prev => [...prev, data]);
+        const roomId = currentRoomId;
+        if (roomId) {
+          // Add to room storage
+          setRoomMessages(prev => {
+            const newMap = new Map(prev);
+            const roomMsgs = newMap.get(roomId) || [];
+            newMap.set(roomId, [...roomMsgs, data]);
+            return newMap;
+          });
+          
+          // Add to current view
+          setMessages(prev => [...prev, data]);
+        }
       });
 
       newSocket.on('room_users', (data) => {
@@ -965,29 +1036,43 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [SOCKET_URL, DJANGO_URL]);
 
-  // Handle selectedChat changes
+  // Handle selectedChat changes with persistence
   useEffect(() => {
     if (!socket || !isAuthenticated || !selectedChat) {
+      setCurrentRoomId(null);
       setMessages([]);
       setTypingUsers([]);
       return;
     }
 
-    console.log('🚪 Joining chat:', selectedChat);
+    const roomId = getRoomId(selectedChat);
+    console.log('🚪 Switching to room:', roomId);
     
-    // Join the chat room
+    setCurrentRoomId(roomId);
+    
+    // Immediately show cached messages for this room (no flicker!)
+    const cachedMessages = roomMessages.get(roomId) || [];
+    setMessages(cachedMessages);
+    console.log(`📋 Loaded ${cachedMessages.length} cached messages for room ${roomId}`);
+    
+    // Join the socket room
     socket.emit('join_chat', { selectedChat });
     
-    // Get chat history
-    socket.emit('get_chat_history', { selectedChat });
+    // Only load history if we haven't loaded it before
+    const historyLoaded = roomHistory.get(roomId);
+    if (!historyLoaded) {
+      console.log('📚 Loading fresh history for room:', roomId);
+      socket.emit('get_chat_history', { selectedChat });
+    } else {
+      console.log('✅ Using cached history for room:', roomId);
+    }
     
-    // Clear state when switching chats
-    setMessages([]);
+    // Clear typing indicators when switching rooms
     setTypingUsers([]);
     
-  }, [socket, isAuthenticated, selectedChat]);
+  }, [socket, isAuthenticated, selectedChat, roomMessages, roomHistory]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -1042,13 +1127,9 @@ export const ChatSection = ({ selectedChat }) => {
   const handleInputChange = (e) => {
     setNewMessage(e.target.value);
     
-    // Start typing indicator
     startTyping();
-    
-    // Clear existing timeout
     clearTimeout(typingTimeoutRef.current);
     
-    // Stop typing after 1 second of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping();
     }, 1000);
@@ -1165,7 +1246,7 @@ export const ChatSection = ({ selectedChat }) => {
           </div>
         )}
         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
-          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'}
+          💾 {messages.length} messages cached | Room: {currentRoomId || 'none'}
         </div>
       </div>
 
