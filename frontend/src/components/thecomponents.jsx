@@ -801,13 +801,18 @@ export const ChatSection = ({ selectedChat }) => {
   const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef();
 
-  // Initialize Socket.IO connection and get user info
+  // Configuration - Your Railway deployment
+  const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://movienightchat-production.up.railway.app';
+  const DJANGO_URL = process.env.REACT_APP_DJANGO_URL || 'http://localhost:8000';
+
+  // Initialize Socket.IO connection
   useEffect(() => {
-    // First, get current user info from Django
     const fetchUserInfo = async () => {
       try {
         console.log('🔍 Fetching user info from Django...');
-        const res = await fetch("http://localhost:8000/user_info/", {
+        const userInfoUrl = `${DJANGO_URL}/user_info/`;
+        
+        const res = await fetch(userInfoUrl, {
           credentials: "include",
         });
         
@@ -818,20 +823,14 @@ export const ChatSection = ({ selectedChat }) => {
         }
         
         const data = await res.json();
-        console.log('📡 Django response data:', data);
+        console.log('📡 Django user data:', data);
         
-        // Validate the user data
         if (data && data.id && data.username) {
-          console.log('✅ User info fetched successfully:', {
-            id: data.id,
-            username: data.username,
-            email: data.email
-          });
-          
+          console.log('✅ User authenticated with Django:', data.username);
           setCurrentUser(data);
           return { success: true, user: data };
         } else {
-          console.error('❌ Invalid user data structure:', data);
+          console.error('❌ Invalid user data from Django:', data);
           return { success: false, error: 'Invalid user data' };
         }
         
@@ -843,32 +842,26 @@ export const ChatSection = ({ selectedChat }) => {
 
     const initializeSocketIO = async () => {
       console.log('🔌 Initializing Socket.IO connection...');
+      console.log('🌐 Socket.IO Server:', SOCKET_URL);
+      console.log('🌐 Django Server:', DJANGO_URL);
       
-      // Get user authentication
+      // Get user authentication first
       const authResult = await fetchUserInfo();
       console.log('🔐 Auth result:', authResult);
       
       if (!authResult.success) {
-        console.log('❌ User not authenticated, details:', authResult.error);
+        console.log('❌ User not authenticated with Django:', authResult.error);
         return;
       }
       
-      // Ensure we have valid user data
       const userData = authResult.user;
-      if (!userData || !userData.id || !userData.username) {
-        console.error('❌ Invalid user data for Socket.IO auth:', userData);
-        return;
-      }
+      console.log('👤 Connecting to Socket.IO with user:', userData.username);
       
-      console.log('👤 Valid user data for Socket.IO:', {
-        id: userData.id,
-        username: userData.username,
-        email: userData.email
-      });
-      
-      const newSocket = io('http://localhost:3001', {
+      const newSocket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 20000,
+        forceNew: true,
+        withCredentials: true,
       });
 
       // Connection events
@@ -876,26 +869,17 @@ export const ChatSection = ({ selectedChat }) => {
         console.log('✅ Connected to Socket.IO server');
         setIsConnected(true);
         
-        // Get cookies
         const cookies = document.cookie;
         
-        console.log('📤 Preparing authentication data...');
-        const authData = { 
+        console.log('📤 Sending authentication data to Socket.IO...');
+        
+        // Send authentication with user data and Django URL
+        newSocket.emit('authenticate', { 
           cookies: cookies,
-          user: userData,  // This should be your real Django user
-          method: 'direct'
-        };
-        
-        console.log('📤 Sending authentication data:', {
-          hasCookies: !!authData.cookies,
-          hasUser: !!authData.user,
-          username: authData.user?.username,
-          userId: authData.user?.id,
-          method: authData.method
+          user: userData,
+          method: 'direct',
+          djangoUrl: DJANGO_URL
         });
-        
-        // Send authentication
-        newSocket.emit('authenticate', authData);
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -911,14 +895,14 @@ export const ChatSection = ({ selectedChat }) => {
 
       // Authentication events
       newSocket.on('authenticated', (data) => {
-        console.log('🔐 Authentication response received:', data);
+        console.log('🔐 Authentication response:', data);
         if (data.success) {
-          console.log('✅ Authenticated successfully with Socket.IO!');
+          console.log('✅ Successfully authenticated with Socket.IO!');
+          console.log('   Server type:', data.server);
           console.log('   Method used:', data.method);
-          console.log('   User:', data.user?.username);
           setIsAuthenticated(true);
         } else {
-          console.error('🚫 Socket.IO authentication failed:', data.error || 'Unknown error');
+          console.error('🚫 Socket.IO authentication failed:', data.error);
           setIsAuthenticated(false);
         }
       });
@@ -931,6 +915,9 @@ export const ChatSection = ({ selectedChat }) => {
 
       newSocket.on('chat_history', (data) => {
         console.log('📚 Chat history loaded:', data.messages?.length || 0, 'messages');
+        if (data.error) {
+          console.warn('⚠️ Chat history error:', data.error);
+        }
         setMessages(data.messages || []);
       });
 
@@ -945,7 +932,7 @@ export const ChatSection = ({ selectedChat }) => {
       });
 
       newSocket.on('room_users', (data) => {
-        console.log('👥 Room users updated:', data);
+        console.log('👥 Room users updated:', data.users?.length || 0, 'users');
         setRoomUsers(data.users || []);
       });
 
@@ -976,12 +963,13 @@ export const ChatSection = ({ selectedChat }) => {
         socket.close();
       }
     };
-  }, []);
+  }, [SOCKET_URL, DJANGO_URL]);
 
   // Handle selectedChat changes
   useEffect(() => {
     if (!socket || !isAuthenticated || !selectedChat) {
       setMessages([]);
+      setTypingUsers([]);
       return;
     }
 
@@ -993,7 +981,7 @@ export const ChatSection = ({ selectedChat }) => {
     // Get chat history
     socket.emit('get_chat_history', { selectedChat });
     
-    // Clear messages and typing indicators when switching chats
+    // Clear state when switching chats
     setMessages([]);
     setTypingUsers([]);
     
@@ -1011,6 +999,12 @@ export const ChatSection = ({ selectedChat }) => {
   // Send message via Socket.IO
   const sendMessage = () => {
     if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim()) {
+      console.log('❌ Cannot send message:', {
+        hasSocket: !!socket,
+        isAuthenticated,
+        hasSelectedChat: !!selectedChat,
+        hasMessage: !!newMessage.trim()
+      });
       return;
     }
 
@@ -1092,6 +1086,13 @@ export const ChatSection = ({ selectedChat }) => {
     );
   };
 
+  // Connection status indicator
+  const getConnectionStatus = () => {
+    if (!isConnected) return "🔴 Disconnected";
+    if (!isAuthenticated) return "🟡 Connecting...";
+    return "🟢 Connected to Cloud";
+  };
+
   // Component styles (keeping your existing purple theme)
   const chatStyle = {
     width: "75%",
@@ -1147,13 +1148,6 @@ export const ChatSection = ({ selectedChat }) => {
     opacity: (!isConnected || !isAuthenticated || !newMessage.trim()) ? 0.5 : 1,
   };
 
-  // Connection status indicator
-  const getConnectionStatus = () => {
-    if (!isConnected) return "🔴 Disconnected";
-    if (!isAuthenticated) return "🟡 Connecting...";
-    return "🟢 Connected";
-  };
-
   return (
     <div style={chatStyle}>
       <div style={headerStyle}>
@@ -1170,6 +1164,9 @@ export const ChatSection = ({ selectedChat }) => {
             {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
           </div>
         )}
+        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
+          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'}
+        </div>
       </div>
 
       <div style={messagesStyle} ref={messagesContainerRef}>
@@ -1193,20 +1190,20 @@ export const ChatSection = ({ selectedChat }) => {
           <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
             {selectedChat
               ? isAuthenticated 
-                ? "No messages yet" 
-                : "Connecting to chat..."
+                ? "No messages yet - start the conversation!" 
+                : "Connecting to chat server..."
               : "Select a chat to start messaging"}
           </div>
         )}
       </div>
 
-      {selectedChat && isAuthenticated && (
+      {selectedChat && (
         <div style={inputContainerStyle}>
           <input
             type="text"
             value={newMessage}
             onChange={handleInputChange}
-            placeholder={isConnected ? "Type your message..." : "Connecting..."}
+            placeholder={isConnected && isAuthenticated ? "Type your message..." : "Connecting..."}
             style={inputStyle}
             onKeyPress={handleKeyPress}
             disabled={!isConnected || !isAuthenticated}

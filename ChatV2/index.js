@@ -5,75 +5,124 @@ const { Server } = require('socket.io');
 const cors = require("cors");
 const axios = require('axios');
 
+// Production-ready CORS configuration
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: [
+        'http://localhost:3000',              // Your local React
+        'http://localhost:8000',              // Your local Django  
+        /^https:\/\/.*\.railway\.app$/,       // Railway domains
+        /^https:\/\/.*\.herokuapp\.com$/,     // Heroku domains
+        /^https:\/\/.*\.vercel\.app$/,        // Vercel domains
+        /^http:\/\/192\.168\.\d+\.\d+:\d+$/, // Local network IPs
+        /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,  // Local network IPs
+        /^http:\/\/172\.\d+\.\d+\.\d+:\d+$/, // Local network IPs
+    ],
     credentials: true,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
+
 app.use(express.json());
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:3000",
-        methods: ["GET", "POST"],
+        origin: [
+            'http://localhost:3000',
+            'http://localhost:8000',
+            /^https:\/\/.*\.railway\.app$/,
+            /^https:\/\/.*\.herokuapp\.com$/,
+            /^https:\/\/.*\.vercel\.app$/,
+            /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
+            /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
+            /^http:\/\/172\.\d+\.\d+\.\d+:\d+$/,
+        ],
+        methods: ["GET", "POST", "OPTIONS"],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization", "Cookie"]
     }
 });
 
+// Configuration - supports both local and deployed Django
+const DJANGO_API = process.env.DJANGO_API || 'http://localhost:8000';
+const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
 // In-memory storage (no Redis needed for development!)
 const activeUsers = new Map();
 const roomUsers = new Map();
-const userSockets = new Map(); // Map user IDs to socket IDs
+const userSockets = new Map();
 
-// Django API configuration
-const DJANGO_API = 'http://localhost:8000';
+console.log(`🌍 Socket.IO Chat Server - Railway Edition`);
+console.log(`📡 Django API: ${DJANGO_API}`);
+console.log(`🌐 Environment: ${NODE_ENV}`);
+console.log(`🔗 Port: ${PORT}`);
+
+// Enhanced CORS headers for cross-origin requests
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
+    
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+        return;
+    }
+    next();
+});
 
 // Utility function to verify user with Django
-async function verifyUserWithDjango(cookies) {
+async function verifyUserWithDjango(cookies, djangoUrl = DJANGO_API) {
     try {
-        console.log('🔍 Attempting Django auth with cookies:', cookies ? 'present' : 'missing');
+        console.log('🔍 Attempting Django auth with:', djangoUrl);
         
-        const response = await axios.get(`${DJANGO_API}/user_info/`, {
+        const response = await axios.get(`${djangoUrl}/user_info/`, {
             headers: {
                 'Cookie': cookies,
-                'User-Agent': 'Socket.IO-Server',
+                'User-Agent': 'Socket.IO-Railway-Server',
                 'Accept': 'application/json',
             },
-            withCredentials: true
+            withCredentials: true,
+            timeout: 10000 // 10 second timeout
         });
         
         console.log('✅ Django auth successful:', response.data.username);
         return response.data;
     } catch (error) {
         console.error('❌ Auth verification failed:', {
+            url: djangoUrl,
             status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-            message: error.message
+            message: error.message,
+            data: error.response?.data
         });
         return null;
     }
 }
 
 // Utility function to save message to Django
-async function saveMessageToDjango(messageData, cookies) {
+async function saveMessageToDjango(messageData, cookies, djangoUrl = DJANGO_API) {
     try {
-        const response = await axios.post(`${DJANGO_API}/send_message/`, messageData, {
+        const response = await axios.post(`${djangoUrl}/send_message/`, messageData, {
             headers: {
                 'Content-Type': 'application/json',
                 'Cookie': cookies,
-                'X-CSRFToken': extractCSRFToken(cookies)
-            }
+                'X-CSRFToken': extractCSRFToken(cookies),
+                'User-Agent': 'Socket.IO-Railway-Server'
+            },
+            timeout: 10000
         });
         return response.data;
     } catch (error) {
-        console.error('Failed to save message to Django:', error.message);
-        console.error('Status:', error.response?.status);
-        console.error('Data:', error.response?.data);
+        console.error('⚠️ Failed to save message to Django:', {
+            status: error.response?.status,
+            message: error.message,
+            data: error.response?.data
+        });
         return null;
     }
 }
@@ -90,36 +139,40 @@ function getRoomName(selectedChat) {
     if (selectedChat.group_id) {
         return `group_${selectedChat.group_id}`;
     } else {
-        // For individual chats, create a consistent room name using sorted user IDs
-        return `chat_${Math.min(selectedChat.sender_id, selectedChat.receiver_id)}_${Math.max(selectedChat.sender_id, selectedChat.receiver_id)}`;
+        // For individual chats, create consistent room name
+        const ids = [
+            selectedChat.sender_id || selectedChat.id, 
+            selectedChat.receiver_id || selectedChat.id
+        ].filter(id => id).sort((a, b) => a - b);
+        return `chat_${ids[0]}_${ids[1]}`;
     }
 }
 
 io.on("connection", (socket) => {
-    console.log('🔌 User connected: ' + socket.id);
+    console.log('🔌 User connected:', socket.id);
 
-    // Handle user authentication using Django session cookies
+    // Handle user authentication
     socket.on('authenticate', async (data) => {
         console.log('🔐 Authentication attempt for socket:', socket.id);
         console.log('📋 Auth data received:', {
             hasCookies: !!data.cookies,
-            cookieLength: data.cookies?.length || 0,
             hasUser: !!data.user,
             method: data.method || 'cookie',
-            cookiePreview: data.cookies?.substring(0, 100) + '...' || 'none'
+            djangoUrl: data.djangoUrl || 'default',
+            userPreview: data.user ? `${data.user.username} (ID: ${data.user.id})` : 'none'
         });
         
-        const { cookies, user, method } = data;
+        const { cookies, user, method, djangoUrl } = data;
         
         // Method 1: Direct authentication (bypass Django check)
-        if (method === 'direct' && user) {
+        if (method === 'direct' && user && user.id && user.username) {
             console.log('🎯 Using direct authentication method');
             
             socket.userId = user.id;
             socket.username = user.username;
-            socket.cookies = cookies; // Keep cookies for message saving
+            socket.cookies = cookies;
+            socket.djangoUrl = djangoUrl || DJANGO_API;
             
-            // Store user mapping
             activeUsers.set(socket.id, {
                 id: user.id,
                 username: user.username,
@@ -131,7 +184,8 @@ io.on("connection", (socket) => {
             socket.emit('authenticated', { 
                 success: true, 
                 user: user,
-                method: 'direct'
+                method: 'direct',
+                server: 'railway'
             });
             
             console.log(`✅ User authenticated directly: ${user.username} (ID: ${user.id})`);
@@ -139,43 +193,43 @@ io.on("connection", (socket) => {
         }
         
         // Method 2: Django cookie authentication (fallback)
-        if (!cookies) {
-            console.log('❌ No cookies provided and no direct auth');
-            socket.emit('authenticated', { success: false, error: 'No authentication method available' });
-            return;
+        if (cookies) {
+            console.log('🍪 Attempting Django cookie authentication...');
+            const djangoUser = await verifyUserWithDjango(cookies, djangoUrl);
+            
+            if (djangoUser) {
+                socket.userId = djangoUser.id;
+                socket.username = djangoUser.username;
+                socket.cookies = cookies;
+                socket.djangoUrl = djangoUrl || DJANGO_API;
+                
+                activeUsers.set(socket.id, {
+                    id: djangoUser.id,
+                    username: djangoUser.username,
+                    socketId: socket.id
+                });
+                
+                userSockets.set(djangoUser.id, socket.id);
+                
+                socket.emit('authenticated', { 
+                    success: true, 
+                    user: djangoUser,
+                    method: 'django',
+                    server: 'railway'
+                });
+                
+                console.log(`✅ User authenticated via Django: ${djangoUser.username} (ID: ${djangoUser.id})`);
+                return;
+            }
         }
         
-        console.log('🍪 Attempting Django cookie authentication...');
-        const djangoUser = await verifyUserWithDjango(cookies);
-        
-        if (djangoUser) {
-            socket.userId = djangoUser.id;
-            socket.username = djangoUser.username;
-            socket.cookies = cookies;
-            
-            // Store user mapping
-            activeUsers.set(socket.id, {
-                id: djangoUser.id,
-                username: djangoUser.username,
-                socketId: socket.id
-            });
-            
-            userSockets.set(djangoUser.id, socket.id);
-            
-            socket.emit('authenticated', { 
-                success: true, 
-                user: djangoUser,
-                method: 'django' 
-            });
-            
-            console.log(`✅ User authenticated via Django: ${djangoUser.username} (ID: ${djangoUser.id})`);
-        } else {
-            socket.emit('authenticated', { 
-                success: false, 
-                error: 'Django authentication failed - ID token missing from session' 
-            });
-            console.log('❌ Django authentication failed for socket:', socket.id);
-        }
+        // Authentication failed
+        socket.emit('authenticated', { 
+            success: false, 
+            error: 'No valid authentication method available',
+            server: 'railway'
+        });
+        console.log('❌ Authentication failed for socket:', socket.id);
     });
 
     // Handle joining a chat room
@@ -192,8 +246,6 @@ io.on("connection", (socket) => {
         // Leave previous room if any
         if (socket.currentRoom) {
             socket.leave(socket.currentRoom);
-            
-            // Remove from previous room users
             if (roomUsers.has(socket.currentRoom)) {
                 roomUsers.get(socket.currentRoom).delete(socket.userId);
             }
@@ -210,7 +262,7 @@ io.on("connection", (socket) => {
         }
         roomUsers.get(roomName).add(socket.userId);
 
-        // Notify room about new user (except for individual chats to avoid spam)
+        // Notify room about new user (only for groups to avoid spam)
         if (selectedChat.group_id) {
             socket.to(roomName).emit('user_joined', {
                 username: socket.username,
@@ -228,7 +280,7 @@ io.on("connection", (socket) => {
         console.log(`👋 ${socket.username} joined room: ${roomName}`);
     });
 
-    // Handle sending messages
+    // Handle sending messages with real-time priority
     socket.on('send_message', async (data) => {
         const { selectedChat, message } = data;
         
@@ -241,7 +293,7 @@ io.on("connection", (socket) => {
         
         // Create real-time message object first
         const realtimeMessage = {
-            id: Date.now(), // Temporary ID for real-time
+            id: Date.now(),
             sender_id: socket.userId,
             user_sending: socket.username,
             message_content: message.trim(),
@@ -249,11 +301,11 @@ io.on("connection", (socket) => {
             room: roomName
         };
 
-        // Broadcast to all users in the room immediately
+        // Broadcast immediately for real-time experience
         io.to(roomName).emit('new_message', realtimeMessage);
         console.log(`💬 ${socket.username} in ${roomName}: ${message}`);
 
-        // Try to save to Django backend (but don't fail if it doesn't work)
+        // Try to save to Django (but don't block real-time delivery)
         if (socket.cookies) {
             const messageData = selectedChat.group_id ? {
                 user_sending: socket.userId,
@@ -265,16 +317,13 @@ io.on("connection", (socket) => {
                 message: message.trim()
             };
 
-            const savedMessage = await saveMessageToDjango(messageData, socket.cookies);
+            const savedMessage = await saveMessageToDjango(messageData, socket.cookies, socket.djangoUrl);
             
             if (savedMessage) {
                 console.log('✅ Message saved to Django successfully');
             } else {
                 console.log('⚠️ Message not saved to Django, but real-time delivery successful');
-                // Could implement a retry mechanism or local storage here
             }
-        } else {
-            console.log('⚠️ No cookies available, message not saved to Django backend');
         }
     });
 
@@ -299,11 +348,55 @@ io.on("connection", (socket) => {
         }
     });
 
+    // Handle getting chat history
+    socket.on('get_chat_history', async (data) => {
+        const { selectedChat } = data;
+        
+        if (!socket.userId || !selectedChat) {
+            socket.emit('chat_history', { messages: [] });
+            return;
+        }
+
+        try {
+            const endpoint = selectedChat.group_id
+                ? `group_messages/?group_id=${selectedChat.group_id}`
+                : `group_messages/?group_id=${selectedChat.id}`;
+
+            const djangoUrl = socket.djangoUrl || DJANGO_API;
+            const historyUrl = `${djangoUrl}/${endpoint}`;
+            
+            console.log(`📚 Fetching chat history from: ${historyUrl}`);
+
+            const response = await axios.get(historyUrl, {
+                headers: {
+                    'Cookie': socket.cookies || '',
+                    'X-CSRFToken': extractCSRFToken(socket.cookies || ''),
+                    'User-Agent': 'Socket.IO-Railway-Server'
+                },
+                timeout: 10000
+            });
+
+            console.log(`✅ Chat history loaded: ${response.data.messages?.length || 0} messages`);
+            socket.emit('chat_history', {
+                messages: response.data.messages || []
+            });
+        } catch (error) {
+            console.error('⚠️ Error fetching chat history:', {
+                status: error.response?.status,
+                message: error.message,
+                data: error.response?.data
+            });
+            socket.emit('chat_history', { 
+                messages: [], 
+                error: 'Could not load chat history from Django' 
+            });
+        }
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log(`🔌 User disconnected: ${socket.id}`);
         
-        // Clean up user data
         const userData = activeUsers.get(socket.id);
         activeUsers.delete(socket.id);
         
@@ -311,7 +404,6 @@ io.on("connection", (socket) => {
             userSockets.delete(userData.id);
         }
         
-        // Remove from room users
         if (socket.currentRoom && userData) {
             const roomUserSet = roomUsers.get(socket.currentRoom);
             if (roomUserSet) {
@@ -329,89 +421,74 @@ io.on("connection", (socket) => {
             }
         }
     });
-
-    // Handle getting chat history
-    socket.on('get_chat_history', async (data) => {
-        const { selectedChat } = data;
-        
-        if (!socket.userId || !selectedChat) {
-            console.log('⚠️ No user ID or selected chat for history request');
-            socket.emit('chat_history', { messages: [] });
-            return;
-        }
-
-        try {
-            const endpoint = selectedChat.group_id
-                ? `group_messages/?group_id=${selectedChat.group_id}`
-                : `group_messages/?group_id=${selectedChat.id}`;
-
-            console.log(`📚 Fetching chat history from: ${DJANGO_API}/${endpoint}`);
-
-            const response = await axios.get(`${DJANGO_API}/${endpoint}`, {
-                headers: {
-                    'Cookie': socket.cookies || '',
-                    'X-CSRFToken': extractCSRFToken(socket.cookies || ''),
-                    'User-Agent': 'Socket.IO-Server'
-                }
-            });
-
-            console.log(`✅ Chat history loaded: ${response.data.messages?.length || 0} messages`);
-            socket.emit('chat_history', {
-                messages: response.data.messages || []
-            });
-        } catch (error) {
-            console.error('⚠️ Error fetching chat history:', error.message);
-            console.error('Status:', error.response?.status);
-            console.error('Error data:', error.response?.data);
-            
-            // Send empty history but don't fail
-            socket.emit('chat_history', { 
-                messages: [], 
-                error: 'Could not load chat history from Django' 
-            });
-        }
-    });
 });
 
-// Health check endpoint
+// Health check endpoint with detailed info
 app.get('/health', (req, res) => {
     res.json({ 
-        status: 'Socket.IO Chat Server Running',
+        status: 'Socket.IO Railway Chat Server Running',
+        version: '1.0.0',
         activeUsers: activeUsers.size,
         activeRooms: roomUsers.size,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        djangoApi: DJANGO_API,
+        environment: NODE_ENV,
+        port: PORT
     });
 });
 
-// Test Django connectivity endpoint
+// Test connection to Django
 app.get('/test-django', async (req, res) => {
     try {
         const response = await axios.get(`${DJANGO_API}/user_info/`, {
             headers: {
                 'Cookie': req.headers.cookie || '',
-                'User-Agent': 'Socket.IO-Server-Test',
-                'Accept': 'application/json',
+                'User-Agent': 'Socket.IO-Railway-Server-Test'
             },
-            withCredentials: true
+            timeout: 5000
         });
         res.json({ 
             success: true, 
             django_response: response.data,
-            cookies_received: !!req.headers.cookie
+            django_url: DJANGO_API,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
         res.status(500).json({ 
             success: false, 
             error: error.message,
+            django_url: DJANGO_API,
             status: error.response?.status,
-            django_error: error.response?.data,
-            cookies_received: !!req.headers.cookie
+            timestamp: new Date().toISOString()
         });
     }
 });
 
-server.listen(3001, () => {
-    console.log("🚀 ENHANCED CHAT SERVER IS RUNNING ON PORT 3001");
-    console.log("🎉 No Redis required for development!");
-    console.log("📍 Health check: http://localhost:3001/health");
+// Basic info endpoint
+app.get('/', (req, res) => {
+    res.json({
+        name: 'MovieNight Chat Server',
+        status: 'Running on Railway',
+        version: '1.0.0',
+        endpoints: {
+            health: '/health',
+            testDjango: '/test-django'
+        },
+        websocket: 'Socket.IO enabled',
+        timestamp: new Date().toISOString()
+    });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 RAILWAY CHAT SERVER RUNNING ON PORT ${PORT}`);
+    console.log(`🌍 Accessible from anywhere!`);
+    console.log(`📍 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔗 Django API: ${DJANGO_API}`);
+    console.log(`⚡ Ready for global connections!`);
+    
+    if (NODE_ENV === 'production') {
+        console.log(`🌐 Production mode - Railway deployment active!`);
+    } else {
+        console.log(`🛠️ Development mode - Railway deployment for testing`);
+    }
 });
