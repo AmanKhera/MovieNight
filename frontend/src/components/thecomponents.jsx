@@ -15,6 +15,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
+import io from 'socket.io-client' //chat
+
+
 import {
   fetchUserInfo,
   fetchUserGroups,
@@ -777,254 +780,442 @@ export const GroupsSidebar = ({
 
 //***********CHAT SECTION************ */
 //*********************************** */
+
+const socket = io.connect("http://localhost:3001"); //Express Chat Socket.IO
+
 export const ChatSection = ({ selectedChat }) => {
+  // Socket.IO state
+  const [socket, setSocket] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Chat state
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
-  const [lastSeen, setLastSeen] = useState(null);
-  const socketRef = useRef(null);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [roomUsers, setRoomUsers] = useState([]);
+  
+  // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
-  const isAtBottomRef = useRef(true);
+  const typingTimeoutRef = useRef();
+
+  // Initialize Socket.IO connection and get user info
+  useEffect(() => {
+    // First, get current user info from Django
+    const fetchUserInfo = async () => {
+      try {
+        console.log('🔍 Fetching user info from Django...');
+        const res = await fetch("http://localhost:8000/user_info/", {
+          credentials: "include",
+        });
+        
+        console.log('📡 Django response status:', res.status);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        console.log('📡 Django response data:', data);
+        
+        // Validate the user data
+        if (data && data.id && data.username) {
+          console.log('✅ User info fetched successfully:', {
+            id: data.id,
+            username: data.username,
+            email: data.email
+          });
+          
+          setCurrentUser(data);
+          return { success: true, user: data };
+        } else {
+          console.error('❌ Invalid user data structure:', data);
+          return { success: false, error: 'Invalid user data' };
+        }
+        
+      } catch (error) {
+        console.error("❌ Error fetching user info:", error);
+        return { success: false, error: error.message };
+      }
+    };
+
+    const initializeSocketIO = async () => {
+      console.log('🔌 Initializing Socket.IO connection...');
+      
+      // Get user authentication
+      const authResult = await fetchUserInfo();
+      console.log('🔐 Auth result:', authResult);
+      
+      if (!authResult.success) {
+        console.log('❌ User not authenticated, details:', authResult.error);
+        return;
+      }
+      
+      // Ensure we have valid user data
+      const userData = authResult.user;
+      if (!userData || !userData.id || !userData.username) {
+        console.error('❌ Invalid user data for Socket.IO auth:', userData);
+        return;
+      }
+      
+      console.log('👤 Valid user data for Socket.IO:', {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email
+      });
+      
+      const newSocket = io('http://localhost:3001', {
+        transports: ['websocket', 'polling'],
+        timeout: 20000,
+      });
+
+      // Connection events
+      newSocket.on('connect', () => {
+        console.log('✅ Connected to Socket.IO server');
+        setIsConnected(true);
+        
+        // Get cookies
+        const cookies = document.cookie;
+        
+        console.log('📤 Preparing authentication data...');
+        const authData = { 
+          cookies: cookies,
+          user: userData,  // This should be your real Django user
+          method: 'direct'
+        };
+        
+        console.log('📤 Sending authentication data:', {
+          hasCookies: !!authData.cookies,
+          hasUser: !!authData.user,
+          username: authData.user?.username,
+          userId: authData.user?.id,
+          method: authData.method
+        });
+        
+        // Send authentication
+        newSocket.emit('authenticate', authData);
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.log('❌ Disconnected from Socket.IO server:', reason);
+        setIsConnected(false);
+        setIsAuthenticated(false);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('🔥 Connection error:', error);
+        setIsConnected(false);
+      });
+
+      // Authentication events
+      newSocket.on('authenticated', (data) => {
+        console.log('🔐 Authentication response received:', data);
+        if (data.success) {
+          console.log('✅ Authenticated successfully with Socket.IO!');
+          console.log('   Method used:', data.method);
+          console.log('   User:', data.user?.username);
+          setIsAuthenticated(true);
+        } else {
+          console.error('🚫 Socket.IO authentication failed:', data.error || 'Unknown error');
+          setIsAuthenticated(false);
+        }
+      });
+
+      // Chat events
+      newSocket.on('new_message', (message) => {
+        console.log('📨 New message received:', message);
+        setMessages(prev => [...prev, message]);
+      });
+
+      newSocket.on('chat_history', (data) => {
+        console.log('📚 Chat history loaded:', data.messages?.length || 0, 'messages');
+        setMessages(data.messages || []);
+      });
+
+      newSocket.on('user_joined', (data) => {
+        console.log('👋 User joined:', data);
+        setMessages(prev => [...prev, data]);
+      });
+
+      newSocket.on('user_left', (data) => {
+        console.log('👋 User left:', data);
+        setMessages(prev => [...prev, data]);
+      });
+
+      newSocket.on('room_users', (data) => {
+        console.log('👥 Room users updated:', data);
+        setRoomUsers(data.users || []);
+      });
+
+      newSocket.on('user_typing', (data) => {
+        setTypingUsers(prev => {
+          const filtered = prev.filter(u => u.userId !== data.userId);
+          if (data.isTyping) {
+            return [...filtered, data];
+          } else {
+            return filtered;
+          }
+        });
+      });
+
+      newSocket.on('error', (error) => {
+        console.error('🚫 Socket error:', error);
+      });
+
+      setSocket(newSocket);
+    };
+
+    initializeSocketIO();
+
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection');
+      clearTimeout(typingTimeoutRef.current);
+      if (socket) {
+        socket.close();
+      }
+    };
+  }, []);
+
+  // Handle selectedChat changes
+  useEffect(() => {
+    if (!socket || !isAuthenticated || !selectedChat) {
+      setMessages([]);
+      return;
+    }
+
+    console.log('🚪 Joining chat:', selectedChat);
+    
+    // Join the chat room
+    socket.emit('join_chat', { selectedChat });
+    
+    // Get chat history
+    socket.emit('get_chat_history', { selectedChat });
+    
+    // Clear messages and typing indicators when switching chats
+    setMessages([]);
+    setTypingUsers([]);
+    
+  }, [socket, isAuthenticated, selectedChat]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const preserveScroll = (prevHeight) => {
-    const container = messagesContainerRef.current;
-    if (container && prevHeight != null) {
-      container.scrollTop = container.scrollHeight - prevHeight;
-    }
-  };
-
-  
-  //Get time translated to year, month and day to be used
-  const getRelativeDateLabel = (date) => {
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatRelativeTime = (timestamp) => {
-    return dayjs(timestamp).fromNow();
-  };
-
-  //Fetch user_info from backend
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/user_info/", {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok) setCurrentUser(data);
-      } catch (err) {
-        console.error("Failed to fetch user info:", err);
-      }
-    };
-    fetchUserInfo();
-  }, []);
-
-  //format chatId thats used as the chat room name to either a user chat or a group chat for the websocket address
-  useEffect(() => {
-    if (!selectedChat || !currentUser) return;
-
-    const chatType = selectedChat.group_id ? "group" : "dm";
-    let chatId;
-    if (selectedChat.group_id) {
-      chatId = selectedChat.group_id;
-    } else {
-      const ids = [currentUser.id, selectedChat.id].sort((a, b) => a - b);
-      chatId = `${ids[0]}_${ids[1]}`;
-    }
-
-    if (socketRef.current) socketRef.current.close();
-
-    socketRef.current = new WebSocket(
-      `ws://localhost:8000/ws/chat/${chatType}_${chatId}/`
-    );
-
-    //fetch previous messages when entering the chatroom
-    socketRef.current.onopen = () => {
-      setMessages([]);
-      setPage(1);
-      setHasMore(true);
-      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: 1 }));
-    };
-
-    //handle auto scroll when message is sent
-    socketRef.current.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-
-      if (data.type === "chat.message") {
-        const msg = data.message;
-
-        setMessages((prev) => {
-          const replaced = prev.map((m) => {
-            const sameSender = m.sender_id === msg.sender_id;
-            const sameTime = Math.abs(new Date(m.timestamp) - new Date(msg.timestamp)) < 5000;
-            return sameSender && sameTime ? msg : m;
-          });
-          const alreadyExists = replaced.some(m => m.message_content === msg.message_content && m.sender_id === msg.sender_id);
-          return alreadyExists ? replaced : [...replaced, msg];
-        });
-
-        if (isAtBottomRef.current) scrollToBottom();
-      }
-
-      if (data.type === "chat.history") {
-        if (data.messages.length === 0) {
-          setHasMore(false);
-          return;
-        }
-        const prevHeight = messagesContainerRef.current?.scrollHeight;
-        setMessages((prev) => [...data.messages, ...prev]);
-        setTimeout(() => preserveScroll(prevHeight), 50);
-      }
-
-      if (data.type === "presence" && selectedChat?.id === data.user_id) {
-        setIsOnline(data.is_online);
-        if (data.last_seen) setLastSeen(data.last_seen);
-      }
-    };
-
-    socketRef.current.onclose = () => {
-      console.log("WebSocket closed");
-    };
-
-    return () => {
-      socketRef.current?.close();
-    };
-  }, [selectedChat, currentUser]);
-
-  
-  //send message send to chatconsumer to be save in the message table
+  // Send message via Socket.IO
   const sendMessage = () => {
-    if (!newMessage.trim() || socketRef.current?.readyState !== WebSocket.OPEN) return;
-    const payload = {
-      type: "chat.message",
-      message: {
-        sender_id: currentUser.id,
-        content: newMessage.trim(),
-      },
-    };
-    setMessages((prev) => [
-      ...prev,
-      {
-        ...payload.message,
-        timestamp: new Date().toISOString(),
-        status: "sent",
-        sender_username: currentUser.username,
-        message_content: newMessage.trim(),
-      },
-    ]);
-    socketRef.current.send(JSON.stringify(payload));
+    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim()) {
+      return;
+    }
+
+    console.log('📤 Sending message:', newMessage);
+    
+    socket.emit('send_message', {
+      selectedChat,
+      message: newMessage.trim()
+    });
+
     setNewMessage("");
-    scrollToBottom();
+    stopTyping();
   };
 
-  //scroll helper function
-  const handleScroll = () => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    isAtBottomRef.current = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-    if (container.scrollTop < 50 && hasMore && socketRef.current) {
-      socketRef.current.send(JSON.stringify({ type: "fetch_messages", page: page + 1 }));
-      setPage((prev) => prev + 1);
+  // Handle Enter key press
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
     }
+  };
+
+  // Typing indicators
+  const startTyping = () => {
+    if (socket && isAuthenticated) {
+      socket.emit('typing_start');
+    }
+  };
+
+  const stopTyping = () => {
+    if (socket && isAuthenticated) {
+      socket.emit('typing_stop');
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    
+    // Start typing indicator
+    startTyping();
+    
+    // Clear existing timeout
+    clearTimeout(typingTimeoutRef.current);
+    
+    // Stop typing after 1 second of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      stopTyping();
+    }, 1000);
+  };
+
+  // Format message for display
+  const formatMessage = (message) => {
+    if (message.isSystemMessage) {
+      return (
+        <div key={`system-${message.timestamp}`} style={styles.systemMessage}>
+          <em>{message.message}</em>
+        </div>
+      );
+    }
+
+    const isOwnMessage = message.sender_id === currentUser?.id;
+    const messageStyle = isOwnMessage ? styles.sent : styles.received;
+    
+    return (
+      <div key={`msg-${message.id || message.timestamp}`} style={styles.messageWrapper}>
+        {!isOwnMessage && (
+          <div style={styles.senderUsername}>
+            {message.user_sending || `User ${message.sender_id}`}
+          </div>
+        )}
+        <div style={messageStyle}>
+          {message.message_content || message.message}
+        </div>
+        <div style={styles.meta}>
+          <span style={styles.timestamp}>
+            {new Date(message.timestamp).toLocaleTimeString()}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Component styles (keeping your existing purple theme)
+  const chatStyle = {
+    width: "75%",
+    height: "90vh",
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#2a0252",
+    color: "white",
+    position: "relative",
+  };
+
+  const headerStyle = {
+    padding: "1.5rem",
+    backgroundColor: "#240046",
+    borderBottom: "2px solid #3a1f5c",
+    flexShrink: 0,
+  };
+
+  const messagesStyle = {
+    flex: 1,
+    overflowY: "auto",
+    padding: "1.5rem",
+    minHeight: 0,
+  };
+
+  const inputContainerStyle = {
+    padding: "1.5rem",
+    borderTop: "2px solid #3a1f5c",
+    display: "flex",
+    gap: "1rem",
+    backgroundColor: "#2a0252",
+    flexShrink: 0,
+  };
+
+  const inputStyle = {
+    flex: 1,
+    padding: "1rem",
+    borderRadius: "6px",
+    border: "1px solid #6a0dad",
+    backgroundColor: "#1a0133",
+    color: "white",
+    outline: "none",
+  };
+
+  const buttonStyle = {
+    backgroundColor: "#6a0dad",
+    color: "white",
+    border: "none",
+    padding: "1rem 1.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    opacity: (!isConnected || !isAuthenticated || !newMessage.trim()) ? 0.5 : 1,
+  };
+
+  // Connection status indicator
+  const getConnectionStatus = () => {
+    if (!isConnected) return "🔴 Disconnected";
+    if (!isAuthenticated) return "🟡 Connecting...";
+    return "🟢 Connected";
   };
 
   return (
-    <div style={styles.chat}>
-      <div style={styles.header}>
-        <h2 style={styles.headerTitle}>
-          {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
-          {selectedChat?.group_id ? null : isOnline ? (
-            <span style={styles.onlineDot}>● Online</span>
-          ) : (
-            <span style={styles.lastSeen}>
-              {lastSeen ? `Last seen ${formatRelativeTime(lastSeen)}` : ""}
-            </span>
-          )}
-        </h2>
-      </div>
-
-      <div style={styles.messages} onScroll={handleScroll} ref={messagesContainerRef}>
-        {messages.length > 0 ? (
-          messages.map((msg, index) => {
-            const isSent = msg.sender_id === currentUser?.id;
-            const messageDate = new Date(msg.timestamp);
-            const formattedDate = getRelativeDateLabel(messageDate);
-            const previousMsg = messages[index - 1];
-            const showDateHeader =
-              index === 0 ||
-              new Date(previousMsg.timestamp).toDateString() !== messageDate.toDateString();
-
-            return (
-              <React.Fragment key={index}>
-                {showDateHeader && (
-                  <div style={styles.dateHeader}>{formattedDate}</div>
-                )}
-                <div style={{ ...styles.messageWrapper, alignItems: isSent ? "flex-end" : "flex-start" }}>
-                  {!isSent && selectedChat?.group_id && (
-                    <div style={styles.senderUsername}>{msg.sender_username}</div>
-                  )}
-                  <div
-                    style={{
-                      ...styles.messageBubble,
-                      ...(isSent ? styles.sent : styles.received),
-                      ...(isSent
-                        ? { borderTopRightRadius: "5px", borderTopLeftRadius: "20px" }
-                        : { borderTopLeftRadius: "5px", borderTopRightRadius: "20px" }),
-                    }}
-                  >
-                    <div>{msg.message_content}</div>
-                  </div>
-                  <div style={styles.meta}>
-                    <span style={styles.timestamp}>
-                      {messageDate.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    {msg.status && isSent && (
-                      <span style={styles.status}> · {msg.status}</span>
-                    )}
-                  </div>
-                </div>
-              </React.Fragment>
-            );
-          })
-        ) : (
-          <div style={styles.placeholder}>
-            {selectedChat ? "No messages yet" : "Select a chat to start messaging"}
+    <div style={chatStyle}>
+      <div style={headerStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>
+            {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+          </h2>
+          <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+            {getConnectionStatus()}
+          </div>
+        </div>
+        {roomUsers.length > 0 && (
+          <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
+            {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {selectedChat && (
-        <div style={styles.inputContainer}>
+      <div style={messagesStyle} ref={messagesContainerRef}>
+        {messages.length > 0 ? (
+          <>
+            {messages.map((message, index) => formatMessage(message))}
+            
+            {/* Typing indicators */}
+            {typingUsers.length > 0 && (
+              <div style={styles.typingIndicator}>
+                <em>
+                  {typingUsers.map(user => user.username).join(', ')} 
+                  {typingUsers.length === 1 ? ' is' : ' are'} typing...
+                </em>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </>
+        ) : (
+          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+            {selectedChat
+              ? isAuthenticated 
+                ? "No messages yet" 
+                : "Connecting to chat..."
+              : "Select a chat to start messaging"}
+          </div>
+        )}
+      </div>
+
+      {selectedChat && isAuthenticated && (
+        <div style={inputContainerStyle}>
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
-            style={styles.input}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            onChange={handleInputChange}
+            placeholder={isConnected ? "Type your message..." : "Connecting..."}
+            style={inputStyle}
+            onKeyPress={handleKeyPress}
+            disabled={!isConnected || !isAuthenticated}
           />
-          <button onClick={sendMessage} style={styles.button} disabled={!newMessage.trim()}>
+          <button
+            onClick={sendMessage}
+            style={buttonStyle}
+            disabled={!isConnected || !isAuthenticated || !newMessage.trim()}
+          >
             Send
           </button>
         </div>
@@ -1033,67 +1224,20 @@ export const ChatSection = ({ selectedChat }) => {
   );
 };
 
+// Enhanced styles with your existing theme
 const styles = {
-  chat: {
-    width: "45%",
-    height: "90vh",
+  messageWrapper: {
     display: "flex",
     flexDirection: "column",
-    backgroundImage: "radial-gradient(circle farthest-corner at 50.3% 47.3%, rgb(47, 0, 85) 0.1%, rgb(21, 0, 46) 90%)",
-    color: "white",
-    position: "relative",
+    marginBottom: "1.5rem",
   },
-  header: {
-    padding: "1.5rem",
-    backgroundColor: "#240046",
-    borderBottom: "2px solid #3a1f5c",
-    flexShrink: 0,
+  
+  senderUsername: {
+    fontSize: "0.75rem",
+    marginBottom: "0.25rem",
+    color: "#bbb",
   },
-  messages: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "1.5rem",
-    display: "flex",
-    flexDirection: "column",
-  },
-  placeholder: {
-    textAlign: "center",
-    marginTop: "2rem",
-    color: "#aaa",
-  },
-  inputContainer: {
-    padding: "1.5rem",
-    borderTop: "2px solid #3a1f5c",
-    display: "flex",
-    gap: "1rem",
-    backgroundColor: "#2a0252",
-    flexShrink: 0,
-  },
-  input: {
-    flex: 1,
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid #6a0dad",
-    backgroundColor: "#1a0133",
-    color: "white",
-    outline: "none",
-  },
-  button: {
-    backgroundColor: "#6a0dad",
-    color: "white",
-    border: "none",
-    padding: "1rem 1.5rem",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  messageBubble: {
-    maxWidth: "70%",
-    padding: "0.75rem 1rem",
-    marginBottom: "0.75rem",
-    borderRadius: "12px",
-    wordBreak: "break-word",
-  },
+  
   sent: {
     alignSelf: "flex-end",
     backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
@@ -1105,6 +1249,7 @@ const styles = {
     padding: "0.75rem 1.2rem",
     marginBottom: "1rem",
     maxWidth: "70%",
+    wordBreak: "break-word",
   },
 
   received: {
@@ -1118,18 +1263,19 @@ const styles = {
     padding: "0.75rem 1.2rem",
     marginBottom: "1rem",
     maxWidth: "70%",
+    wordBreak: "break-word",
   },
 
-  messageWrapper: {
-    display: "flex",
-    flexDirection: "column",
-    marginBottom: "1.5rem",
+  systemMessage: {
+    textAlign: "center",
+    color: "#ccc",
+    fontStyle: "italic",
+    margin: "1rem 0",
+    padding: "0.5rem",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: "8px",
   },
-  senderUsername: {
-    fontSize: "0.75rem",
-    marginBottom: "0.25rem",
-    color: "#bbb",
-  },
+
   meta: {
     fontSize: "0.8rem",
     color: "#ccc",
@@ -1137,37 +1283,16 @@ const styles = {
     display: "flex",
     gap: "0.5rem",
   },
+
   timestamp: {
     opacity: 0.8,
   },
-  dateHeader: {
-    textAlign: "center",
-    color: "#ccc",
-    margin: "1.5rem 0 1rem",
-    fontSize: "0.85rem",
-    fontWeight: "bold",
-    letterSpacing: "0.5px",
-  },
-  status: {
+
+  typingIndicator: {
+    padding: "0.5rem",
     fontStyle: "italic",
-    opacity: 0.6,
-  },
-  headerTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    fontSize: "1.25rem",
-  },
-  onlineDot: {
-    color: "lightgreen",
-    fontSize: "0.95rem",
-    marginLeft: "0.5rem",
-  },
-  lastSeen: {
-    color: "#ccc",
+    color: "#bbb",
     fontSize: "0.9rem",
-    marginLeft: "0.5rem",
-    fontStyle: "italic",
   },
 };
 
