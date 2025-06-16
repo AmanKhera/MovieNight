@@ -11,7 +11,7 @@ import profileImage from '../images/profile-btn.png';
 
 /**
  * A version of the Toolbar.js but only used in the Home Page.
- * This toolbar is unique compared to Toolbar.js as its transparent when the user is at the top of the page and slowly turns purple as the user scrolls
+ * This toolbar is unique compared to Toolbar.js as its transparent when the user is at the top of the page and slowly turns purple as the user scrolls.
  */
 
 function PopularToolbar() {
