@@ -803,7 +803,7 @@ export const ChatSection = ({ selectedChat }) => {
   const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef();
 
-  // Configuration
+  // Configuration - Your Railway deployment
   const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://movienightchat-production.up.railway.app';
   const DJANGO_URL = process.env.REACT_APP_DJANGO_URL || 'http://localhost:8000';
 
@@ -811,27 +811,54 @@ export const ChatSection = ({ selectedChat }) => {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
+        console.log('🔍 Fetching user info from Django...');
         const userInfoUrl = `${DJANGO_URL}/user_info/`;
-        const res = await fetch(userInfoUrl, { credentials: "include" });
         
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const res = await fetch(userInfoUrl, {
+          credentials: "include",
+        });
+        
+        console.log('📡 Django response status:', res.status);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         
         const data = await res.json();
+        console.log('📡 Django user data:', data);
+        
         if (data && data.id && data.username) {
+          console.log('✅ User authenticated with Django:', data.username);
           setCurrentUser(data);
           return { success: true, user: data };
+        } else {
+          console.error('❌ Invalid user data from Django:', data);
+          return { success: false, error: 'Invalid user data' };
         }
-        return { success: false, error: 'Invalid user data' };
+        
       } catch (error) {
+        console.error("❌ Error fetching user info:", error);
         return { success: false, error: error.message };
       }
     };
 
     const initializeSocketIO = async () => {
+      console.log('🔌 Initializing Socket.IO connection...');
+      console.log('🌐 Socket.IO Server:', SOCKET_URL);
+      console.log('🌐 Django Server:', DJANGO_URL);
+      
+      // Get user authentication first
       const authResult = await fetchUserInfo();
-      if (!authResult.success) return;
+      console.log('🔐 Auth result:', authResult);
+      
+      if (!authResult.success) {
+        console.log('❌ User not authenticated with Django:', authResult.error);
+        return;
+      }
       
       const userData = authResult.user;
+      console.log('👤 Connecting to Socket.IO with user:', userData.username);
+      
       const newSocket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 20000,
@@ -841,75 +868,141 @@ export const ChatSection = ({ selectedChat }) => {
 
       // Connection events
       newSocket.on('connect', () => {
+        console.log('✅ Connected to Socket.IO server');
         setIsConnected(true);
+        
+        const cookies = document.cookie;
+        
+        console.log('📤 Sending authentication data to Socket.IO...');
+        
+        // Send authentication with user data and Django URL
         newSocket.emit('authenticate', { 
-          cookies: document.cookie,
+          cookies: cookies,
           user: userData,
           method: 'direct',
           djangoUrl: DJANGO_URL
         });
       });
 
-      newSocket.on('disconnect', () => setIsConnected(false));
-      newSocket.on('connect_error', () => setIsConnected(false));
+      newSocket.on('disconnaect', (reason) => {
+        console.log('❌ Disconnected from Socket.IO server:', reason);
+        setIsConnected(false);
+        setIsAuthenticated(false);
+      });
 
+      newSocket.on('connect_error', (error) => {
+        console.error('🔥 Connection error:', error);
+        setIsConnected(false);
+      });
+
+      // Authentication events
       newSocket.on('authenticated', (data) => {
-        setIsAuthenticated(data.success);
+        console.log('🔐 Authentication response:', data);
+        if (data.success) {
+          console.log('✅ Successfully authenticated with Socket.IO!');
+          console.log('   Server type:', data.server);
+          console.log('   Method used:', data.method);
+          setIsAuthenticated(true);
+        } else {
+          console.error('🚫 Socket.IO authentication failed:', data.error);
+          setIsAuthenticated(false);
+        }
       });
 
       // Chat events
       newSocket.on('new_message', (message) => {
+        console.log('📨 New message received:', message);
         setMessages(prev => {
+          // Prevent duplicates by checking message ID and content
           const isDuplicate = prev.some(msg => 
             msg.id === message.id || 
             (msg.message_content === message.message_content && 
              msg.user_sending === message.user_sending &&
              Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 5000)
           );
-          return isDuplicate ? prev : [...prev, message];
+          
+          if (!isDuplicate) {
+            return [...prev, message];
+          }
+          return prev;
         });
       });
 
-      newSocket.on('user_joined', (data) => setMessages(prev => [...prev, data]));
-      newSocket.on('user_left', (data) => setMessages(prev => [...prev, data]));
-      newSocket.on('room_users', (data) => setRoomUsers(data.users || []));
+      newSocket.on('user_joined', (data) => {
+        console.log('👋 User joined:', data);
+        setMessages(prev => [...prev, data]);
+      });
+
+      newSocket.on('user_left', (data) => {
+        console.log('👋 User left:', data);
+        setMessages(prev => [...prev, data]);
+      });
+
+      newSocket.on('room_users', (data) => {
+        console.log('👥 Room users updated:', data.users?.length || 0, 'users');
+        setRoomUsers(data.users || []);
+      });
 
       newSocket.on('user_typing', (data) => {
         setTypingUsers(prev => {
           const filtered = prev.filter(u => u.userId !== data.userId);
-          return data.isTyping ? [...filtered, data] : filtered;
+          if (data.isTyping) {
+            return [...filtered, data];
+          } else {
+            return filtered;
+          }
         });
       });
 
+      newSocket.on('error', (error) => {
+        console.error('🚫 Socket error:', error);
+      });
+
       setSocket(newSocket);
-      return () => {
-        clearTimeout(typingTimeoutRef.current);
-        if (newSocket) newSocket.close();
-      };
     };
 
     initializeSocketIO();
+
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection');
+      clearTimeout(typingTimeoutRef.current);
+      if (socket) {
+        socket.close();
+      }
+    };
   }, [SOCKET_URL, DJANGO_URL]);
 
-  // Load chat history
+  // Load chat history from Django
   const loadChatHistory = async (selectedChat) => {
     if (!selectedChat) return;
+
     setIsLoadingHistory(true);
+    console.log('📚 Loading chat history for:', selectedChat);
 
     try {
       const endpoint = selectedChat.group_id
         ? `group_messages/?group_id=${selectedChat.group_id}`
         : `group_messages/?group_id=${selectedChat.id}`;
 
-      const response = await fetch(`${DJANGO_URL}/${endpoint}`, {
+      const historyUrl = `${DJANGO_URL}/${endpoint}`;
+      console.log(`📡 Fetching from: ${historyUrl}`);
+
+      const response = await fetch(historyUrl, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include'
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
+      console.log(`✅ Chat history loaded: ${data.messages?.length || 0} messages`);
+      
+      // Format messages for display and sort by timestamp (oldest first)
       const formattedMessages = (data.messages || [])
         .map(msg => ({
           id: msg.id,
@@ -921,17 +1014,18 @@ export const ChatSection = ({ selectedChat }) => {
           status: msg.status || 'Sent',
           isSystemMessage: false
         }))
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); // Sort by oldest first
 
       setMessages(formattedMessages);
     } catch (error) {
+      console.error('⚠️ Error loading chat history:', error);
       setMessages([]);
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
-  // Handle chat selection
+  // Handle selectedChat changes
   useEffect(() => {
     if (!socket || !isAuthenticated || !selectedChat) {
       setMessages([]);
@@ -939,70 +1033,94 @@ export const ChatSection = ({ selectedChat }) => {
       return;
     }
 
-    socket.emit('join_chat', { selectedChat });
+    console.log('🚪 Joining chat:', selectedChat);
+    
+    // Join the chat room via Socket.IO
+    socket.emit('join_chaat', { selectedChat });
+    
+    // Load chat history directly from Django
     loadChatHistory(selectedChat);
+    
+    // Clear typing users when switching chats
     setTypingUsers([]);
+    
   }, [socket, isAuthenticated, selectedChat]);
 
-  // Auto-scroll
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollToBottom();
   }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Send message
+  // Send message via Django first, then broadcast via Socket.IO
   const sendMessage = async () => {
-    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim() || isSending) return;
+    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim() || isSending) {
+      console.log('❌ Cannot send message:', {
+        hasSocket: !!socket,
+        isAuthenticated,
+        hasSelectedChat: !!selectedChat,
+        hasMessage: !!newMessage.trim(),
+        isSending
+      });
+      return;
+    }
 
     setIsSending(true);
     const messageText = newMessage.trim();
-    setNewMessage("");
+    setNewMessage(""); // Clear input immediately for better UX
 
     try {
+      console.log('📤 Sending message to Django first...');
+      
+      // Step 1: Save to Django database (direct call - reliable)
       const messageData = {
         user_sending: currentUser.id,
-        user_recieving: selectedChat.group_id || selectedChat.id,
+        user_recieving: selectedChat.group_id || selectedChat.id, // group_id or user_id
         message: messageText
       };
 
       const response = await fetch(`${DJANGO_URL}/send_message/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
         body: JSON.stringify(messageData)
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const savedMessage = await response.json();
+      console.log('✅ Message saved to Django:', savedMessage);
+
+      // Step 2: Broadcast via Socket.IO for real-time delivery
       socket.emit('broadcast_message', {
         selectedChat,
         message: messageText,
         messageData: savedMessage
       });
 
+      console.log('📡 Message broadcasted via Socket.IO');
+
+      // Clear typing status
       stopTyping();
+
     } catch (error) {
+      console.error('❌ Error sending message:', error);
+      // Restore message if it failed
       setNewMessage(messageText);
+      alert('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
     }
   };
 
-  // Typing indicators
-  const startTyping = () => socket && isAuthenticated && socket.emit('typing_start');
-  const stopTyping = () => socket && isAuthenticated && socket.emit('typing_stop');
-
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    startTyping();
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(stopTyping, 1000);
-  };
-
+  // Handle Enter key press
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1010,7 +1128,35 @@ export const ChatSection = ({ selectedChat }) => {
     }
   };
 
-  // Format message with username and timestamp above
+  // Typing indicators
+  const startTyping = () => {
+    if (socket && isAuthenticated) {
+      socket.emit('typing_start');
+    }
+  };
+
+  const stopTyping = () => {
+    if (socket && isAuthenticated) {
+      socket.emit('typing_stop');
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    
+    // Start typing indicator
+    startTyping();
+    
+    // Clear existing timeout
+    clearTimeout(typingTimeoutRef.current);
+    
+    // Stop typing after 1 second of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      stopTyping();
+    }, 1000);
+  };
+
+  // Format message for display with username and timestamp above message
   const formatMessage = (message) => {
     if (message.isSystemMessage) {
       return (
@@ -1021,16 +1167,11 @@ export const ChatSection = ({ selectedChat }) => {
     }
 
     const isOwnMessage = message.sender_id === currentUser?.id || message.user_sending === currentUser?.username;
+    const messageStyle = isOwnMessage ? styles.sent : styles.received;
     
     return (
-      <div key={`msg-${message.id || message.timestamp}`} style={{
-        ...styles.messageWrapper,
-        alignItems: isOwnMessage ? 'flex-end' : 'flex-start'
-      }}>
-        <div style={{
-          ...styles.messageHeader,
-          justifyContent: isOwnMessage ? 'flex-end' : 'flex-start'
-        }}>
+      <div key={`msg-${message.id || message.timestamp}`} style={styles.messageWrapper}>
+        <div style={styles.messageHeader}>
           <span style={styles.username}>
             {message.user_sending || `User ${message.sender_id}`}
           </span>
@@ -1038,11 +1179,9 @@ export const ChatSection = ({ selectedChat }) => {
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
-        
-        <div style={isOwnMessage ? styles.sent : styles.received}>
+        <div style={messageStyle}>
           {message.message_content || message.message}
         </div>
-        
         {isOwnMessage && (
           <div style={styles.status}>
             {message.status || 'Sent'}
@@ -1052,13 +1191,14 @@ export const ChatSection = ({ selectedChat }) => {
     );
   };
 
+  // Connection status indicator
   const getConnectionStatus = () => {
     if (!isConnected) return "🔴 Disconnected";
     if (!isAuthenticated) return "🟡 Connecting...";
     return "🟢 Connected to Cloud";
   };
 
-  // Styles
+  // Component styles
   const chatStyle = {
     width: "75%",
     height: "90vh",
@@ -1113,87 +1253,26 @@ export const ChatSection = ({ selectedChat }) => {
     opacity: (!isConnected || !isAuthenticated || !newMessage.trim() || isSending) ? 0.5 : 1,
   };
 
-  const styles = {
-    messageWrapper: {
-      display: "flex",
-      flexDirection: "column",
-      marginBottom: "1.5rem",
-      width: "100%"
-    },
-    messageHeader: {
-      display: "flex",
-      alignItems: "baseline",
-      gap: "0.5rem",
-      marginBottom: "0.25rem",
-      maxWidth: "80%"
-    },
-    username: {
-      fontSize: "0.85rem",
-      fontWeight: "bold",
-      color: "#ddd",
-    },
-    timestamp: {
-      fontSize: "0.75rem",
-      color: "#aaa",
-    },
-    sent: {
-      backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
-      color: "white",
-      border: "1px solid rgb(161, 79, 255)",
-      borderRadius: "12px",
-      borderTopRightRadius: "4px",
-      padding: "0.75rem 1rem",
-      maxWidth: "80%",
-      wordBreak: "break-word",
-    },
-    received: {
-      backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
-      color: "black",
-      border: "1px solid rgb(248, 253, 255)",
-      borderRadius: "12px",
-      borderTopLeftRadius: "4px",
-      padding: "0.75rem 1rem",
-      maxWidth: "80%",
-      wordBreak: "break-word",
-    },
-    systemMessage: {
-      textAlign: "center",
-      color: "#ccc",
-      fontStyle: "italic",
-      margin: "1rem 0",
-      padding: "0.5rem",
-      backgroundColor: "rgba(255, 255, 255, 0.1)",
-      borderRadius: "8px",
-    },
-    status: {
-      fontSize: "0.7rem",
-      color: "#aaa",
-      textAlign: "right",
-      marginTop: "0.2rem",
-      fontStyle: "italic",
-      paddingRight: "0.5rem",
-      maxWidth: "80%"
-    },
-    typingIndicator: {
-      padding: "0.5rem",
-      fontStyle: "italic",
-      color: "#bbb",
-      fontSize: "0.9rem",
-    },
-  };
-
   return (
     <div style={chatStyle}>
       <div style={headerStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>{selectedChat?.group_name || selectedChat?.username || "Select a chat"}</h2>
-          <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>{getConnectionStatus()}</div>
+          <h2>
+            {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+          </h2>
+          <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+            {getConnectionStatus()}
+          </div>
         </div>
         {roomUsers.length > 0 && (
           <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
             {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
           </div>
         )}
+        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
+          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'} | 
+          Messages: {messages.length}
+        </div>
       </div>
 
       <div style={messagesStyle} ref={messagesContainerRef}>
@@ -1203,7 +1282,9 @@ export const ChatSection = ({ selectedChat }) => {
           </div>
         ) : messages.length > 0 ? (
           <>
-            {messages.map((message) => formatMessage(message))}
+            {messages.map((message, index) => formatMessage(message))}
+            
+            {/* Typing indicators */}
             {typingUsers.length > 0 && (
               <div style={styles.typingIndicator}>
                 <em>
@@ -1212,6 +1293,7 @@ export const ChatSection = ({ selectedChat }) => {
                 </em>
               </div>
             )}
+            
             <div ref={messagesEndRef} />
           </>
         ) : (
@@ -1250,6 +1332,84 @@ export const ChatSection = ({ selectedChat }) => {
       )}
     </div>
   );
+};
+
+// Styles with updated message format
+const styles = {
+  messageWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    marginBottom: "1.5rem",
+  },
+  
+  messageHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: "0.25rem",
+    padding: "0 0.5rem",
+  },
+  
+  username: {
+    fontSize: "0.85rem",
+    fontWeight: "bold",
+    color: "#ddd",
+  },
+  
+  timestamp: {
+    fontSize: "0.75rem",
+    color: "#aaa",
+  },
+  
+  sent: {
+    alignSelf: "flex-end",
+    backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
+    color: "white",
+    border: "1px solid rgb(161, 79, 255)",
+    borderRadius: "12px",
+    borderTopRightRadius: "4px",
+    padding: "0.75rem 1rem",
+    maxWidth: "80%",
+    wordBreak: "break-word",
+  },
+
+  received: {
+    alignSelf: "flex-start",
+    backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
+    color: "black",
+    border: "1px solid rgb(248, 253, 255)",
+    borderRadius: "12px",
+    borderTopLeftRadius: "4px",
+    padding: "0.75rem 1rem",
+    maxWidth: "80%",
+    wordBreak: "break-word",
+  },
+
+  systemMessage: {
+    textAlign: "center",
+    color: "#ccc",
+    fontStyle: "italic",
+    margin: "1rem 0",
+    padding: "0.5rem",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: "8px",
+  },
+
+  status: {
+    fontSize: "0.7rem",
+    color: "#aaa",
+    alignSelf: "flex-end",
+    marginTop: "0.2rem",
+    fontStyle: "italic",
+    paddingRight: "0.5rem",
+  },
+
+  typingIndicator: {
+    padding: "0.5rem",
+    fontStyle: "italic",
+    color: "#bbb",
+    fontSize: "0.9rem",
+  },
 };
 
 
