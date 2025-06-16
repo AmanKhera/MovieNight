@@ -786,8 +786,11 @@ const socket = io.connect("http://localhost:3001"); //Express Chat Socket.IO
 const getRoomId = (selectedChat) => {
   if (!selectedChat) return null;
   
-  if (selectedChat.group_id) {
-    return `group_${selectedChat.group_id}`;
+  // Try different possible group ID properties
+  const groupId = selectedChat.group_id || selectedChat.id || selectedChat.groupId;
+  
+  if (groupId) {
+    return `group_${groupId}`;
   } else {
     // For individual chats, create consistent room ID
     const ids = [
@@ -805,18 +808,19 @@ export const ChatSection = ({ selectedChat }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Persistent message storage - keeps messages for each room
-  const [roomMessages, setRoomMessages] = useState(new Map()); // Room ID -> Messages array
-  const [roomHistory, setRoomHistory] = useState(new Map());   // Room ID -> History loaded flag
+  const [roomMessages, setRoomMessages] = useState(new Map());
+  const [roomHistory, setRoomHistory] = useState(new Map());
   
   // Current room state
   const [currentRoomId, setCurrentRoomId] = useState(null);
-  const [messages, setMessages] = useState([]); // Current visible messages
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   
   // User and room state
   const [currentUser, setCurrentUser] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Refs
   const messagesEndRef = useRef(null);
@@ -890,14 +894,15 @@ export const ChatSection = ({ selectedChat }) => {
         console.log('✅ Connected to Socket.IO server');
         setIsConnected(true);
         
-        const cookies = document.cookie;
         console.log('📤 Sending authentication data to Socket.IO...');
         
         newSocket.emit('authenticate', { 
-          cookies: cookies,
-          user: userData,
-          method: 'direct',
-          djangoUrl: DJANGO_URL
+          hasCookies: true,
+          hasUser: true,
+          username: userData.username,
+          userId: userData.id,
+          email: userData.email,
+          method: 'direct'
         });
       });
 
@@ -924,64 +929,93 @@ export const ChatSection = ({ selectedChat }) => {
         }
       });
 
-      // Chat events with room-based storage
+      // Real-time message receiving (from others only)
       newSocket.on('new_message', (message) => {
-        console.log('📨 New message received:', message);
+        console.log('📨 New message received from Socket.IO:', message);
         
-        const roomId = message.room || currentRoomId;
-        if (roomId) {
+        // Skip messages from current user (we already have them from optimistic update)
+        if (message.from_user === currentUser?.username || message.user_sending === currentUser?.username) {
+          console.log('🔄 Skipping own message (already shown via optimistic update)');
+          return;
+        }
+        
+        // Convert Socket.IO message to your database format
+        const formattedMessage = {
+          id: message.id || Date.now(),
+          user_sending: message.user_sending || message.username,
+          user_recieving: message.user_recieving || message.group_id,
+          message_content: message.message_content || message.message,
+          date_sent: message.date_sent || message.timestamp,
+          status: message.status || 'Sent',
+          sender_id: message.user_id || message.sender_id,
+          user_id: message.user_id || message.sender_id,
+          timestamp: message.date_sent || message.timestamp,
+          isFromCurrentUser: false, // This is always from others
+          isFromSocket: true
+        };
+        
+        const currentGroupId = selectedChat?.group_id || selectedChat?.id || selectedChat?.groupId;
+        const messageGroupId = message.group_id;
+        
+        console.log('📨 Message group check:', {
+          messageGroupId,
+          currentGroupId,
+          matches: messageGroupId === currentGroupId,
+          fromUser: message.from_user,
+          currentUser: currentUser?.username
+        });
+        
+        const roomId = messageGroupId ? `group_${messageGroupId}` : currentRoomId;
+        if (roomId && messageGroupId === currentGroupId) {
           // Add message to room-specific storage
           setRoomMessages(prev => {
             const newMap = new Map(prev);
             const roomMsgs = newMap.get(roomId) || [];
-            newMap.set(roomId, [...roomMsgs, message]);
+            newMap.set(roomId, [...roomMsgs, formattedMessage]);
             return newMap;
           });
           
-          // If it's for the current room, also update visible messages
+          // If it's for the current room, update visible messages
           if (roomId === currentRoomId) {
-            setMessages(prev => [...prev, message]);
+            setMessages(prev => {
+              // Check for exact duplicates
+              const isDuplicate = prev.some(existingMsg => 
+                existingMsg.message_content === formattedMessage.message_content &&
+                existingMsg.user_sending === formattedMessage.user_sending &&
+                Math.abs(new Date(existingMsg.date_sent || existingMsg.timestamp) - new Date(formattedMessage.date_sent || formattedMessage.timestamp)) < 5000
+              );
+              
+              if (isDuplicate) {
+                console.log('⚠️ Duplicate message detected, skipping');
+                return prev;
+              }
+              
+              return [...prev, formattedMessage];
+            });
           }
         }
       });
 
-      newSocket.on('chat_history', (data) => {
-        console.log('📚 Chat history loaded:', data.messages?.length || 0, 'messages');
-        
-        if (currentRoomId && data.messages) {
-          // Store history in room-specific storage
-          setRoomMessages(prev => {
-            const newMap = new Map(prev);
-            newMap.set(currentRoomId, data.messages);
-            return newMap;
-          });
-          
-          // Mark history as loaded for this room
-          setRoomHistory(prev => {
-            const newMap = new Map(prev);
-            newMap.set(currentRoomId, true);
-            return newMap;
-          });
-          
-          // Update visible messages for current room
-          setMessages(data.messages);
-        }
-      });
-
+      // System events
       newSocket.on('user_joined', (data) => {
         console.log('👋 User joined:', data);
         const roomId = currentRoomId;
         if (roomId) {
-          // Add to room storage
+          const systemMessage = {
+            id: `system-${Date.now()}`,
+            isSystemMessage: true,
+            message: `${data.username} joined the chat`,
+            timestamp: new Date().toISOString()
+          };
+          
           setRoomMessages(prev => {
             const newMap = new Map(prev);
             const roomMsgs = newMap.get(roomId) || [];
-            newMap.set(roomId, [...roomMsgs, data]);
+            newMap.set(roomId, [...roomMsgs, systemMessage]);
             return newMap;
           });
           
-          // Add to current view
-          setMessages(prev => [...prev, data]);
+          setMessages(prev => [...prev, systemMessage]);
         }
       });
 
@@ -989,16 +1023,21 @@ export const ChatSection = ({ selectedChat }) => {
         console.log('👋 User left:', data);
         const roomId = currentRoomId;
         if (roomId) {
-          // Add to room storage
+          const systemMessage = {
+            id: `system-${Date.now()}`,
+            isSystemMessage: true,
+            message: `${data.username} left the chat`,
+            timestamp: new Date().toISOString()
+          };
+          
           setRoomMessages(prev => {
             const newMap = new Map(prev);
             const roomMsgs = newMap.get(roomId) || [];
-            newMap.set(roomId, [...roomMsgs, data]);
+            newMap.set(roomId, [...roomMsgs, systemMessage]);
             return newMap;
           });
           
-          // Add to current view
-          setMessages(prev => [...prev, data]);
+          setMessages(prev => [...prev, systemMessage]);
         }
       });
 
@@ -1007,15 +1046,27 @@ export const ChatSection = ({ selectedChat }) => {
         setRoomUsers(data.users || []);
       });
 
+      // Typing indicators
       newSocket.on('user_typing', (data) => {
-        setTypingUsers(prev => {
-          const filtered = prev.filter(u => u.userId !== data.userId);
-          if (data.isTyping) {
-            return [...filtered, data];
-          } else {
-            return filtered;
-          }
-        });
+        const currentGroupId = selectedChat?.group_id || selectedChat?.id || selectedChat?.groupId;
+        if (data.group_id === currentGroupId && data.username !== currentUser?.username) {
+          setTypingUsers(prev => {
+            const filtered = prev.filter(u => u.username !== data.username);
+            return [...filtered, { username: data.username, userId: data.userId }];
+          });
+
+          setTimeout(() => {
+            setTypingUsers(prev => prev.filter(user => user.username !== data.username));
+          }, 3000);
+        }
+      });
+
+      newSocket.on('user_stopped_typing', (data) => {
+        setTypingUsers(prev => prev.filter(user => user.username !== data.username));
+      });
+
+      newSocket.on('test_response', (data) => {
+        console.log('🧪 Socket.IO test response:', data);
       });
 
       newSocket.on('error', (error) => {
@@ -1036,8 +1087,59 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [SOCKET_URL, DJANGO_URL]);
 
+  // Load messages from your existing database endpoint
+  const loadGroupMessages = async (groupId) => {
+    if (!groupId || !currentUser) return;
+    
+    setIsLoading(true);
+    console.log('📚 Loading messages for group:', groupId);
+    
+    try {
+      const response = await fetch(
+        `${DJANGO_URL}/group_messages/?group_id=${groupId}&num_messages=50`, 
+        {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`📋 Loaded ${data.messages.length} messages from database`);
+        
+        const orderedMessages = data.messages.reverse();
+        
+        const formattedMessages = orderedMessages.map(msg => ({
+          ...msg,
+          sender_id: msg.user_sending_id || msg.sender_id,
+          user_id: msg.user_sending_id || msg.sender_id,
+          timestamp: msg.date_sent,
+          isFromCurrentUser: msg.user_sending === currentUser.username
+        }));
+        
+        console.log('📋 Sample formatted message:', formattedMessages[0]);
+        console.log('📋 Current user for comparison:', currentUser.username);
+        
+        return formattedMessages;
+        
+      } else {
+        console.log('❌ Failed to load messages - Status:', response.status);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error loading messages:', error);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle selectedChat changes with persistence
   useEffect(() => {
+    console.log('🚪 selectedChat changed:', selectedChat);
+    
     if (!socket || !isAuthenticated || !selectedChat) {
       setCurrentRoomId(null);
       setMessages([]);
@@ -1048,26 +1150,52 @@ export const ChatSection = ({ selectedChat }) => {
     const roomId = getRoomId(selectedChat);
     console.log('🚪 Switching to room:', roomId);
     
+    const groupId = selectedChat.group_id || selectedChat.id || selectedChat.groupId;
+    console.log('🔍 Detected group ID:', groupId, 'from selectedChat:', selectedChat);
+    
     setCurrentRoomId(roomId);
     
-    // Immediately show cached messages for this room (no flicker!)
+    // Immediately show cached messages for this room
     const cachedMessages = roomMessages.get(roomId) || [];
     setMessages(cachedMessages);
     console.log(`📋 Loaded ${cachedMessages.length} cached messages for room ${roomId}`);
     
-    // Join the socket room
-    socket.emit('join_chat', { selectedChat });
+    // Join the socket room for real-time updates
+    if (groupId) {
+      console.log('🏠 Joining Socket.IO room for group:', groupId);
+      socket.emit('join_room', { 
+        group_id: groupId,
+        room_type: 'group' 
+      });
+    }
     
-    // Only load history if we haven't loaded it before
+    // Only load history from database if we haven't loaded it before
     const historyLoaded = roomHistory.get(roomId);
-    if (!historyLoaded) {
-      console.log('📚 Loading fresh history for room:', roomId);
-      socket.emit('get_chat_history', { selectedChat });
+    if (!historyLoaded && groupId) {
+      console.log('📚 Loading fresh history from database for room:', roomId);
+      
+      loadGroupMessages(groupId).then(freshMessages => {
+        if (freshMessages && freshMessages.length > 0) {
+          setRoomMessages(prev => {
+            const newMap = new Map(prev);
+            newMap.set(roomId, freshMessages);
+            return newMap;
+          });
+          
+          setRoomHistory(prev => {
+            const newMap = new Map(prev);
+            newMap.set(roomId, true);
+            return newMap;
+          });
+          
+          setMessages(freshMessages);
+          console.log('✅ Loaded and cached', freshMessages.length, 'messages');
+        }
+      });
     } else {
       console.log('✅ Using cached history for room:', roomId);
     }
     
-    // Clear typing indicators when switching rooms
     setTypingUsers([]);
     
   }, [socket, isAuthenticated, selectedChat, roomMessages, roomHistory]);
@@ -1081,27 +1209,139 @@ export const ChatSection = ({ selectedChat }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Send message via Socket.IO
-  const sendMessage = () => {
-    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim()) {
-      console.log('❌ Cannot send message:', {
+  // NEW SIMPLIFIED SEND MESSAGE - Direct Django + Socket.IO Broadcasting
+  const sendMessage = async () => {
+    console.log('🚀 === SEND MESSAGE (NEW ARCHITECTURE) ===');
+    console.log('   🔄 Frontend → Django (direct) + Socket.IO (broadcast)');
+    
+    // Validation checks
+    if (!socket || !socket.connected || !isAuthenticated || !selectedChat || !newMessage.trim() || !currentUser) {
+      console.error('❌ Validation failed:', {
         hasSocket: !!socket,
-        isAuthenticated,
-        hasSelectedChat: !!selectedChat,
-        hasMessage: !!newMessage.trim()
+        connected: socket?.connected,
+        authenticated: isAuthenticated,
+        hasChat: !!selectedChat,
+        hasMessage: !!newMessage.trim(),
+        hasUser: !!currentUser
       });
+      alert('Cannot send message - check connection and try again');
       return;
     }
 
-    console.log('📤 Sending message:', newMessage);
-    
-    socket.emit('send_message', {
-      selectedChat,
-      message: newMessage.trim()
-    });
+    const groupId = selectedChat.group_id || selectedChat.id || selectedChat.groupId;
+    if (!groupId) {
+      console.error('❌ Cannot determine group ID');
+      alert('Cannot determine group ID');
+      return;
+    }
 
+    const messageContent = newMessage.trim();
+    
+    // Add optimistic message immediately
+    const optimisticMessage = {
+      id: `temp-${Date.now()}`,
+      user_sending: currentUser.username,
+      user_recieving: groupId.toString(),
+      message_content: messageContent,
+      date_sent: new Date().toISOString(),
+      status: 'Sending...',
+      sender_id: currentUser.id,
+      user_id: currentUser.id,
+      timestamp: new Date().toISOString(),
+      isFromCurrentUser: true,
+      isOptimistic: true
+    };
+
+    console.log('💭 Adding optimistic message to UI...');
+    setMessages(prev => [...prev, optimisticMessage]);
+    
+    // Clear input immediately for better UX
     setNewMessage("");
     stopTyping();
+
+    try {
+      console.log('📡 === STEP 1: CALLING DJANGO DIRECTLY ===');
+      console.log('   🔗 URL:', `${DJANGO_URL}/send_message/`);
+      console.log('   📋 Data:', {
+        user_sending: currentUser.id,
+        user_recieving: groupId,
+        message: messageContent
+      });
+
+      // Step 1: Save to Django database directly
+      const response = await fetch(`${DJANGO_URL}/send_message/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_sending: currentUser.id,
+          user_recieving: groupId,
+          message: messageContent
+        })
+      });
+
+      if (response.ok) {
+        const djangoResult = await response.json();
+        console.log('✅ === DJANGO SUCCESS ===');
+        console.log('   📊 Status:', response.status);
+        console.log('   📝 Response:', djangoResult);
+        
+        // Step 2: Update optimistic message to show success
+        setMessages(prev => prev.map(msg => {
+          if (msg.isOptimistic && msg.message_content === messageContent) {
+            return {
+              ...msg,
+              status: 'Sent',
+              id: Date.now(),
+              isOptimistic: false
+            };
+          }
+          return msg;
+        }));
+
+        // Step 3: Broadcast to others via Socket.IO for real-time delivery
+        console.log('📡 === STEP 2: BROADCASTING VIA SOCKET.IO ===');
+        const broadcastData = {
+          user_sending: currentUser.username,
+          user_recieving: groupId.toString(),
+          message_content: messageContent,
+          date_sent: new Date().toISOString(),
+          status: 'Sent',
+          group_id: groupId,
+          user_id: currentUser.id,
+          sender_id: currentUser.id,
+          from_user: currentUser.username // Important for filtering
+        };
+
+        socket.emit('broadcast_message', broadcastData);
+        console.log('✅ Broadcast sent to Socket.IO for real-time delivery to others');
+
+      } else {
+        throw new Error(`Django error: ${response.status} ${response.statusText}`);
+      }
+
+    } catch (error) {
+      console.error('💥 === SEND MESSAGE FAILED ===');
+      console.error('   🚨 Error:', error.message);
+      
+      // Update optimistic message to show failure
+      setMessages(prev => prev.map(msg => {
+        if (msg.isOptimistic && msg.message_content === messageContent) {
+          return {
+            ...msg,
+            status: 'Failed',
+            isOptimistic: false
+          };
+        }
+        return msg;
+      }));
+
+      alert(`❌ Failed to send message: ${error.message}`);
+    }
+
+    console.log('✅ === SEND MESSAGE COMPLETED ===');
   };
 
   // Handle Enter key press
@@ -1113,14 +1353,26 @@ export const ChatSection = ({ selectedChat }) => {
 
   // Typing indicators
   const startTyping = () => {
-    if (socket && isAuthenticated) {
-      socket.emit('typing_start');
+    if (socket && isAuthenticated && selectedChat) {
+      const groupId = selectedChat.group_id || selectedChat.id || selectedChat.groupId;
+      if (groupId) {
+        socket.emit('typing', {
+          username: currentUser.username,
+          group_id: groupId
+        });
+      }
     }
   };
 
   const stopTyping = () => {
-    if (socket && isAuthenticated) {
-      socket.emit('typing_stop');
+    if (socket && isAuthenticated && selectedChat) {
+      const groupId = selectedChat.group_id || selectedChat.id || selectedChat.groupId;
+      if (groupId) {
+        socket.emit('stop_typing', {
+          username: currentUser.username,
+          group_id: groupId
+        });
+      }
     }
   };
 
@@ -1145,23 +1397,48 @@ export const ChatSection = ({ selectedChat }) => {
       );
     }
 
-    const isOwnMessage = message.sender_id === currentUser?.id;
+    const isOwnMessage = 
+      message.isFromCurrentUser ||
+      message.sender_id === currentUser?.id || 
+      message.user_sending === currentUser?.username ||
+      (message.user_id && message.user_id === currentUser?.id);
+    
     const messageStyle = isOwnMessage ? styles.sent : styles.received;
     
     return (
       <div key={`msg-${message.id || message.timestamp}`} style={styles.messageWrapper}>
+        {/* Timestamp above message */}
+        <div style={{
+          ...styles.timestamp,
+          alignSelf: isOwnMessage ? 'flex-end' : 'flex-start',
+          marginBottom: '0.25rem',
+          textAlign: isOwnMessage ? 'right' : 'left'
+        }}>
+          {new Date(message.date_sent || message.timestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+          {message.status && (
+            <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', opacity: 0.8 }}>
+              • {message.status}
+            </span>
+          )}
+        </div>
+        
+        {/* Sender name (only for others' messages) */}
         {!isOwnMessage && (
-          <div style={styles.senderUsername}>
+          <div style={{
+            ...styles.senderUsername,
+            alignSelf: 'flex-start',
+            marginBottom: '0.25rem'
+          }}>
             {message.user_sending || `User ${message.sender_id}`}
           </div>
         )}
+        
+        {/* Message content */}
         <div style={messageStyle}>
           {message.message_content || message.message}
-        </div>
-        <div style={styles.meta}>
-          <span style={styles.timestamp}>
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </span>
         </div>
       </div>
     );
@@ -1174,7 +1451,7 @@ export const ChatSection = ({ selectedChat }) => {
     return "🟢 Connected to Cloud";
   };
 
-  // Component styles (keeping your existing purple theme)
+  // Component styles (keeping your exact styling)
   const chatStyle = {
     width: "75%",
     height: "90vh",
@@ -1234,7 +1511,7 @@ export const ChatSection = ({ selectedChat }) => {
       <div style={headerStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>
-            {selectedChat?.group_name || selectedChat?.username || "Select a chat"}
+            {selectedChat?.group_name || selectedChat?.username || selectedChat?.name || "Select a chat"}
           </h2>
           <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
             {getConnectionStatus()}
@@ -1245,8 +1522,14 @@ export const ChatSection = ({ selectedChat }) => {
             {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
           </div>
         )}
-        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
-          💾 {messages.length} messages cached | Room: {currentRoomId || 'none'}
+        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>
+            💾 {messages.length} messages | Room: {currentRoomId || 'none'}
+            {isLoading && ' | 📚 Loading...'}
+          </span>
+          <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>
+            🏗️ Frontend → Django (direct) + Socket.IO (broadcast)
+          </div>
         </div>
       </div>
 
@@ -1271,7 +1554,9 @@ export const ChatSection = ({ selectedChat }) => {
           <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
             {selectedChat
               ? isAuthenticated 
-                ? "No messages yet - start the conversation!" 
+                ? isLoading
+                  ? "📚 Loading chat history..."
+                  : "No messages yet - start the conversation!" 
                 : "Connecting to chat server..."
               : "Select a chat to start messaging"}
           </div>
@@ -1302,18 +1587,25 @@ export const ChatSection = ({ selectedChat }) => {
   );
 };
 
-// Enhanced styles with your existing theme
+// Enhanced styles with your exact theme
 const styles = {
   messageWrapper: {
     display: "flex",
     flexDirection: "column",
     marginBottom: "1.5rem",
+    width: "100%",
   },
   
   senderUsername: {
     fontSize: "0.75rem",
     marginBottom: "0.25rem",
     color: "#bbb",
+  },
+  
+  timestamp: {
+    fontSize: "0.7rem",
+    color: "#ccc",
+    opacity: 0.8,
   },
   
   sent: {
@@ -1325,7 +1617,6 @@ const styles = {
     borderBottomRightRadius: "20px",
     borderBottomLeftRadius: "20px",
     padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
     maxWidth: "70%",
     wordBreak: "break-word",
   },
@@ -1339,7 +1630,6 @@ const styles = {
     borderBottomRightRadius: "20px",
     borderBottomLeftRadius: "20px",
     padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
     maxWidth: "70%",
     wordBreak: "break-word",
   },
@@ -1352,18 +1642,6 @@ const styles = {
     padding: "0.5rem",
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: "8px",
-  },
-
-  meta: {
-    fontSize: "0.8rem",
-    color: "#ccc",
-    marginTop: "0.3rem",
-    display: "flex",
-    gap: "0.5rem",
-  },
-
-  timestamp: {
-    opacity: 0.8,
   },
 
   typingIndicator: {
