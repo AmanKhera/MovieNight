@@ -1168,12 +1168,13 @@ export const ChatSection = ({ selectedChat }) => {
     const messageStyle = isOwnMessage ? styles.sent : styles.received;
     
     return (
-      <div key={`msg-${message.id || message.timestamp}`} style={styles.messageWrapper}>
-        {!isOwnMessage && (
-          <div style={styles.senderUsername}>
-            {message.user_sending || `User ${message.sender_id}`}
-          </div>
-        )}
+      <div key={`msg-${message.id || message.timestamp}`} style={{ 
+        ...styles.messageWrapper,
+        alignItems: isOwnMessage ? 'flex-end' : 'flex-start'
+      }}>
+        <div style={styles.senderUsername}>
+          {message.user_sending || `User ${message.sender_id}`}
+        </div>
         <div style={messageStyle}>
           {message.message_content || message.message}
         </div>
@@ -1340,16 +1341,18 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     marginBottom: "1.5rem",
+    width: "100%",
   },
   
   senderUsername: {
     fontSize: "0.75rem",
     marginBottom: "0.25rem",
     color: "#bbb",
+    paddingLeft: "0.5rem",
+    paddingRight: "0.5rem",
   },
   
   sent: {
-    alignSelf: "flex-end",
     backgroundImage: "linear-gradient(359.5deg, rgb(28, 0, 80) 8.8%, rgb(99, 49, 145) 77.4%)",
     color: "white",
     border: "1px solid rgb(161, 79, 255)",
@@ -1357,13 +1360,12 @@ const styles = {
     borderBottomRightRadius: "20px",
     borderBottomLeftRadius: "20px",
     padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
+    marginBottom: "0.25rem",
     maxWidth: "70%",
     wordBreak: "break-word",
   },
 
   received: {
-    alignSelf: "flex-start",
     backgroundImage: "linear-gradient(359.5deg, rgba(115,122,205,1) 8.8%, rgba(186,191,248,1) 77.4%)",
     color: "black",
     border: "1px solid rgb(248, 253, 255)",
@@ -1371,7 +1373,7 @@ const styles = {
     borderBottomRightRadius: "20px",
     borderBottomLeftRadius: "20px",
     padding: "0.75rem 1.2rem",
-    marginBottom: "1rem",
+    marginBottom: "0.25rem",
     maxWidth: "70%",
     wordBreak: "break-word",
   },
@@ -1393,6 +1395,8 @@ const styles = {
     display: "flex",
     gap: "0.5rem",
     justifyContent: "space-between",
+    paddingLeft: "0.5rem",
+    paddingRight: "0.5rem",
   },
 
   timestamp: {
@@ -1411,7 +1415,6 @@ const styles = {
     fontSize: "0.9rem",
   },
 };
-
 
 
 
