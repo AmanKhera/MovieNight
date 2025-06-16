@@ -930,12 +930,31 @@ export const ChatSection = ({ selectedChat }) => {
 
       newSocket.on('user_joined', (data) => {
         console.log('👋 User joined:', data);
-        setMessages(prev => [...prev, data]);
+        setMessages(prev => {
+          // Check if this join notification already exists
+          const isDuplicate = prev.some(msg => 
+            msg.isSystemMessage && 
+            msg.message === `${data.username} joined the chat`
+          );
+          
+          if (!isDuplicate) {
+            return [...prev, {
+              isSystemMessage: true,
+              message: `${data.username} joined the chat`,
+              timestamp: new Date().toISOString()
+            }];
+          }
+          return prev;
+        });
       });
 
       newSocket.on('user_left', (data) => {
         console.log('👋 User left:', data);
-        setMessages(prev => [...prev, data]);
+        setMessages(prev => [...prev, {
+          isSystemMessage: true,
+          message: `${data.username} left the chat`,
+          timestamp: new Date().toISOString()
+        }]);
       });
 
       newSocket.on('room_users', (data) => {
@@ -944,14 +963,17 @@ export const ChatSection = ({ selectedChat }) => {
       });
 
       newSocket.on('user_typing', (data) => {
-        setTypingUsers(prev => {
-          const filtered = prev.filter(u => u.userId !== data.userId);
-          if (data.isTyping) {
-            return [...filtered, data];
-          } else {
-            return filtered;
-          }
-        });
+        // Only show typing indicators for other users
+        if (data.userId !== currentUser?.id) {
+          setTypingUsers(prev => {
+            const filtered = prev.filter(u => u.userId !== data.userId);
+            if (data.isTyping) {
+              return [...filtered, data];
+            } else {
+              return filtered;
+            }
+          });
+        }
       });
 
       newSocket.on('error', (error) => {
@@ -1046,12 +1068,12 @@ export const ChatSection = ({ selectedChat }) => {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
     scrollToBottom();
   }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   // Send message via Django first, then broadcast via Socket.IO
   const sendMessage = async () => {
@@ -1222,6 +1244,8 @@ export const ChatSection = ({ selectedChat }) => {
     overflowY: "auto",
     padding: "1.5rem",
     minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
   };
 
   const inputContainerStyle = {
@@ -1283,14 +1307,18 @@ export const ChatSection = ({ selectedChat }) => {
           </div>
         ) : messages.length > 0 ? (
           <>
+            <div style={{ flex: 1, minHeight: 0 }} />
             {messages.map((message, index) => formatMessage(message))}
             
-            {/* Typing indicators */}
-            {typingUsers.length > 0 && (
+            {/* Only show typing indicator if there are OTHER users typing */}
+            {typingUsers.filter(user => user.userId !== currentUser?.id).length > 0 && (
               <div style={styles.typingIndicator}>
                 <em>
-                  {typingUsers.map(user => user.username).join(', ')} 
-                  {typingUsers.length === 1 ? ' is' : ' are'} typing...
+                  {typingUsers
+                    .filter(user => user.userId !== currentUser?.id)
+                    .map(user => user.username)
+                    .join(', ')} 
+                  {typingUsers.filter(user => user.userId !== currentUser?.id).length === 1 ? ' is' : ' are'} typing...
                 </em>
               </div>
             )}
