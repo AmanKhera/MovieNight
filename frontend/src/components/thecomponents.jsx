@@ -795,6 +795,8 @@ export const ChatSection = ({ selectedChat }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
   // Refs
   const messagesEndRef = useRef(null);
@@ -910,15 +912,20 @@ export const ChatSection = ({ selectedChat }) => {
       // Chat events
       newSocket.on('new_message', (message) => {
         console.log('📨 New message received:', message);
-        setMessages(prev => [...prev, message]);
-      });
-
-      newSocket.on('chat_history', (data) => {
-        console.log('📚 Chat history loaded:', data.messages?.length || 0, 'messages');
-        if (data.error) {
-          console.warn('⚠️ Chat history error:', data.error);
-        }
-        setMessages(data.messages || []);
+        setMessages(prev => {
+          // Prevent duplicates by checking message ID and content
+          const isDuplicate = prev.some(msg => 
+            msg.id === message.id || 
+            (msg.message_content === message.message_content && 
+             msg.user_sending === message.user_sending &&
+             Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 5000)
+          );
+          
+          if (!isDuplicate) {
+            return [...prev, message];
+          }
+          return prev;
+        });
       });
 
       newSocket.on('user_joined', (data) => {
@@ -965,6 +972,57 @@ export const ChatSection = ({ selectedChat }) => {
     };
   }, [SOCKET_URL, DJANGO_URL]);
 
+  // Load chat history from Django
+  const loadChatHistory = async (selectedChat) => {
+    if (!selectedChat) return;
+
+    setIsLoadingHistory(true);
+    console.log('📚 Loading chat history for:', selectedChat);
+
+    try {
+      const endpoint = selectedChat.group_id
+        ? `group_messages/?group_id=${selectedChat.group_id}`
+        : `group_messages/?group_id=${selectedChat.id}`;
+
+      const historyUrl = `${DJANGO_URL}/${endpoint}`;
+      console.log(`📡 Fetching from: ${historyUrl}`);
+
+      const response = await fetch(historyUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ Chat history loaded: ${data.messages?.length || 0} messages`);
+      
+      // Format messages for display
+      const formattedMessages = (data.messages || []).map(msg => ({
+        id: msg.id,
+        message_content: msg.message_content,
+        user_sending: msg.user_sending,
+        sender_id: msg.user_id || msg.sender_id,
+        group_id: selectedChat.group_id || selectedChat.id,
+        timestamp: msg.date_sent || msg.timestamp,
+        status: msg.status || 'Sent',
+        isSystemMessage: false
+      }));
+
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error('⚠️ Error loading chat history:', error);
+      setMessages([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   // Handle selectedChat changes
   useEffect(() => {
     if (!socket || !isAuthenticated || !selectedChat) {
@@ -975,14 +1033,13 @@ export const ChatSection = ({ selectedChat }) => {
 
     console.log('🚪 Joining chat:', selectedChat);
     
-    // Join the chat room
+    // Join the chat room via Socket.IO
     socket.emit('join_chat', { selectedChat });
     
-    // Get chat history
-    socket.emit('get_chat_history', { selectedChat });
+    // Load chat history directly from Django
+    loadChatHistory(selectedChat);
     
-    // Clear state when switching chats
-    setMessages([]);
+    // Clear typing users when switching chats
     setTypingUsers([]);
     
   }, [socket, isAuthenticated, selectedChat]);
@@ -996,32 +1053,75 @@ export const ChatSection = ({ selectedChat }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Send message via Socket.IO
-  const sendMessage = () => {
-    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim()) {
+  // Send message via Django first, then broadcast via Socket.IO
+  const sendMessage = async () => {
+    if (!socket || !isAuthenticated || !selectedChat || !newMessage.trim() || isSending) {
       console.log('❌ Cannot send message:', {
         hasSocket: !!socket,
         isAuthenticated,
         hasSelectedChat: !!selectedChat,
-        hasMessage: !!newMessage.trim()
+        hasMessage: !!newMessage.trim(),
+        isSending
       });
       return;
     }
 
-    console.log('📤 Sending message:', newMessage);
-    
-    socket.emit('send_message', {
-      selectedChat,
-      message: newMessage.trim()
-    });
+    setIsSending(true);
+    const messageText = newMessage.trim();
+    setNewMessage(""); // Clear input immediately for better UX
 
-    setNewMessage("");
-    stopTyping();
+    try {
+      console.log('📤 Sending message to Django first...');
+      
+      // Step 1: Save to Django database (direct call - reliable)
+      const messageData = {
+        user_sending: currentUser.id,
+        user_recieving: selectedChat.group_id || selectedChat.id, // group_id or user_id
+        message: messageText
+      };
+
+      const response = await fetch(`${DJANGO_URL}/send_message/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(messageData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const savedMessage = await response.json();
+      console.log('✅ Message saved to Django:', savedMessage);
+
+      // Step 2: Broadcast via Socket.IO for real-time delivery
+      socket.emit('broadcast_message', {
+        selectedChat,
+        message: messageText,
+        messageData: savedMessage
+      });
+
+      console.log('📡 Message broadcasted via Socket.IO');
+
+      // Clear typing status
+      stopTyping();
+
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      // Restore message if it failed
+      setNewMessage(messageText);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Handle Enter key press
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       sendMessage();
     }
   };
@@ -1064,7 +1164,7 @@ export const ChatSection = ({ selectedChat }) => {
       );
     }
 
-    const isOwnMessage = message.sender_id === currentUser?.id;
+    const isOwnMessage = message.sender_id === currentUser?.id || message.user_sending === currentUser?.username;
     const messageStyle = isOwnMessage ? styles.sent : styles.received;
     
     return (
@@ -1081,6 +1181,11 @@ export const ChatSection = ({ selectedChat }) => {
           <span style={styles.timestamp}>
             {new Date(message.timestamp).toLocaleTimeString()}
           </span>
+          {isOwnMessage && (
+            <span style={styles.status}>
+              {message.status || 'Sent'}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -1145,7 +1250,7 @@ export const ChatSection = ({ selectedChat }) => {
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
-    opacity: (!isConnected || !isAuthenticated || !newMessage.trim()) ? 0.5 : 1,
+    opacity: (!isConnected || !isAuthenticated || !newMessage.trim() || isSending) ? 0.5 : 1,
   };
 
   return (
@@ -1165,12 +1270,17 @@ export const ChatSection = ({ selectedChat }) => {
           </div>
         )}
         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
-          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'}
+          Server: {SOCKET_URL.includes('railway') ? '☁️ Cloud' : '🏠 Local'} | 
+          Messages: {messages.length}
         </div>
       </div>
 
       <div style={messagesStyle} ref={messagesContainerRef}>
-        {messages.length > 0 ? (
+        {isLoadingHistory ? (
+          <div style={{ textAlign: "center", marginTop: "2rem", color: "#aaa" }}>
+            Loading chat history...
+          </div>
+        ) : messages.length > 0 ? (
           <>
             {messages.map((message, index) => formatMessage(message))}
             
@@ -1203,17 +1313,20 @@ export const ChatSection = ({ selectedChat }) => {
             type="text"
             value={newMessage}
             onChange={handleInputChange}
-            placeholder={isConnected && isAuthenticated ? "Type your message..." : "Connecting..."}
+            placeholder={
+              isSending ? "Sending..." :
+              isConnected && isAuthenticated ? "Type your message..." : "Connecting..."
+            }
             style={inputStyle}
             onKeyPress={handleKeyPress}
-            disabled={!isConnected || !isAuthenticated}
+            disabled={!isConnected || !isAuthenticated || isSending}
           />
           <button
             onClick={sendMessage}
             style={buttonStyle}
-            disabled={!isConnected || !isAuthenticated || !newMessage.trim()}
+            disabled={!isConnected || !isAuthenticated || !newMessage.trim() || isSending}
           >
-            Send
+            {isSending ? "📤" : "Send"}
           </button>
         </div>
       )}
@@ -1279,10 +1392,16 @@ const styles = {
     marginTop: "0.3rem",
     display: "flex",
     gap: "0.5rem",
+    justifyContent: "space-between",
   },
 
   timestamp: {
     opacity: 0.8,
+  },
+
+  status: {
+    opacity: 0.6,
+    fontStyle: "italic",
   },
 
   typingIndicator: {
@@ -1292,7 +1411,6 @@ const styles = {
     fontSize: "0.9rem",
   },
 };
-
 
 
 

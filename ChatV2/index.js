@@ -104,36 +104,6 @@ async function verifyUserWithDjango(cookies, djangoUrl = DJANGO_API) {
     }
 }
 
-// Utility function to save message to Django
-async function saveMessageToDjango(messageData, cookies, djangoUrl = DJANGO_API) {
-    try {
-        const response = await axios.post(`${djangoUrl}/send_message/`, messageData, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Cookie': cookies,
-                'X-CSRFToken': extractCSRFToken(cookies),
-                'User-Agent': 'Socket.IO-Railway-Server'
-            },
-            timeout: 10000
-        });
-        return response.data;
-    } catch (error) {
-        console.error('⚠️ Failed to save message to Django:', {
-            status: error.response?.status,
-            message: error.message,
-            data: error.response?.data
-        });
-        return null;
-    }
-}
-
-// Helper function to extract CSRF token from cookies
-function extractCSRFToken(cookies) {
-    if (!cookies) return '';
-    const match = cookies.match(/csrftoken=([^;]+)/);
-    return match ? match[1] : '';
-}
-
 // Helper function to get room name from chat selection
 function getRoomName(selectedChat) {
     if (selectedChat.group_id) {
@@ -280,9 +250,9 @@ io.on("connection", (socket) => {
         console.log(`👋 ${socket.username} joined room: ${roomName}`);
     });
 
-    // Handle sending messages with real-time priority
-    socket.on('send_message', async (data) => {
-        const { selectedChat, message } = data;
+    // Handle real-time message broadcasting (NO Django saving - frontend handles that)
+    socket.on('broadcast_message', (data) => {
+        const { selectedChat, message, messageData } = data;
         
         if (!socket.userId || !socket.selectedChat || !message.trim()) {
             socket.emit('error', { message: 'Invalid message data' });
@@ -291,40 +261,21 @@ io.on("connection", (socket) => {
 
         const roomName = socket.currentRoom;
         
-        // Create real-time message object first
-        const realtimeMessage = {
-            id: Date.now(),
+        // Create real-time message object for broadcasting
+        const broadcastMessage = {
+            id: messageData?.id || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             sender_id: socket.userId,
             user_sending: socket.username,
             message_content: message.trim(),
             timestamp: new Date().toISOString(),
-            room: roomName
+            room: roomName,
+            group_id: selectedChat.group_id,
+            status: 'Sent'
         };
 
-        // Broadcast immediately for real-time experience
-        io.to(roomName).emit('new_message', realtimeMessage);
-        console.log(`💬 ${socket.username} in ${roomName}: ${message}`);
-
-        // Try to save to Django (but don't block real-time delivery)
-        if (socket.cookies) {
-            const messageData = selectedChat.group_id ? {
-                user_sending: socket.userId,
-                user_recieving: selectedChat.group_id,
-                message: message.trim()
-            } : {
-                sender_id: socket.userId,
-                receiver_id: selectedChat.id,
-                message: message.trim()
-            };
-
-            const savedMessage = await saveMessageToDjango(messageData, socket.cookies, socket.djangoUrl);
-            
-            if (savedMessage) {
-                console.log('✅ Message saved to Django successfully');
-            } else {
-                console.log('⚠️ Message not saved to Django, but real-time delivery successful');
-            }
-        }
+        // Broadcast to ALL users in room (including sender for confirmation)
+        io.to(roomName).emit('new_message', broadcastMessage);
+        console.log(`💬 Broadcasting message from ${socket.username} in ${roomName}: ${message.substring(0, 50)}...`);
     });
 
     // Handle typing indicators
@@ -344,51 +295,6 @@ io.on("connection", (socket) => {
                 userId: socket.userId,
                 username: socket.username,
                 isTyping: false
-            });
-        }
-    });
-
-    // Handle getting chat history
-    socket.on('get_chat_history', async (data) => {
-        const { selectedChat } = data;
-        
-        if (!socket.userId || !selectedChat) {
-            socket.emit('chat_history', { messages: [] });
-            return;
-        }
-
-        try {
-            const endpoint = selectedChat.group_id
-                ? `group_messages/?group_id=${selectedChat.group_id}`
-                : `group_messages/?group_id=${selectedChat.id}`;
-
-            const djangoUrl = socket.djangoUrl || DJANGO_API;
-            const historyUrl = `${djangoUrl}/${endpoint}`;
-            
-            console.log(`📚 Fetching chat history from: ${historyUrl}`);
-
-            const response = await axios.get(historyUrl, {
-                headers: {
-                    'Cookie': socket.cookies || '',
-                    'X-CSRFToken': extractCSRFToken(socket.cookies || ''),
-                    'User-Agent': 'Socket.IO-Railway-Server'
-                },
-                timeout: 10000
-            });
-
-            console.log(`✅ Chat history loaded: ${response.data.messages?.length || 0} messages`);
-            socket.emit('chat_history', {
-                messages: response.data.messages || []
-            });
-        } catch (error) {
-            console.error('⚠️ Error fetching chat history:', {
-                status: error.response?.status,
-                message: error.message,
-                data: error.response?.data
-            });
-            socket.emit('chat_history', { 
-                messages: [], 
-                error: 'Could not load chat history from Django' 
             });
         }
     });
