@@ -929,15 +929,9 @@ export const ChatSection = ({ selectedChat }) => {
         }
       });
 
-      // Real-time message receiving (from others only)
+      // Real-time message receiving (your original system)
       newSocket.on('new_message', (message) => {
         console.log('📨 New message received from Socket.IO:', message);
-        
-        // Skip messages from current user (we already have them from optimistic update)
-        if (message.from_user === currentUser?.username || message.user_sending === currentUser?.username) {
-          console.log('🔄 Skipping own message (already shown via optimistic update)');
-          return;
-        }
         
         // Convert Socket.IO message to your database format
         const formattedMessage = {
@@ -950,7 +944,7 @@ export const ChatSection = ({ selectedChat }) => {
           sender_id: message.user_id || message.sender_id,
           user_id: message.user_id || message.sender_id,
           timestamp: message.date_sent || message.timestamp,
-          isFromCurrentUser: false, // This is always from others
+          isFromCurrentUser: message.username === currentUser?.username,
           isFromSocket: true
         };
         
@@ -961,8 +955,7 @@ export const ChatSection = ({ selectedChat }) => {
           messageGroupId,
           currentGroupId,
           matches: messageGroupId === currentGroupId,
-          fromUser: message.from_user,
-          currentUser: currentUser?.username
+          isFromCurrentUser: formattedMessage.isFromCurrentUser
         });
         
         const roomId = messageGroupId ? `group_${messageGroupId}` : currentRoomId;
@@ -1522,14 +1515,9 @@ export const ChatSection = ({ selectedChat }) => {
             {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
           </div>
         )}
-        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>
-            💾 {messages.length} messages | Room: {currentRoomId || 'none'}
-            {isLoading && ' | 📚 Loading...'}
-          </span>
-          <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>
-            🏗️ Frontend → Django (direct) + Socket.IO (broadcast)
-          </div>
+        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
+          💾 {messages.length} messages | Room: {currentRoomId || 'none'}
+          {isLoading && ' | 📚 Loading...'} | 💾 Django (save) + ⚡ Socket.IO (instant)
         </div>
       </div>
 
