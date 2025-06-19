@@ -97,10 +97,12 @@ def hosted_ui_login(request):
         f"https://{settings.AWS_COGNITO_DOMAIN}/login?"
         f"client_id={settings.AWS_COGNITO_CLIENT_ID}&"
         f"response_type=code&"
-        f"scope=email+openid+phone+aws.cognito.signin.user.admin&"  #required scopes
-        f"redirect_uri=http://localhost:8000/Login"
+        f"scope=email+openid+aws.cognito.signin.user.admin&" 
+        f"redirect_uri=http://localhost:8000/Login&"
+        f"prompt=consent"
     )
     return redirect(cognito_url)
+
 
 
 #login_callback
@@ -182,9 +184,8 @@ def login_callback(request):
 
     token_url = f"https://{settings.AWS_COGNITO_DOMAIN}/oauth2/token"
     redirect_uri = "http://localhost:8000/Login"
-
+    
     try:
-        #Exchanges the authorization code for tokens
         response = requests.post(
             token_url,
             data={
@@ -199,24 +200,19 @@ def login_callback(request):
         response.raise_for_status()
         tokens = response.json()
 
-        #Save tokens in session
         request.session["id_token"] = tokens["id_token"]
-        request.session["access_token"] = tokens["access_token"]
+        request.session["access_token"] = tokens["access_token"] 
         request.session["refresh_token"] = tokens["refresh_token"]
 
-        #Update or create the user
-        result = update_or_create_user_from_cognito(tokens["access_token"])
+        result = update_or_create_user_from_cognito(tokens["access_token"], tokens["id_token"])
         if "error" in result:
             return JsonResponse({"error": result["error"]}, status=500)
 
-        is_new_user = False
-        if result.get("message") == "User already exists, no update or creation needed.":
-            is_new_user = False
-        else:
-            is_new_user = result.get("is_new", False)
-            if is_new_user:
-                create_watchlist(request)
-
+        # ✅ Fix: Check the correct key
+        is_new_user = result.get("is_new", False)
+        
+        if is_new_user:
+            create_watchlist(request)
 
         return redirect(f"http://localhost:3000/?new_user={str(is_new_user).lower()}")
 
@@ -227,49 +223,35 @@ def login_callback(request):
 
 
 
+
 #Update or create user from cognito
 #Desc: Checks to see if user exists within our User table
 #Params: access_token: Given via login_callback to get all the necessary information to populate our table
 #Return: User, and is_new
-def update_or_create_user_from_cognito(access_token):
-    
+def update_or_create_user_from_cognito(access_token, id_token):
     try:
-
-        username = get_user_username(access_token).get('username')
-
-        if User.objects.filter(name=username).exists():
-             return {"user": username, "is_new": False}
+        decoded_id = jwt.decode(id_token, options={"verify_signature": False})
         
-
-        #Decode given access token to grab user attributes
-        decoded_token = jwt.decode(access_token, options={"verify_signature": False})
-
-        #Use AWS Cognito client to fetch user attributes
-        client = get_cognito_client()
-        response = client.get_user(AccessToken=access_token)
-
-        #Parse attributes given via response
-        user_attributes = {attr['Name']: attr['Value'] for attr in response['UserAttributes']}
-        email = user_attributes.get('email')
-
+        email = decoded_id.get('email')
+        username = decoded_id.get('cognito:username', email.split('@')[0] if email else 'unknown')
+        
         if not email:
-            return {"error": "Email is required to update or create a user."}
-
+            return {"error": "Email is required"}
+        
+        #checks email regardless of case-sensitivity
+        if User.objects.filter(email__iexact=email).exists():
+            return {"user": username, "is_new": False}
+        
         user, created = User.objects.update_or_create(
             email=email,
             defaults={"name": username}
         )
-
-        #Returns user and whether they are new
+        
         return {"user": user, "is_new": created}
-
-    except jwt.ExpiredSignatureError:
-        return {"error": "The access token has expired."}
-    except jwt.DecodeError:
-        return {"error": "The access token is invalid."}
+        
     except Exception as e:
+        print(f"Debug - Exception details: {str(e)}")
         return {"error": f"An unexpected error occurred: {str(e)}"}
-    
 
 
 
